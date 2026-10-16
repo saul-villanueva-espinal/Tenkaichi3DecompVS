@@ -1222,7 +1222,8 @@ void TeamSel_Draw(void) {
             s32 px = 0, py = 0;
             Flash_FindLabel(flash, NULL, "mc_color_plate_1", &ref);
             if (ref.id >= 0) {
-                s32 curColor = gTeamSel->side[i]->member[gTeamSel->side[i]->memberCursor].color;
+                s32 cur = gTeamSel->side[i]->cur;
+                s32 curColor = (cur >= 0 && cur < TS_MEMBER_MAX) ? gTeamSel->side[i]->member[cur].color : 0;
                 Flash_ClipGetPos(flash, &ref, &px, &py);
                 snprintf(costumeStr, sizeof(costumeStr), "TRAJE %d / %d", curColor + 1, gTeamSel->colorCount[i]);
                 FontStyle saved = gFontStyle;
