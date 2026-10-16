@@ -443,6 +443,12 @@ int Port_FightPad(int k) {
     return -1;
 }
 
+void Port_SetFightPad(int k, int pad) {
+    if (k >= 0 && k < sFightCount) {
+        sFight[k].pad = pad;
+    }
+}
+
 /* (more than two fighters) A fighter played from a controller, said once a fight when it is set up. */
 void Port_PlayerLog(int fighter, int pad, int cpu) {
     if (sFightCount > 0 && !cpu) {

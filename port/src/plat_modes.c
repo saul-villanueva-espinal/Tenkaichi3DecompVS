@@ -66,7 +66,7 @@ static int online(void) {
 }
 
 const char *Port_ModesName(int mode) {
-    static const char *const kNames[PORT_MODE_COUNT] = {"", "Team Battle", "Free-for-All", "Training"};
+    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Entrenamiento"};
     return mode > PORT_MODE_NONE && mode < PORT_MODE_COUNT ? kNames[mode] : "";
 }
 
@@ -90,7 +90,7 @@ void Port_ModesView(PortModesView *out) {
 }
 
 const char *Port_ModesPlayersName(int n) {
-    static const char *const kNames[4] = {"1 Player", "2 Players", "3 Players", "4 Players"};
+    static const char *const kNames[4] = {"1 Jugador vs CPU", "2 Jugadores (Split)", "3 Jugadores (4-Way)", "4 Jugadores (4-Way)"};
     return n >= 1 && n <= 4 ? kNames[n - 1] : "";
 }
 

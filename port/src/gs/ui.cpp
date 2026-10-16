@@ -2156,12 +2156,12 @@ static void modes_draw(const PortModesView &v) {
         b.ky = ph / 448.0f;
     }
     if (v.hint) {
-        ImVec2 p0 = modes_at(b, 330.0f, 416.0f), p1 = modes_at(b, 502.0f, 440.0f), k0 = modes_at(b, 336.0f, 420.0f), k1 = modes_at(b, 392.0f, 436.0f);
-        dl->AddRectFilled(p0, p1, IM_COL32(6, 14, 40, 215), 12.0f * b.ky);
-        dl->AddRect(p0, p1, IM_COL32(246, 150, 30, 255), 12.0f * b.ky, 0, 1.5f * b.ky);
+        ImVec2 p0 = modes_at(b, 275.0f, 414.0f), p1 = modes_at(b, 505.0f, 442.0f), k0 = modes_at(b, 281.0f, 418.0f), k1 = modes_at(b, 345.0f, 438.0f);
+        dl->AddRectFilled(p0, p1, IM_COL32(6, 14, 40, 230), 12.0f * b.ky);
+        dl->AddRect(p0, p1, IM_COL32(246, 150, 30, 255), 12.0f * b.ky, 0, 1.8f * b.ky);
         dl->AddRectFilled(k0, k1, IM_COL32(230, 235, 245, 255), 8.0f * b.ky);
-        modes_text(dl, b, 12.0f, 364.0f, 421.5f, IM_COL32(20, 24, 40, 255), "SELECT", 1, 50.0f);
-        modes_text(dl, b, 14.0f, 399.0f, 420.5f, IM_COL32(255, 240, 200, 255), v.set ? "Back" : "More modes", 0, 96.0f);
+        modes_text(dl, b, 12.0f, 313.0f, 421.5f, IM_COL32(20, 24, 40, 255), "SELECT", 1, 60.0f);
+        modes_text(dl, b, 14.0f, 352.0f, 420.5f, IM_COL32(255, 240, 200, 255), v.set ? "VOLVER AL MENU" : "MODO TAG TEAM", 0, 145.0f);
     }
     if (!v.set || !v.hint) { // the screen reader: the set when it comes up, then the entry under the cursor when it changes
         said = -1;

@@ -23,6 +23,7 @@ int Port_FightTeam(int k);    /* team number 0..PORT_TEAM_MAX-1 */
 int Port_FightLevel(int k);   /* computer level 0..29, -1: not set (its side's own) */
 int Port_FightMember(int k);  /* the member of the battle setup it was made from: side * 8 + index, -1: none */
 int Port_FightRoster(void);   /* 0, or the fight is of the sides' own team rosters: 1 Team Battle, 2 Free-for-All */
+void Port_SetFightPad(int k, int pad); /* takeover: change extra fighter k's controller pad */
 
 /* What the loader made for them (port/src/plat_stub.c; -1: nothing). gPortExtraObjs: how many have an object, which
    is how many are in the roster (0 until the objects are made). */

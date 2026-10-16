@@ -41,9 +41,9 @@ MainMenu *gMainMenu = NULL;
 #define PORTMODES_NUM 3
 static const s32 sPortModesItem[PORTMODES_NUM] = { 3, 2, 6 }; /* the plates of Duel, Dragon World Tour, Ultimate Training */
 static char *const sPortModesHelp[PORTMODES_NUM] = {
-    "Teams of up to five fighters,\nall in the fight at the same time.",
-    "Fill both lists with fighters.\nEvery one fights for itself.",
-    "Training, with the extra fighter\nset up in the settings (F1).",
+    "Batalla en Equipo (Tag Team / 2v2 a 5v5):\nTodos los luchadores combaten a la vez.",
+    "Todos contra Todos (Free-for-All):\nBatalla campal libre, cada uno lucha por su cuenta.",
+    "Entrenamiento con Companero Extra:\nPractica libre con luchador adicional (F1).",
 };
 /* After Team Battle or Free-for-All, the same menu lists the number of players (asked for by the user: "1 Player,
    2 Players and so on"): 1 against the computer, 2 the game's two-player split screen, 3 and 4 that with players
@@ -52,10 +52,10 @@ static char *const sPortModesHelp[PORTMODES_NUM] = {
 #define PORTPLAYERS_NUM 4
 static const s32 sPortPlayersItem[PORTPLAYERS_NUM] = { 3, 2, 6, 1 };
 static char *const sPortPlayersHelp[PORTPLAYERS_NUM] = {
-    "One player against the computer.",
-    "Two players, the screen split in two.",
-    "Three players, the screen in quarters:\ncontroller 3 plays team 1's second fighter.",
-    "Four players, the screen in quarters:\ncontrollers 3 and 4 play the second fighters.",
+    "1 Jugador contra la Computadora (IA).",
+    "2 Jugadores en Pantalla Dividida (Split).",
+    "3 Jugadores en pantalla de 4 cuadrantes:\nMando 3 controla al 2do luchador del Equipo 1.",
+    "4 Jugadores en pantalla de 4 cuadrantes:\nMandos 3 y 4 controlan a los companeros.",
 };
 static s32 sPortModesPick; /* the mode the number of players is asked for (0 Team Battle, 1 Free-for-All) */
 static s32 sPortModes; /* 0 the menu's own entries, 1 the extra modes, 2 its own again from this frame on, 3 the
@@ -793,7 +793,8 @@ static s32 MainMenu_PortModes(void) {
         return 0; /* (not offered: an online session) */
     }
     if (sPortModes != 1 && sPortModes != 3) {
-        if (gPad[0].gamePressed & 0x2000) {
+        if ((gPad[0].gamePressed & (0x2000 | 0x00040000 | 0x00080000)) ||
+            (gPad[0].pressed & (PAD_SELECT | PAD_L3 | PAD_R3))) {
             MainMenu_PortModesSwitch(1);
             return 1;
         }
@@ -833,7 +834,8 @@ static s32 MainMenu_PortModes(void) {
             MainMenu_PlateGoto(0, "fl_ok");
             Snd_PlaySe(1, 1);
         }
-    } else if (gPad[0].gamePressed & (0x400 | 0x100 | 0x2000)) {
+    } else if ((gPad[0].gamePressed & (0x400 | 0x100 | 0x2000 | 0x00040000 | 0x00080000)) ||
+               (gPad[0].pressed & (PAD_SELECT | PAD_L3 | PAD_R3))) {
         MainMenu_PortModesSwitch(0);
     }
     return 1;

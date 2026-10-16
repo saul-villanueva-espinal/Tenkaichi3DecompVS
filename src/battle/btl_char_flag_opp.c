@@ -195,6 +195,14 @@ static void Port_TargetChoose(s32 i) {
         return;
     }
     dir = BtlInput_IsPressed(me, 0x400) ? 1 : BtlInput_IsPressed(me, 0x100) ? -1 : Port_TargetTestFlick(i);
+#ifdef PORT
+    if (dir == 0 && (u32)me->pad < 4) {
+        extern u32 Port_PadPressed(s32 pad);
+        if (Port_PadPressed(me->pad) & 0x0002) { /* L3 (0x0002) cycles target lock-on (PS2 Tag Team mod parity) */
+            dir = 1;
+        }
+    }
+#endif
     if (dir != 0) {
         n = Port_NextOnScreen(i, dir);
         if (n >= 0) {
@@ -355,9 +363,31 @@ static void Port_UpdateSpectate(void) {
             }
         } else {
             s32 pad = BtlChar_Get(p)->pad;
-            if ((u32)pad < 4 && (Port_PadPressed(pad) & 0x0004)) { /* (R3 in the pad's own button bits: sys/pad.h, gs_input.c B_R3) */
-                sPortWatch[p] = Port_WatchNext(p, sPortWatch[p]);
-                Port_SpectateLog(p, sPortWatch[p], 2);
+            if ((u32)pad < 4) {
+                u32 pressed = Port_PadPressed(pad);
+                if (pressed & 0x0004) { /* (R3 in the pad's own button bits: sys/pad.h, gs_input.c B_R3) */
+                    sPortWatch[p] = Port_WatchNext(p, sPortWatch[p]);
+                    Port_SpectateLog(p, sPortWatch[p], 2);
+                } else if (!Port_IsEnemy(p, sPortWatch[p])) {
+                    /* Spectator Takeover (PS2 Tag Team mod parity):
+                       If spectating an alive allied CPU, press Cross (0x4000) or L3 (0x0002) to take control! */
+                    s32 curAlly = sPortWatch[p];
+                    BtlFlagChr *allyChr = BtlChar_Get(curAlly);
+                    if (allyChr->injectOn && (pressed & (0x4000 | 0x0002))) {
+                        BtlFlagChr *deadChr = BtlChar_Get(p);
+                        extern void Port_SetFightPad(int k, int pad);
+                        deadChr->injectOn = 1;
+                        deadChr->pad = -1;
+                        allyChr->injectOn = 0;
+                        allyChr->pad = pad;
+                        if (curAlly >= 2) {
+                            Port_SetFightPad(curAlly - 2, pad);
+                        }
+                        sPortWatch[p] = -1;
+                        sPortWatchWait[p] = 0;
+                        fprintf(stderr, "bt3: spectator takeover: player %d took control of ally fighter %d\n", p + 1, curAlly);
+                    }
+                }
             }
         }
     }
@@ -470,11 +500,59 @@ s32 Port_SpectateOf(s32 i) {
     return 0;
 }
 
+/* Teammate Revive (PS2 Tag Team mod parity):
+   If an allied teammate is down (dead), and an alive teammate is within radius 40.0 units
+   and has at least 3 blast stocks (300000) and holds Charge (0x200),
+   spend 3 blast stocks and revive the fallen ally with 10000 HP! */
+static void Port_UpdateRevive(void) {
+    s32 count = BtlChar_GetCount();
+    s32 p, k;
+
+    if (count < 3) {
+        return;
+    }
+    for (p = 0; p < count && p < PORT_FIGHTERS; p++) {
+        BtlFlagChr *reviver = BtlChar_Get(p);
+        extern s32 BtlMember_HasBlast(void *chr, s32 amount);
+        extern void BtlMember_SubBlast(void *chr, s32 amount);
+        extern void BtlMember_AddHealth(void *chr, s32 amount);
+        extern void BtlAnim_Play(void *chr, s32 motion, f32 blend);
+        extern s32 BtlInput_IsHeld(BtlFlagChr *chr, u32 mask);
+
+        if (BtlChar_IsDead(reviver)) {
+            continue;
+        }
+        if (!BtlMember_HasBlast((void *)reviver, 300000)) {
+            continue;
+        }
+        if (!BtlInput_IsHeld(reviver, 0x200)) { /* BTLB_CHARGE (L2) */
+            continue;
+        }
+        for (k = 0; k < count && k < PORT_FIGHTERS; k++) {
+            BtlFlagChr *target = BtlChar_Get(k);
+            if (k != p && !Port_IsEnemy(p, k) && BtlChar_IsDead(target)) {
+                Vec4 d;
+                f32 dist;
+                Vec4_Sub(&d, &BtlChar_GetPos(target)->pos, &BtlChar_GetPos(reviver)->pos);
+                dist = Vec3_Length(&d);
+                if (dist <= 40.0f) {
+                    BtlMember_SubBlast((void *)reviver, 300000);
+                    BtlMember_AddHealth((void *)target, 10000);
+                    BtlAnim_Play((void *)target, 0xE1, 0.2f);
+                    fprintf(stderr, "bt3: teammate revive: fighter %d revived ally %d (spent 3 blast stocks)\n", p, k);
+                    break;
+                }
+            }
+        }
+    }
+}
+
 void Port_UpdateTarget(void) {
     s32 count = BtlChar_GetCount();
     s32 i, k;
 
     Port_UpdateSpectate();
+    Port_UpdateRevive();
     if (count < 3) {
         gPortTarget[0] = 1;
         gPortTarget[1] = 0;
