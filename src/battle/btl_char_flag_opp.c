@@ -1,5 +1,8 @@
 #include "common.h"
 #include "battle/btl_char_flag.h"
+#ifdef PORT
+#include <stdio.h>
+#endif
 
 /*
  * Opponent helpers: 0x1DB048..0x1DBF20. Each takes a fighter and answers about the other one
