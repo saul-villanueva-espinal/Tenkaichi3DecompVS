@@ -824,6 +824,21 @@ s32 BtlHit_CheckClash(void) {
         HitChr *a = BtlChar_Get(i);
         HitChr *b = BtlChar_Get(BtlOpp_GetPlayer(a));
 
+#ifdef PORT
+        /* The third-fighter experiment: with more than two fighters a clash is between a fighter and its target
+           (an enemy), and only one clash runs at a time (btl_char_flag_clash.c). The touch that starts it has to
+           be between these two: "blocked by the opponent" is each one's own push-out against its own target, and
+           b's target may be somebody else. */
+        if (BtlChar_GetCount() > 2) {
+            extern s32 Port_IsEnemy(s32 a, s32 b); /* btl_char_flag_opp.c */
+            extern s32 Port_ClashBusy(void);       /* btl_char_flag_clash.c */
+
+            if (!Port_IsEnemy(i, b->player) || Port_ClashBusy() ||
+                (!BtlMove_IsBlockedByOpponent(a) && BtlOpp_GetPlayer(b) != i)) {
+                continue;
+            }
+        }
+#endif
         if (BtlChar_TestFlag(a, 3)) {
             s32 same = 0;
             s32 mixed;
@@ -862,6 +877,12 @@ s32 BtlHit_CheckClash(void) {
                     BtlCharSnd_PlayCommon(b, 0x4B);
                     BtlChar_SetFxBit(a, 0x2C);
                 }
+#ifdef PORT
+                if (BtlChar_GetCount() > 2) { /* (the pair of the clash that these flags start) */
+                    extern s32 Port_ClashPair(s32 a, s32 b);
+                    Port_ClashPair(i, b->player);
+                }
+#endif
                 BtlChar_SetFlag(a, 0x44);
                 BtlChar_SetFlag(a, 0x45);
                 BtlChar_SetFlag(a, 0x46);
@@ -1041,6 +1062,37 @@ void BtlHit_TestHit(HitChr *chr) {
         s32 ok = 0;
         s32 oppIdx = BtlOpp_GetPlayer(chr);
         HitChr *opp = BtlChar_Get(oppIdx);
+#ifdef PORT
+        /* More than two fighters: who was touched is kept by the body test, a bit for each object
+           (gPortBodyTouch, eft_det_a.c). An attack lands on whichever enemy it touched, the one it is aimed at
+           first; one it is not aimed at is hit whatever way the attacker faces. */
+        s32 other = 0;
+        if (BtlChar_GetCount() >= 3) {
+            extern void Port_TargetHit(s32 attacker, s32 victim); /* btl_char_flag_opp.c */
+            extern s32 Port_IsEnemy(s32 a, s32 b);
+            extern u16 gPortBodyTouch[];
+            s32 k;
+            s32 touched = (u32)chr->objId < 12 ? gPortBodyTouch[chr->objId] : 0;
+            s32 hit = (touched & (1 << opp->objId)) != 0;
+            if (!hit) {
+                for (k = 0; k < BtlChar_GetCount(); k++) {
+                    HitChr *c = BtlChar_Get(k);
+                    if (k != oppIdx && Port_IsEnemy(chr->player, k) && (touched & (1 << c->objId))) {
+                        oppIdx = k;
+                        opp = c;
+                        other = 1;
+                        hit = 1;
+                        break;
+                    }
+                }
+            }
+            if (!hit && !BtlChar_TestFlag(chr, 0x65)) {
+                other = -1; /* (it touched a friend only: no hit) */
+            } else {
+                Port_TargetHit(chr->player, oppIdx); /* (the one touched is the opponent from here on, a while) */
+            }
+        }
+#endif
 
         if (__builtin_fabsf(BtlOpp_GetYawFromFacing(chr)) < 1.5707963f) {
             ok = 1;
@@ -1048,6 +1100,11 @@ void BtlHit_TestHit(HitChr *chr) {
         if (BtlAtk_GetFlags(chr) & 8) {
             ok = 1;
         }
+#ifdef PORT
+        if (other) {
+            ok = other > 0;
+        }
+#endif
         if (ok) {
             BtlChar_SetHeldFlag(chr, 0x60);
             if (BtlHit_IsVoid(chr, opp) || BtlHit_CheckDodge(chr, opp) || BtlHit_CheckArmor(chr, opp) ||

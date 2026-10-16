@@ -244,6 +244,16 @@ void EftVram_Upload(EftVramTex *tex, s32 imageBlock, s32 clutBlock) {
     };
     EftVramImage *img = tex->img;
 
+#ifdef PORT
+    /* A texture is put on the list while the scene is updated and sent when it is drawn. In between, a fighter
+       that changes its model has its effects ended (BtlScene_FreeChar, from the loader's poll), and an ended
+       task's texture record is cleared: the list then names a record without an image. The console reads its
+       sizes from address 0 and sends whatever that gives; here it is a fault. Seen with eight fighters, where
+       somebody's effect is on the list in most frames; two fighters can meet it as well. Nothing is sent. */
+    if (img == NULL) {
+        return;
+    }
+#endif
     if (imageBlock >= 0 && img->imageSize != 0) {
         pkt[8] = EFT_VRAM_BITBLTBUF(imageBlock, img->imageWidth);
         pkt[9] = EFT_VRAM_BITBLTBUF(imageBlock, img->imageWidth) >> 32;
@@ -678,6 +688,17 @@ s32 BtlBodyHit_TestVolumes(EftDetObjWork *work, EftDetPart **body) {
     return 0;
 }
 
+#ifdef PORT
+/* The experiment of more than two fighters. The game records "my strike touched object n" as bit 0x18 + n of the
+   attacker's contact word and "object n's strike touched me" as bit 0x1C + n of the victim's: four bits each, room
+   for objects 0..3. A fifth fighter's bit would be the first of the other four, and from the ninth on the shift
+   leaves the word. Who was touched is kept here instead, a bit for each object, by the attacker's object id;
+   the entry is cleared where the game clears the bits (BtlObjHit_BuildVolumes, bobj_a.c). In the word itself the
+   bits are set as the game sets them for objects 0..3; for an object past them the attacker gets one of its
+   four all the same, because the game asks "did my strike touch anybody" by those (& 0xF000000). */
+u16 gPortBodyTouch[12]; /* (BTL_OBJ_MAX) */
+#endif
+
 /* Tests the strike volumes of `atk` against the body of `def` and records the contact in both objects. */
 s32 BtlBodyHit_Test(EftDetObj *atk, EftDetObj *def) {
     EftDetObjWork *work;
@@ -705,8 +726,18 @@ s32 BtlBodyHit_Test(EftDetObj *atk, EftDetObj *def) {
     if (!BtlBodyHit_TestVolumes(work, body)) {
         return 0;
     }
+#ifdef PORT
+    if ((u32)atk->id < 12 && (u32)def->id < 12) {
+        gPortBodyTouch[atk->id] |= 1 << def->id;
+    }
+    work->hitFlags |= 1 << ((def->id & 3) + 0x18);
+    if ((u32)atk->id < 4) {
+        defWork->hitFlags |= 1 << (atk->id + 0x1C);
+    }
+#else
     work->hitFlags |= 1 << (def->id + 0x18);
     defWork->hitFlags |= 1 << (atk->id + 0x1C);
+#endif
     return 1;
 }
 
@@ -718,6 +749,28 @@ void BtlBodyHit_Update(void) {
     BtlBodyHit_Test(a, BtlObj_Get(BattleSide_GetObjId(1)));
     a = BtlObj_Get(BattleSide_GetObjId(1));
     BtlBodyHit_Test(a, BtlObj_Get(BattleSide_GetObjId(0)));
+#ifdef PORT
+    {
+        /* More than two fighters: every extra fighter against every fighter before it and back, as the pair
+           above. The test marks WHICH object was touched (a bit for each object id), so nothing else has to
+           change here. (Every pair, friends too: bodies do not pass through each other, and whether a touch is
+           a HIT is decided by who the attacker's enemies are, in BtlHit_TestHit.) */
+        extern s32 Port_FighterObjId(s32 i); /* btl_char_mgr.c */
+        extern s32 BtlChar_GetCount(void);
+        s32 n, k;
+
+        for (n = 2; n < BtlChar_GetCount(); n++) {
+            s32 extra = Port_FighterObjId(n);
+
+            for (k = 0; k < n && extra >= 0; k++) {
+                a = BtlObj_Get(Port_FighterObjId(k));
+                BtlBodyHit_Test(a, BtlObj_Get(extra));
+                a = BtlObj_Get(extra);
+                BtlBodyHit_Test(a, BtlObj_Get(Port_FighterObjId(k)));
+            }
+        }
+    }
+#endif
 }
 
 /* Shape type 0: bounds of the sweep from sphere b to sphere a, its movement and direction, and the zone. */
@@ -939,6 +992,81 @@ s32 EftDet_HitFighterMulti(EftDetRec *rec, s32 target, s32 idx) {
  * (found by EftDet_StagePass, which ran before) is dropped. Then the fighter answers, first yes wins: dodge
  * (nothing reported), deflect (0x40), reflect (0x80), absorb (0x20), then guard (2) or hit (1).
  * (The mix of `rec->` and `list->rec[i].` is what reproduces the original's two induction pointers.) */
+#ifdef PORT
+/* More than two fighters: a technique's beam hits every enemy it passes through (the user: "the super attack beams
+   don't hit enemies, I think just one person"). A record is tested against one fighter, and the first hit ends a
+   single-hit beam (task flag 1) and puts its head at that fighter; so it never reached anybody behind. Here, before
+   the game's own test, every OTHER enemy of the owner that the record touches (not behind a stage contact) takes a
+   guard or a hit straight away, without touching the record's task: the beam's life, its counters and its head
+   stay the game's, decided by its own victim. An extra victim can dodge; it cannot deflect, reflect or absorb (that
+   would act on the whole beam). Each beam (by its task) hits each fighter once, a multi-hit one again after its
+   interval; nobody of the owner's own team. Ki blasts (type 0) keep the game's rule: they burst on the first. */
+#define PORT_SHOT_MEMO 32
+static struct {
+    void *task;
+    u32 hit;     /* fighters this beam has hit (bit = roster index) */
+    u32 at[10];  /* the pass it last hit each of them */
+    u32 last;    /* the pass it was last seen in */
+} sPortShotMemo[PORT_SHOT_MEMO];
+static u32 sPortShotPass, sPortShotNext;
+
+static s32 Port_ShotMemo(void *task) {
+    s32 m;
+
+    for (m = 0; m < PORT_SHOT_MEMO; m++) {
+        if (sPortShotMemo[m].task == task) {
+            if (sPortShotPass - sPortShotMemo[m].last > 30) {
+                sPortShotMemo[m].hit = 0; /* (a task used again by a new beam) */
+            }
+            sPortShotMemo[m].last = sPortShotPass;
+            return m;
+        }
+    }
+    m = (s32)(sPortShotNext++ % PORT_SHOT_MEMO);
+    memset(&sPortShotMemo[m], 0, sizeof(sPortShotMemo[m]));
+    sPortShotMemo[m].task = task;
+    sPortShotMemo[m].last = sPortShotPass;
+    return m;
+}
+
+static void Port_ShotExtraVictims(EftDetRec *rec, s32 primary, s32 (*test)(EftDetObj *, EftDetShape *)) {
+    extern s32 Port_FighterObjId(s32 i);
+    extern s32 Port_IsEnemy(s32 a, s32 b);
+    extern s32 BtlChar_GetCount(void);
+    extern void Port_TargetHit(s32 attacker, s32 victim);
+    s32 owner = rec->objId, k, m = Port_ShotMemo(rec->task);
+    s32 multi = EftHit_IsMultiHit(rec);
+    s32 interval = EftHit_GetDefUnkB(rec) > 0 ? EftHit_GetDefUnkB(rec) : 8;
+
+    for (k = 0; k < BtlChar_GetCount() && k < 10; k++) {
+        s32 obj = Port_FighterObjId(k);
+
+        if (obj == primary || !Port_IsEnemy(owner, k) || !test(BtlObj_Get(obj), &rec->shape)) {
+            continue;
+        }
+        if ((rec->shape.hitFlags & EFT_DET_HIT_STAGE) && rec->shape.dist >= rec->shape.stageDist) {
+            continue;
+        }
+        if ((sPortShotMemo[m].hit & (1u << k)) && (!multi || sPortShotPass - sPortShotMemo[m].at[k] < (u32)interval)) {
+            continue;
+        }
+        sPortShotMemo[m].hit |= 1u << k;
+        sPortShotMemo[m].at[k] = sPortShotPass;
+        {
+            extern void Port_BeamLog(int owner, int victim, int primary); /* port/src/plat_stub.c: BT3_BEAM_LOG */
+            Port_BeamLog(owner, obj, primary);
+        }
+        Port_TargetHit(owner, obj);
+        if (BtlColl_TryDodge(obj, rec)) {
+            continue;
+        }
+        if (!BtlColl_TryGuard(obj, rec)) {
+            BtlColl_Hit(obj, rec);
+        }
+    }
+}
+#endif
+
 void EftDet_FighterPass(void) {
     s32 (*test[7])(EftDetObj *, EftDetShape *) = {
         EftDet_SpheresVsFighter, EftDet_CapsuleVsFighter, EftDet_NoneVsFighter, EftDet_NoneVsFighter,
@@ -949,6 +1077,9 @@ void EftDet_FighterPass(void) {
     s32 i;
 
     list = EftHit_GetList();
+#ifdef PORT
+    sPortShotPass++;
+#endif
     for (i = 0; i < list->count; i++) {
         rec = &list->rec[i];
         if (EftHit_CanHit(rec, 1)) {
@@ -961,6 +1092,44 @@ void EftDet_FighterPass(void) {
             } else {
                 obj = BtlObj_Get(BattleSide_GetObjId(1));
             }
+#ifdef PORT
+            {
+                /* The third-fighter experiment. A shot is tested against "the other fighter" (its owner's id with
+                   the low bit turned). With a third fighter (object 2, of side 2): a shot of side 2's is for
+                   player 1; a shot of player 1's is tried on the fighter it is aimed at and, if it misses that
+                   one, on the other of side 2 (beams went through the third fighter: seen by the user). */
+                extern s32 Port_FighterObjId(s32 i); /* btl_char_mgr.c */
+                extern s32 gPortTarget[];             /* btl_char_flag_opp.c */
+                extern s32 Port_IsEnemy(s32 a, s32 b);
+                extern s32 BtlChar_GetCount(void);
+                if (Port_FighterObjId(2) >= 0 && (u32)list->rec[i].objId < (u32)BtlChar_GetCount()) {
+                    /* (Teams; a shot owned by an object that is not a fighter keeps the game's own rule.
+                       Teams: the shot is tried on its owner's target, then on its other enemies; never on a
+                       friend. Roster indices and object ids are the same numbers for the three.) */
+                    s32 owner = list->rec[i].objId;
+                    s32 who = gPortTarget[owner]; /* (owner is a roster index: tested above) */
+                    s32 k;
+
+                    target = Port_FighterObjId(who);
+                    obj = BtlObj_Get(target);
+                    if (!test[list->rec[i].shape.type](obj, &rec->shape)) {
+                        for (k = 0; k < BtlChar_GetCount(); k++) {
+                            if (k != who && Port_IsEnemy(owner, k) &&
+                                test[list->rec[i].shape.type](BtlObj_Get(Port_FighterObjId(k)), &rec->shape)) {
+                                target = Port_FighterObjId(k);
+                                obj = BtlObj_Get(target);
+                                break;
+                            }
+                        }
+                    }
+                    /* (the other enemies a technique's beam passes through; the test of its own victim below
+                       is made again after these, so the record's contact is that victim's) */
+                    if (list->rec[i].type == 1) {
+                        Port_ShotExtraVictims(rec, target, test[list->rec[i].shape.type]);
+                    }
+                }
+            }
+#endif
             if (test[list->rec[i].shape.type](obj, &rec->shape)) {
                 ok = 0;
                 if (!(list->rec[i].shape.hitFlags & EFT_DET_HIT_STAGE) ||
@@ -970,6 +1139,15 @@ void EftDet_FighterPass(void) {
                 if (ok) {
                     list->rec[i].shape.hitFlags |= EFT_DET_HIT_FIGHTER;
                     EftHit_MarkLastHit(rec);
+#ifdef PORT
+                    {
+                        extern void Port_TargetHit(s32 attacker, s32 victim); /* btl_char_flag_opp.c */
+                        extern s32 Port_FighterObjId(s32 i);
+                        if (Port_FighterObjId(2) >= 0) { /* (teams: the pair of this hit, before it is dealt) */
+                            Port_TargetHit(list->rec[i].objId, target);
+                        }
+                    }
+#endif
                     if (BtlColl_TryDodge(target, rec)) {
                         continue;
                     }
@@ -1147,6 +1325,20 @@ void EftDet_ClashPass(void) {
 
                 if (list->rec[i].objId != list->rec[j].objId) {
                     if (EftHit_CanHit(&list->rec[j], 2)) {
+#ifdef PORT
+                        {
+                            /* The third-fighter experiment: shots of two fighters of one team do not meet (as a
+                               shot is never tried on a friend). A shot of an object that is not a fighter keeps
+                               the game's rule. */
+                            extern s32 Port_IsEnemy(s32 a, s32 b); /* btl_char_flag_opp.c */
+                            extern s32 BtlChar_GetCount(void);
+                            if (BtlChar_GetCount() > 2 && (u32)list->rec[i].objId < (u32)BtlChar_GetCount() &&
+                                (u32)list->rec[j].objId < (u32)BtlChar_GetCount() &&
+                                !Port_IsEnemy(list->rec[i].objId, list->rec[j].objId)) {
+                                continue;
+                            }
+                        }
+#endif
                         if (list->rec[i].shape.type == 0 && list->rec[j].shape.type == 0) {
                             if (EftDet_SpheresVsSpheres(&list->rec[i].shape, &list->rec[j].shape)) {
                                 hit = 1;
@@ -1182,6 +1374,25 @@ void EftDet_ClashPass(void) {
                                     EftHit_SetTaskFlag(i, 8, list->rec[i].shape.hitPos);
                                     EftHit_SetTaskFlag(j, 8, list->rec[j].shape.hitPos);
                                 } else {
+#ifdef PORT
+                                    /* The third-fighter experiment: the struggle is between the owners of the two
+                                       shots, whoever they are (the game takes them for fighters 0 and 1). One
+                                       clash runs at a time: when another pair is in one, or an owner is not a
+                                       fighter, these two beams pass each other. */
+                                    extern s32 Port_ClashPair(s32 a, s32 b); /* btl_char_flag_clash.c */
+                                    extern s32 BtlChar_GetCount(void);
+                                    if (BtlChar_GetCount() > 2) {
+                                        if (Port_ClashPair(list->rec[i].objId, list->rec[j].objId)) {
+                                            BtlCharApi_SetHeldFlagAA(list->rec[i].objId);
+                                            BtlCharApi_SetHeldFlagAA(list->rec[j].objId);
+                                            if (!EftStruggle_IsActive()) {
+                                                EftHit_SetTaskFlag(i, 0x100, list->rec[i].shape.hitPos);
+                                                EftHit_SetTaskFlag(j, 0x100, list->rec[j].shape.hitPos);
+                                                EftStruggle_Start(&list->rec[i].shape.hitPos, &list->rec[i], &list->rec[j]);
+                                            }
+                                        }
+                                    } else {
+#endif
                                     BtlCharApi_SetHeldFlagAA(0);
                                     BtlCharApi_SetHeldFlagAA(1);
                                     if (!EftStruggle_IsActive()) {
@@ -1189,6 +1400,9 @@ void EftDet_ClashPass(void) {
                                         EftHit_SetTaskFlag(j, 0x100, list->rec[j].shape.hitPos);
                                         EftStruggle_Start(&list->rec[i].shape.hitPos, &list->rec[i], &list->rec[j]);
                                     }
+#ifdef PORT
+                                    }
+#endif
                                 }
                             }
                         }

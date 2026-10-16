@@ -806,6 +806,144 @@ s32 BtlStage_ProbeGround(s32 zone, Vec4 *pos, StgGroundHit *out) {
     return r;
 }
 
+#ifdef PORT
+/* The extra fighters' start places. A stage has one start point for each of the two players and nothing for a
+   fighter past them: asked for "side 2" the function below read the entry after the table (whatever lay there:
+   the extra fighter began the fight at a stray place). They are worked out from the two points the stage has:
+   - a fighter on player 1's or player 2's team stands in a shallow V beside and behind that player's point
+     (the first to the leader's one side, the second to the other, the next two a row further back and out),
+     facing what the leader faces;
+   - a fighter of a further team (in a free-for-all: every extra fighter) stands on the circle through the two
+     points, around their middle: the two halves of the circle are filled in turn and each half is shared out
+     evenly, facing the middle.
+   Each place is tried on the stage's ground with the game's own query; where there is none (off the map's
+   edge, a narrow stage), or somebody placed before stands there already, the places of the later turns and
+   then the same places pulled in towards the leader's point, or the middle, are tried, and as the last resort
+   it is that point itself. With two fighters nothing here is asked. */
+extern s32 Port_Team(s32 i);                               /* btl_char_flag_opp.c */
+extern s32 BtlChar_GetCount(void);
+extern void Port_Dbg3(const char *what, int a, int b, int c, int d); /* port/src/plat_stub.c (BT3_HEAPCHK) */
+extern f32 Mathf_Sin(f32 angle);
+extern f32 Mathf_Cos(f32 angle);
+#define PORT_START_SIDE 0.22f /* a step to the side, as a part of the distance between the two start points */
+#define PORT_START_BACK 0.10f /* ... and a step back */
+#define PORT_START_SIDE_MIN 28.0f /* the step to the side is at least this (2.8 m) */
+#define PORT_START_APART 22.0f    /* no two fighters start nearer to each other than this */
+static f32 sPortStart[10][2];     /* where the extra fighters of this start were placed: x, z by roster index */
+
+static s32 Port_StartGround(Vec4 *pos, f32 leaderY, StgGroundHit *hit) {
+    s32 zone;
+
+    pos->y = -700.0f;
+    pos->w = 1.0f;
+    zone = BtlStage_ProbeGround(-1, pos, hit);
+    /* (no ground: the answer is still the height asked from; a pit or a roof far from the leader's ground is
+       not a place to start on either) */
+    if (hit->y <= -699.0f || hit->y - leaderY > 60.0f || leaderY - hit->y > 60.0f) {
+        return -2;
+    }
+    return zone;
+}
+
+static s32 Port_StartPlace(s32 side, Vec4 *pos, Vec4 *rot) {
+    StgPlace *starts = gBtlStage->data->starts;
+    StgGroundHit hit;
+    Vec4 lead;
+    s32 team = Port_Team(side), same = 0, i, zone = -2, tries;
+    f32 dx = starts[1].pos.x - starts[0].pos.x, dz = starts[1].pos.z - starts[0].pos.z;
+    f32 dist = sqrtf(dx * dx + dz * dz), ux, uz, cx, cz, leaderY, tx, tz;
+
+    s32 others = 0; /* fighters of the further teams in the whole fight */
+
+    for (i = 2; i < side; i++) {
+        same += (team < 2) ? Port_Team(i) == team : Port_Team(i) >= 2;
+    }
+    for (i = 2; i < BtlChar_GetCount(); i++) {
+        others += Port_Team(i) >= 2;
+    }
+    if (dist < 1.0f) {
+        dist = 1.0f;
+    }
+    ux = dx / dist;
+    uz = dz / dist;
+    cx = (starts[0].pos.x + starts[1].pos.x) * 0.5f;
+    cz = (starts[0].pos.z + starts[1].pos.z) * 0.5f;
+    lead.x = starts[team < 2 ? team : 0].pos.x;
+    lead.z = starts[team < 2 ? team : 0].pos.z;
+    lead.y = -700.0f;
+    lead.w = 1.0f;
+    BtlStage_ProbeGround(-1, &lead, &hit);
+    leaderY = hit.y;
+    tx = cx;
+    tz = cz;
+    /* The place of its turn, then other places near it: `slot` walks on through the places of the fighters that
+       would come after it (further out in the V, further round the circle) and `shrink` pulls everything in
+       towards the leader or the middle. A place is taken when the stage has ground there and nobody placed
+       before stands within PORT_START_APART of it (a place that was pulled in can be another fighter's). */
+    for (tries = 0; tries < 40 && zone == -2; tries++) {
+        static const f32 kShrink[5] = { 1.0f, 0.8f, 0.6f, 0.45f, 0.3f };
+        s32 slot = same + tries % 8;
+        f32 shrink = kShrink[tries / 8];
+
+        if (team < 2) {
+            s32 row = slot / 2 + 1;
+            f32 stepSide = PORT_START_SIDE * dist, stepBack = PORT_START_BACK * dist;
+            f32 out, back;
+
+            if (stepSide < PORT_START_SIDE_MIN) { /* (a small stage: the two points are near each other) */
+                stepBack = stepBack * PORT_START_SIDE_MIN / stepSide;
+                stepSide = PORT_START_SIDE_MIN;
+            }
+            out = (slot % 2 == 0 ? 1.0f : -1.0f) * (f32)row * stepSide * shrink;
+            back = (team == 0 ? -1.0f : 1.0f) * (f32)row * stepBack * shrink;
+            pos->x = lead.x - uz * out + ux * back;
+            pos->z = lead.z + ux * out + uz * back;
+            tx = starts[team].target.x;
+            tz = starts[team].target.z;
+        } else {
+            /* (the two halves of the circle in turn, each half shared out evenly between the two players'
+               points: one such fighter stands a quarter turn from both, eight stand 36 degrees apart; a place
+               past its turn's is a twelfth of a turn further round) */
+            s32 half = same % 2, inHalf = (others + 1 - half) / 2;
+            f32 turn = (half ? -1.0f : 1.0f) * ((f32)(same / 2 + 1) / (f32)(inHalf + 1) + (f32)(slot - same) / 6.0f) * 3.14159265f;
+            f32 c = Mathf_Cos(turn), sn = Mathf_Sin(turn);
+            f32 vx = (starts[0].pos.x - cx) * shrink, vz = (starts[0].pos.z - cz) * shrink;
+
+            pos->x = cx + vx * c - vz * sn;
+            pos->z = cz + vx * sn + vz * c;
+        }
+        zone = Port_StartGround(pos, leaderY, &hit);
+        for (i = 0; i < side && zone != -2; i++) {
+            f32 ox = (i < 2 ? starts[i].pos.x : sPortStart[i][0]) - pos->x;
+            f32 oz = (i < 2 ? starts[i].pos.z : sPortStart[i][1]) - pos->z;
+
+            if (ox * ox + oz * oz < PORT_START_APART * PORT_START_APART) {
+                zone = -2;
+            }
+        }
+    }
+    if (zone == -2) { /* nowhere found: the leader's own point (the two stand in each other for a moment) */
+        pos->x = lead.x;
+        pos->z = lead.z;
+        pos->y = -700.0f;
+        zone = BtlStage_ProbeGround(-1, pos, &hit);
+    }
+    pos->y = hit.y;
+    pos->w = 1.0f;
+    rot->y = Stg_CalcYaw(pos->x, pos->z, tx, tz);
+    rot->w = 1.0f;
+    rot->z = 0.0f;
+    rot->x = 0.0f;
+    if ((u32)side < 10) {
+        sPortStart[side][0] = pos->x;
+        sPortStart[side][1] = pos->z;
+    }
+    Port_Dbg3("start place: fighter / team / x / z", side, team, (int)pos->x, (int)pos->z);
+    Port_Dbg3("start place: tries / distance of the two points / y / zone", tries, (int)dist, (int)pos->y, zone);
+    return zone;
+}
+#endif
+
 /* Start placement of a player: the stage's start point for `side` (the single alternative point when alt == 1),
  * dropped onto the ground from y = -700, with the yaw that faces the point's target. Returns the zone of the
  * point (the fighter keeps it as its "area"). Reads gBtlStage->data even when the stage is not ready. */
@@ -818,6 +956,11 @@ s32 BtlStage_GetStartPlace(s32 side, Vec4 *pos, Vec4 *rot, s32 alt) {
     f32 yaw;
 
     BtlStage_IsReady();
+#ifdef PORT
+    if (side >= 2 && alt != 1) {
+        return Port_StartPlace(side, pos, rot);
+    }
+#endif
     d = gBtlStage->data;
     p = d->altStarts;
     starts = d->starts;

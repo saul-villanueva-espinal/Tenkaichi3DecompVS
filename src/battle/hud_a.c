@@ -130,6 +130,10 @@ extern void HudPrompt_SelectSide(s32 side);                    /* select the sid
 extern void HudPrompt_SetButton(s32 side, s32 button, s32 arg);
 #ifdef PORT
 extern int Port_ClashSquare(void), Port_NetActive(void), Port_NetMe(void); /* port/src/gs */
+extern int Port_DemoHud(void); /* port/src/plat_stub.c */
+extern void HudGauge_DrawExtras(void), HudGauge_ResetExtras(void); /* hud_b.c */
+extern s32 Port_MultiHud(void); /* hud_b.c: a split screen with more than two fighters (each part its own HUD) */
+extern void HudCombo_DrawParts(HudNode *root), HudCombo_ResetParts(void); /* hud_c_b.c */
 #endif
 extern void HudPrompt_SetCommand(s32 side, s32 count, s32 *buttons, s32 *kinds, s32 idx);
 extern void HudPrompt_ClearCommand(s32 side);
@@ -177,6 +181,7 @@ void HudNode_Update(HudNode *node) {
 #define PORT_2D_CENTER 0x12
 #define PORT_2D_END 0x13
 #define PORT_2D_BY_POS 0x14
+#define PORT_2D_NOTICE 0x18
 extern void Port_GsMarker(s32 effect);
 #endif
 
@@ -190,8 +195,11 @@ void HudNode_Draw(HudNode *node, s32 mirror) {
         return;
     }
 #ifdef PORT
-    if (node == gHud->timer || node == gHud->notice) {
-        Port_GsMarker(PORT_2D_CENTER); /* the parts without a side */
+    if (node == gHud->timer) {
+        Port_GsMarker(PORT_2D_CENTER);
+    }
+    if (node == gHud->notice) {
+        Port_GsMarker(PORT_2D_NOTICE); /* the announcement's word, mask, streak and fragments share one scale */
     }
     if (node == gHud->caption) {
         Port_GsMarker(PORT_2D_BY_POS); /* captions (technique names) appear on either side: the side they are on */
@@ -223,6 +231,11 @@ void HudNode_Draw(HudNode *node, s32 mirror) {
         HudNode_Draw(node->children[i], (mirror || (node->flags & HUD_NODE_MIRROR)) ? 1 : 0);
     }
     Vu0Cur_Pop();
+#ifdef PORT
+    if (node == gHud->notice) {
+        Port_GsMarker(PORT_2D_CENTER);
+    }
+#endif
 }
 
 /* Sets how a replay shows the HUD (see Hud_Draw). */
@@ -310,6 +323,15 @@ void Hud_Term(void) {
    also shakes the OTHER side's gauge (0x21FA38: 15 / 3 from 9999 damage, 10 / 2 from 1000, else 5 / 2);
    five event messages for the combo part; the button prompt; and the team panel's values.
    Everything that starts an animation is skipped while BATTLE_FLAG_PAUSE is set. */
+#ifdef PORT
+/* More than two fighters: the fighter a side's gauge shows (btl_char_flag_opp.c, Port_HudFighter): the player's (or
+   the one it watches) and the player's target. The side otherwise. */
+extern s32 Port_HudFighter(s32 side);
+#define HUD_WHO(side) Port_HudFighter(side)
+#else
+#define HUD_WHO(side) (side)
+#endif
+
 void Hud_PreUpdate(void) {
     s32 side;
 
@@ -334,10 +356,10 @@ void Hud_PreUpdate(void) {
         s32 up;
         s32 isNew;
 
-        HudGauge_SetHp(side, BtlSide_GetHp(side));
-        HudGauge_SetKi(side, BtlSide_GetKi(side));
-        v = BtlSide_GetParamUnk2C(side);
-        if (BtlSide_TestFlagBE(side)) {
+        HudGauge_SetHp(side, BtlSide_GetHp(HUD_WHO(side)));
+        HudGauge_SetKi(side, BtlSide_GetKi(HUD_WHO(side)));
+        v = BtlSide_GetParamUnk2C(HUD_WHO(side));
+        if (BtlSide_TestFlagBE(HUD_WHO(side))) {
             HudGauge_SetKiReserve(side, v);
         } else {
             HudGauge_SetKiReserve(side, 0);
@@ -347,16 +369,16 @@ void Hud_PreUpdate(void) {
         for (i = 0; i < 4; i++) {
             switch (i) {
                 case 0:
-                    v = BtlCtrl_GetStatMod0(side);
+                    v = BtlCtrl_GetStatMod0(HUD_WHO(side));
                     break;
                 case 1:
-                    v = BtlCtrl_GetStatMod3(side);
+                    v = BtlCtrl_GetStatMod3(HUD_WHO(side));
                     break;
                 case 2:
-                    v = BtlCtrl_GetStatMod1(side);
+                    v = BtlCtrl_GetStatMod1(HUD_WHO(side));
                     break;
                 case 3:
-                    v = BtlCtrl_GetStatMod2(side);
+                    v = BtlCtrl_GetStatMod2(HUD_WHO(side));
                     break;
                 default:
                     continue;
@@ -369,21 +391,21 @@ void Hud_PreUpdate(void) {
             }
         }
         HudGauge_SetStatIcons(side, mask, up);
-        HudGauge_SetBlast(side, BtlSide_GetBlast(side));
-        HudGauge_SetMaxPower(side, BtlSide_GetMaxPower(side));
-        HudGauge_SetFighter(side, BtlCtrl_GetObj(side));
+        HudGauge_SetBlast(side, BtlSide_GetBlast(HUD_WHO(side)));
+        HudGauge_SetMaxPower(side, BtlSide_GetMaxPower(HUD_WHO(side)));
+        HudGauge_SetFighter(side, BtlCtrl_GetObj(HUD_WHO(side)));
         if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
-            isNew = BtlSide_IsComboHitNew(side);
+            isNew = BtlSide_IsComboHitNew(HUD_WHO(side));
             if (isNew == 1) {
-                v = BtlCtrl_GetClashCount(side);
+                v = BtlCtrl_GetClashCount(HUD_WHO(side));
                 if (v != 0) {
                     HudCombo_SetHits(side, v);
                 } else {
-                    HudCombo_SetHits(side, BtlSide_GetComboHits(side));
+                    HudCombo_SetHits(side, BtlSide_GetComboHits(HUD_WHO(side)));
                 }
             }
-            if (BtlCtrl_GetOppUnkD50(side)) {
-                v = BtlSide_GetComboDamage(side);
+            if (BtlCtrl_GetOppUnkD50(HUD_WHO(side))) {
+                v = BtlSide_GetComboDamage(HUD_WHO(side));
                 if (v >= 0) {
                     HudCombo_SetDamage(side, v, isNew);
                 }
@@ -395,29 +417,29 @@ void Hud_PreUpdate(void) {
                     HudGauge_ShakeHp(side == 0, 5, 2);
                 }
             }
-            if (!BtlSide_IsComboShown(side)) {
+            if (!BtlSide_IsComboShown(HUD_WHO(side))) {
                 HudCombo_SetHits(side, 0);
                 HudCombo_SetDamage(side, -1, isNew);
             }
         }
-        v = BtlCtrl_GetFlagDEtoE2(side);
+        v = BtlCtrl_GetFlagDEtoE2(HUD_WHO(side));
         if (v >= 0) {
             HudCombo_SetText(side, v);
         }
-        if (BtlCtrl_IsFlag6Raised(side)) {
+        if (BtlCtrl_IsFlag6Raised(HUD_WHO(side))) {
             HudCombo_SetMessage(side, 1);
             HudGauge_ShakeKi(side, 8, 2);
         }
-        if (BtlCtrl_TestFlag71(side)) {
+        if (BtlCtrl_TestFlag71(HUD_WHO(side))) {
             HudCombo_SetMessage(side, 0);
         }
-        if (BtlCtrl_IsFlag5RaisedInFight(side)) {
+        if (BtlCtrl_IsFlag5RaisedInFight(HUD_WHO(side))) {
             HudCombo_SetMessage(side, 2);
         }
-        if (BtlCtrl_TestFlagE3(side)) {
+        if (BtlCtrl_TestFlagE3(HUD_WHO(side))) {
             HudCombo_SetMessage(side, 3);
         }
-        if (BtlCtrl_IsFlag9CRaised(side)) {
+        if (BtlCtrl_IsFlag9CRaised(HUD_WHO(side))) {
             HudCombo_SetMessage(side, 4);
         }
         /* Single button prompt (flags 0xE7..0xEC through BtlCtrl_GetChangePrompt, else flag 0xE6). The icon
@@ -529,8 +551,57 @@ void Hud_PreUpdate(void) {
 }
 
 /* Round reset: resets the parts and hides them all. */
+#ifdef PORT
+/* A split screen part's counter (hud_c_b.c, HudCombo_DrawParts): side `side` of the combo part is fed fighter
+   `who`'s combo as Hud_PreUpdate feeds a side its own (hits, damage, the technique name, the messages). */
+void Port_HudComboFeed(s32 side, s32 who) {
+    s32 isNew, v;
+
+    if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
+        isNew = BtlSide_IsComboHitNew(who);
+        if (isNew == 1) {
+            v = BtlCtrl_GetClashCount(who);
+            HudCombo_SetHits(side, v != 0 ? v : BtlSide_GetComboHits(who));
+        }
+        if (BtlCtrl_GetOppUnkD50(who)) {
+            v = BtlSide_GetComboDamage(who);
+            if (v >= 0) {
+                HudCombo_SetDamage(side, v, isNew);
+            }
+        }
+        if (!BtlSide_IsComboShown(who)) {
+            HudCombo_SetHits(side, 0);
+            HudCombo_SetDamage(side, -1, isNew);
+        }
+    }
+    v = BtlCtrl_GetFlagDEtoE2(who);
+    if (v >= 0) {
+        HudCombo_SetText(side, v);
+    }
+    if (BtlCtrl_IsFlag6Raised(who)) {
+        HudCombo_SetMessage(side, 1);
+    }
+    if (BtlCtrl_TestFlag71(who)) {
+        HudCombo_SetMessage(side, 0);
+    }
+    if (BtlCtrl_IsFlag5RaisedInFight(who)) {
+        HudCombo_SetMessage(side, 2);
+    }
+    if (BtlCtrl_TestFlagE3(who)) {
+        HudCombo_SetMessage(side, 3);
+    }
+    if (BtlCtrl_IsFlag9CRaised(who)) {
+        HudCombo_SetMessage(side, 4);
+    }
+}
+#endif
+
 void Hud_Reset(void) {
     HudGauge_Reset();
+#ifdef PORT
+    HudGauge_ResetExtras();
+    HudCombo_ResetParts();
+#endif
     HudTeam_Reset();
     HudCombo_Reset();
     HudNotice_Reset();
@@ -567,7 +638,13 @@ void Hud_Draw(void) {
 #ifdef PORT
     Port_GsMarker(PORT_2D_CENTER);
 #endif
+#ifdef PORT
+    /* (BT3_DEMO_HUD=1, testing: the attract demo shows the fight HUD, so that a run without a pad has gauges to
+       look at) */
+    if (Battle_GetMode() == 7 && !Port_DemoHud()) {
+#else
     if (Battle_GetMode() == 7) {
+#endif
         HudNode_Update(gHud->caption);
         HudNode_Draw(gHud->caption, 0);
     } else if (BtlGame_IsReplay()) {
@@ -622,6 +699,9 @@ void Hud_Draw(void) {
                     HudNode_Draw(gHud->team, 0);
                 }
                 if (gHud->flags & HUD_SHOW_GAUGES) {
+#ifdef PORT
+                  if (!Port_MultiHud()) { /* (each part of a split screen has its own: hud_b.c) */
+#endif
                     HudGfx_ClearAlpha();
                     HudGauge_SelectSide(0);
                     HudNode_Update(gHud->gauge);
@@ -630,6 +710,10 @@ void Hud_Draw(void) {
                     HudGauge_SelectSide(1);
                     HudNode_Update(gHud->gauge);
                     HudNode_Draw(gHud->gauge, 0);
+#ifdef PORT
+                  }
+                    HudGauge_DrawExtras(); /* (the fighters past the two sides: hud_b.c) */
+#endif
                 } else {
                     HudNotice_ShowReplayMark(0);
                 }
@@ -649,6 +733,11 @@ void Hud_Draw(void) {
                     HudPrompt_DrawNames();
                 }
                 if (gHud->flags & HUD_SHOW_COMBO) {
+#ifdef PORT
+                    if (Port_MultiHud()) { /* (each part of a split screen its own: hud_c_b.c) */
+                        HudCombo_DrawParts(gHud->combo);
+                    } else {
+#endif
                     HudCombo_SelectSide(0);
                     HudNode_Update(gHud->combo);
                     HudNode_Draw(gHud->combo, 0);
@@ -656,6 +745,9 @@ void Hud_Draw(void) {
                     HudNode_Update(gHud->combo);
                     HudNode_Draw(gHud->combo, 0);
                     HudCombo_DrawText();
+#ifdef PORT
+                    }
+#endif
                 }
                 if (gHud->flags & HUD_SHOW_NOTICE) {
                     HudNode_Update(gHud->notice);
@@ -715,6 +807,9 @@ void Hud_Draw(void) {
             }
         }
         if (gHud->flags & HUD_SHOW_GAUGES) {
+#ifdef PORT
+          if (!Port_MultiHud()) { /* (each part of a split screen has its own: hud_b.c) */
+#endif
             HudGfx_ClearAlpha();
             HudGauge_SelectSide(0);
             HudNode_Update(gHud->gauge);
@@ -723,6 +818,10 @@ void Hud_Draw(void) {
             HudGauge_SelectSide(1);
             HudNode_Update(gHud->gauge);
             HudNode_Draw(gHud->gauge, 0);
+#ifdef PORT
+          }
+            HudGauge_DrawExtras(); /* (the fighters past the two sides: hud_b.c) */
+#endif
         }
         if (gHud->flags & HUD_SHOW_TIMER) {
             HudNode_Update(gHud->timer);
@@ -740,6 +839,11 @@ void Hud_Draw(void) {
             HudPrompt_DrawNames();
         }
         if (gHud->flags & HUD_SHOW_COMBO) {
+#ifdef PORT
+            if (Port_MultiHud()) { /* (each part of a split screen its own: hud_c_b.c) */
+                HudCombo_DrawParts(gHud->combo);
+            } else {
+#endif
             HudCombo_SelectSide(0);
             HudNode_Update(gHud->combo);
             HudNode_Draw(gHud->combo, 0);
@@ -747,11 +851,21 @@ void Hud_Draw(void) {
             HudNode_Update(gHud->combo);
             HudNode_Draw(gHud->combo, 0);
             HudCombo_DrawText();
+#ifdef PORT
+            }
+#endif
         }
         if (gHud->flags & HUD_SHOW_NOTICE) {
             HudNode_Update(gHud->notice);
             HudNode_Draw(gHud->notice, 0);
         }
     }
+#ifdef PORT
+    {
+        extern void PortTbo_SparSign(void); /* menu/port_tbo.c: Train While Waiting's sign over its sparring fight */
+
+        PortTbo_SparSign();
+    }
+#endif
     Hud_ClearTexMarks();
 }

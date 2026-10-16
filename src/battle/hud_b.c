@@ -3,6 +3,15 @@
 #include "battle/battle.h"
 #include "sys/randf.h"
 #include "sys/heap.h"
+#ifdef PORT
+/* More than two fighters: the fighter a side's gauge shows (btl_char_flag_opp.c, Port_HudFighter), or, while the
+   small copy of the gauge of another fighter is drawn (HudExtra_DrawMini), that fighter. */
+extern s32 Port_HudFighter(s32 side);
+static s32 sHudMiniWho = -1;
+#define HUD_WHO(side) (sHudMiniWho >= 0 ? sHudMiniWho : Port_HudFighter(side))
+#else
+#define HUD_WHO(side) (side)
+#endif
 
 /*
  * Battle HUD: the gauge part (health, ki, blast stock, powered-up timer, status icons, face), 0x21CA60-0x222400.
@@ -277,7 +286,7 @@ void HudGauge_UpdateAura(void) {
     HudBSprite *spr;
     Ramp *ramp;
 
-    if (BtlSide_IsPoweredUp(gHudGauge->side) && !BtlCtrl_IsActiveDead(gHudGauge->side)) {
+    if (BtlSide_IsPoweredUp(HUD_WHO(gHudGauge->side)) && !BtlCtrl_IsActiveDead(HUD_WHO(gHudGauge->side))) {
         gHudGauge->auraAlpha[gHudGauge->side] += 0x10;
         if (gHudGauge->auraAlpha[gHudGauge->side] > 0x80) {
             gHudGauge->auraAlpha[gHudGauge->side] = 0x80;
@@ -538,7 +547,7 @@ void HudGauge_UpdateBlast(void) {
         { 0x00, 0x20, 0x00, 0x20 }, { 0x20, 0x40, 0x00, 0x20 }, { 0x40, 0x60, 0x00, 0x20 }, { 0x60, 0x80, 0x00, 0x20 },
         { 0x00, 0x20, 0x20, 0x40 }, { 0x20, 0x40, 0x20, 0x40 }, { 0x40, 0x60, 0x20, 0x40 }, { 0x60, 0x80, 0x20, 0x40 },
     };
-    s32 max = BtlSide_GetBlastMax(gHudGauge->side);
+    s32 max = BtlSide_GetBlastMax(HUD_WHO(gHudGauge->side));
     HudBSprite *spr;
     u32 n;
     s32 r;
@@ -998,7 +1007,7 @@ void HudGauge_DrawFace(HudBGroup *node) {
             /* (PC build: a fighter's face sheet has two pictures, one drawn for the left place and one for the right;
                with the sides swapped the picture is the one of the place, not of the side) */
             HudSprite_InitTex(spr, gHudGauge->faceRes[gHudGauge->side], HUD_SCR(gHudGauge->side), 0);
-            if (BtlCtrl_GetObj(gHudGauge->side)->unkA40 & 0x40000) {
+            if (BtlCtrl_GetObj(HUD_WHO(gHudGauge->side))->unkA40 & 0x40000) {
                 HudSprite_SetColor(spr, 0x80, 0x50, 0x70, 0x80);
             } else {
                 HudSprite_SetColor(spr, 0x80, 0x80, 0x80, 0x80);
@@ -1735,3 +1744,486 @@ void HudGauge_Init(HudBGroup **out, void *res) {
     grp->draw = NULL;
     *out = gHudGauge->grp;
 }
+
+#ifdef PORT
+/* The gauges of the fighters past the two sides (the third-fighter experiment; teams: btl_char_flag_opp.c).
+ *
+ * The part above is one tree shown twice and everything it keeps is a [2] array by side, so a fighter with roster
+ * index 2 or more has no place in it. Each of them gets a small row of its own instead, drawn from the same sheet
+ * with the same sprite library, under the gauge of the side it is teamed with (a fighter on a team of its own:
+ * under player 2's):
+ *
+ *     face (14 x 14)   health bar (80 x 8: the side's bar at half size)
+ *                      ki (five lamps of 20000 each)   one marker per health bar in reserve
+ *
+ * Health reads as the side's does: one bar is 10000, the colour says how many bars are under it, the trailing
+ * (damage) bar falls towards the health at the side's speeds. At no health the row is drawn dark and the bar is
+ * empty. Rows stack downwards, four to a column and two columns to a side, so eight fit under one side.
+ * Nothing here is drawn, and nothing is added to the frame, while the roster has two fighters. */
+#define PORT_FIGHTER_MAX 10 /* fighters a fight may have one day; the two sides are the first two */
+#define HUDX_ROWS 4         /* rows of a column */
+#define HUDX_SLOTS 8        /* rows under one side */
+#define HUDX_BAR_W 80      /* the health bar: half the side's 160 */
+#define HUDX_X 18          /* where the bars start: behind the face */
+
+extern s32 BtlChar_GetCount(void);
+extern s32 Port_Team(s32 i); /* btl_char_flag_opp.c */
+extern void *BtlChar_FindBySide(s32 side); /* (a number past the two sides is the roster index: btl_char_get.c; */
+extern s32 BtlSide_GetHp(s32 side);        /* so the by-side queries answer for any fighter) */
+extern s32 BtlSide_GetKi(s32 side);
+extern void HudNode_Draw(HudBGroup *node, s32 mirror);
+extern int Port_HudTestRows(void); /* port/src/plat_stub.c: 1 unless BT3_HUD_ROWS is set */
+
+static s32 sHudExtraShown[PORT_FIGHTER_MAX]; /* trailing health, by roster index */
+static s32 sHudExtraDrain[PORT_FIGHTER_MAX];
+static s32 sHudExtraFighter;                 /* the fighter whose row is being drawn */
+static s32 sHudExtraPlace;                   /* and the side of the screen it is on */
+static HudBGroup sHudExtraNode;
+
+/* One piece of the sheet: texture 8 with the palette of entry 8 + sub. */
+static void HudExtra_Tex(s32 sub, s32 x0, s32 x1, s32 y0, s32 y1, s32 u0, s32 u1, s32 v0, s32 v1, s32 lum) {
+    HudBSprite piece;
+
+    memset(&piece, 0, sizeof(piece));
+    HudSprite_InitTex(&piece, gHudGauge->res, 8, sub);
+    HudSprite_SetRect(&piece, x0, x1, y0, y1);
+    HudSprite_SetUv(&piece, u0, u1, v0, v1);
+    HudSprite_SetColor(&piece, lum, lum, lum, 0x80);
+    HudSprite_Draw(&piece, gHudGauge->res, 0);
+}
+
+/* An untextured rectangle. */
+static void HudExtra_Plain(s32 x0, s32 x1, s32 y0, s32 y1, s32 r, s32 g, s32 b, s32 a) {
+    HudBSprite piece;
+
+    memset(&piece, 0, sizeof(piece));
+    HudSprite_InitPlain(&piece, r, g, b, a);
+    HudSprite_SetRect(&piece, x0, x1, y0, y1);
+    HudSprite_Draw(&piece, gHudGauge->res, 0);
+}
+
+/* The palette of a health bar with `bars` full bars under it (the side's rule, HudGauge_UpdateHp). */
+static s32 HudExtra_HpSub(s32 bars) {
+    return bars >= 7 ? 5 : bars >= 2 ? 1 : bars > 0 ? 4 : 3;
+}
+
+/* Width of `rem` of a bar's 10000; health that is not zero shows at least two pixels. */
+static s32 HudExtra_HpWidth(s32 rem) {
+    s32 w = rem * HUDX_BAR_W / HUDG_HP_BAR;
+    return w < 2 && rem != 0 ? 2 : w;
+}
+
+/* Draw callback of the row's node. */
+static void HudExtra_DrawRow(void) {
+    s32 i = sHudExtraFighter;
+    s32 hp = BtlSide_GetHp(i);
+    s32 ki = BtlSide_GetKi(i);
+    s32 dead = hp <= 0 || BtlCtrl_IsActiveDead(i);
+    s32 lum = dead ? 0x30 : 0x80;
+    s32 shown, rem, bars, rem2, bars2, w, k;
+    HudBObj *obj = BtlCtrl_GetObj(i);
+
+    if (hp < 0) {
+        hp = 0;
+    }
+    /* (the trailing health: HudGauge_UpdateHpTrail's rule) */
+    if (!HUDG_PAUSED()) {
+        if (hp < sHudExtraShown[i]) {
+            s32 gap = sHudExtraShown[i] - hp;
+            s32 drain = gap > 20000 ? 200 : gap > 10000 ? 150 : gap > 5000 ? 120 : 100;
+            sHudExtraDrain[i] = HUDB_MAX(sHudExtraDrain[i], drain);
+            sHudExtraShown[i] -= sHudExtraDrain[i];
+            if (sHudExtraShown[i] < hp) {
+                sHudExtraShown[i] = hp;
+            }
+        } else {
+            sHudExtraShown[i] = hp;
+            sHudExtraDrain[i] = 100;
+        }
+    }
+    shown = sHudExtraShown[i] < hp ? hp : sHudExtraShown[i];
+    rem = shown % HUDG_HP_BAR;
+    bars = shown / HUDG_HP_BAR;
+    if (rem == 0 && bars != 0) {
+        rem = HUDG_HP_BAR;
+        bars--;
+    }
+    rem2 = hp % HUDG_HP_BAR;
+    bars2 = hp / HUDG_HP_BAR;
+    if (rem2 == 0 && bars2 != 0) {
+        rem2 = HUDG_HP_BAR;
+        bars2--;
+    }
+
+    /* the plate behind the row */
+    HudExtra_Plain(0, HUDX_X + HUDX_BAR_W + 2, 0, 16, 0x08, 0x0C, 0x20, 0x50);
+    /* the face: the picture of the fighter's own sheet that is drawn for this side of the screen */
+    if (obj != NULL && obj->faceRes != NULL) {
+        HudBSprite face;
+
+        memset(&face, 0, sizeof(face));
+        obj->faceRes->tex[sHudExtraPlace].mark = 0; /* (sent again: the side's face has used the same blocks) */
+        HudSprite_InitTex(&face, obj->faceRes, sHudExtraPlace, 0);
+        HudSprite_SetRect(&face, 1, 15, 1, 15);
+        HudSprite_SetColor(&face, lum, lum, lum, 0x80);
+        HudSprite_SetMirror(&face, sHudExtraPlace);
+        HudSprite_DrawAt(&face, obj->faceRes, 0, 0x2C00, 0x2CD0);
+    }
+    /* health: the bar's shape in the dark (an empty bar), the bar under the one on show, the trailing bar, the
+       bar */
+    HudExtra_Tex(1, HUDX_X, HUDX_X + HUDX_BAR_W, 1, 9, 0, 160, 0, 16, 0x14);
+    if (bars > 0) {
+        HudExtra_Tex(HudExtra_HpSub(bars - 1), HUDX_X, HUDX_X + HUDX_BAR_W, 1, 9, 0, 160, 0, 16, lum);
+    }
+    if (shown != hp) {
+        w = HudExtra_HpWidth(rem);
+        /* (that palette is one flat colour over the whole rectangle, which the side's bar cuts to shape with a
+           mask; here it is laid in two pieces: the bar is its lower half as far as the step at 64 of 160) */
+        HudExtra_Tex(2, HUDX_X, HUDX_X + (w < 32 ? w : 32), 5, 9, 0, 2, 8, 16, lum);
+        if (w > 32) {
+            HudExtra_Tex(2, HUDX_X + 32, HUDX_X + w, 1, 9, 64, w * 2, 0, 16, lum);
+        }
+    }
+    w = bars2 < bars ? 0 : HudExtra_HpWidth(rem2);
+    if (w != 0) {
+        HudExtra_Tex(HudExtra_HpSub(bars), HUDX_X, HUDX_X + w, 1, 9, 0, w * 2, 0, 16, lum);
+    }
+    /* ki: five lamps, the one being filled grows from its foot (HudGauge_UpdateKi) */
+    for (k = 0; k < 5; k++) {
+        s32 n = ki >= (k + 1) * HUDG_KI_BAR ? 14 : ki <= k * HUDG_KI_BAR ? 0 : (ki - k * HUDG_KI_BAR) * 14 / HUDG_KI_BAR;
+
+        HudExtra_Tex(0, HUDX_X + k * 5, HUDX_X + 7 + k * 5, 9, 16, 0x10, 0x1E, 0x10, 0x1E, 0x28);
+        if (n != 0) {
+            HudExtra_Tex(1, HUDX_X + k * 5, HUDX_X + 7 + k * 5, 16 - n / 2, 16, 0x10, 0x1E, 0x1E - n, 0x1E, lum);
+        }
+    }
+    /* the health bars in reserve (HudGauge_UpdateHpBarCount shows six at most) */
+    for (k = 0; k < bars && k < 6; k++) {
+        HudExtra_Tex(1, HUDX_X + 32 + k * 5, HUDX_X + 40 + k * 5, 9, 16, 0, 0x10, 0x11, 0x1F, lum);
+    }
+}
+
+static void HudExtra_DrawTargetMark(void); /* (below) */
+
+/* ---- the small gauges (asked for by the user: "a miniaturized version of the player HUD") ----
+ * Every fighter the two gauges do not show gets the game's own gauge again, at half its size, under the gauge of
+ * its team's side: the same tree of nodes and sprites (frame, face, health, ki, blast stock, the powered-up timer,
+ * status icons), drawn by the same code. The tree keeps its state per side (the arrays of two in HudBWork:
+ * trailing health and ki, flashes, the face, ...): each small gauge has a copy of one side's of its own
+ * (sHudMini), swapped into that side while it is updated and drawn and swapped out again, so that its animations
+ * go on from frame to frame and the side's own gauge is left as it was. The half size is a matrix around the
+ * corner of the screen the side's gauge stands in, under which the tree is drawn as always. */
+typedef f32 HudXMtx[4][4];
+extern void Mtx_StoreIdentity(HudXMtx m);
+extern void Vu0Cur_Push(void);
+extern void Vu0Cur_Pop(void);
+extern void Vu0Cur_MulMtx(HudXMtx m);
+extern void HudGfx_ClearAlpha(void);
+extern void HudNode_Update(HudBGroup *node);
+extern s32 BtlSide_GetBlast(s32 side);
+extern s32 BtlSide_GetMaxPower(s32 side);
+extern s32 BtlSide_GetParamUnk2C(s32 side);
+extern s32 BtlSide_TestFlagBE(s32 side);
+#define HUDM_SCALE 0.5f
+#define HUDM_TOP 74  /* the first small gauge's top, in the screen's 448 lines (a gap under the side's own: the user) */
+#define HUDM_STEP 30 /* from one to the next */
+typedef struct HudMiniSlot {
+    HudBShake shake[3];
+    s32 hpShown, hp, auraAlpha;
+    Ramp lowHpPulse;
+    s32 blast, ki, kiShown;
+    Ramp kiBarFlash, kiFullPulse;
+    s32 maxPower;
+    Ramp blastFlash;
+    u32 statMask, statPos;
+    s32 kiReserve;
+    u32 statPrev;
+    s32 statTo[4], statFrom[4];
+    Ramp statRamp;
+    s32 statState;
+    Ramp hpBarFade;
+    HudBRes *faceRes;
+    HudBObj *obj;
+    s32 switching;
+    Ramp slide;
+    s32 hpDrain, kiDrain;
+    Ramp kiReservePulse;
+} HudMiniSlot;
+static HudMiniSlot sHudMini[PORT_FIGHTER_MAX];
+static s32 sHudMiniUsed[PORT_FIGHTER_MAX]; /* (0: not drawn yet this fight: started from the side's own) */
+
+static void HudMini_Swap(void *a, void *b, u32 size) {
+    u8 t[64];
+    u32 n;
+    for (n = 0; n < size; n += sizeof(t)) {
+        u32 c = size - n < sizeof(t) ? size - n : sizeof(t);
+        memcpy(t, (u8 *)a + n, c);
+        memcpy((u8 *)a + n, (u8 *)b + n, c);
+        memcpy((u8 *)b + n, t, c);
+    }
+}
+
+/* Does op (swap, or copy into m) on every value small gauge m keeps, with side k's. */
+static void HudMini_Copy(void *a, void *b, u32 size) {
+    memcpy(a, b, size);
+}
+static void HudMini_Each(HudMiniSlot *m, s32 k, void (*op)(void *, void *, u32)) {
+    HudBWork *w = gHudGauge;
+#define HUDM_X(f) op(&m->f, &w->f[k], sizeof(m->f))
+    op(m->shake, w->shake[k], sizeof(m->shake));
+    HUDM_X(hpShown); HUDM_X(hp); HUDM_X(auraAlpha); HUDM_X(lowHpPulse); HUDM_X(blast); HUDM_X(ki); HUDM_X(kiShown);
+    HUDM_X(kiBarFlash); HUDM_X(kiFullPulse); HUDM_X(maxPower); HUDM_X(blastFlash); HUDM_X(statMask); HUDM_X(statPos);
+    HUDM_X(kiReserve); HUDM_X(statPrev); op(m->statTo, w->statTo[k], sizeof(m->statTo));
+    op(m->statFrom, w->statFrom[k], sizeof(m->statFrom)); HUDM_X(statRamp); HUDM_X(statState);
+    HUDM_X(hpBarFade); HUDM_X(faceRes); HUDM_X(obj); HUDM_X(switching); HUDM_X(slide); HUDM_X(hpDrain);
+    HUDM_X(kiDrain); HUDM_X(kiReservePulse);
+#undef HUDM_X
+}
+
+/* Fighter i's gauge on screen side `place` (0 left, 1 right), at `scale` of its size, its top `top` lines down
+   (with `dx` to the side): a small one of a row, or a bottom quarter's (four local players). */
+/* (m: the gauge's own state, *used 0 until it has been drawn once; anchor: PORT_2D_ placement in a wide picture) */
+static void HudExtra_DrawGaugeIn(HudMiniSlot *m, s32 *used, s32 i, s32 place, f32 scale, f32 top, f32 dx, s32 anchor) {
+    s32 k = HUD_SCR(0) == place ? 0 : 1; /* (the side whose gauge stands on that side of the screen: its mirroring) */
+    s32 was = gHudGauge->side;
+    Ramp slideAll = gHudGauge->slideAll;
+    HudXMtx mtx;
+    s32 hp = BtlSide_GetHp(i);
+
+    if (!*used) {
+        *used = 1;
+        HudMini_Each(m, k, HudMini_Copy); /* (a copy of the side's own to start from) */
+        m->hpShown = hp > 0 ? hp : 0;
+        m->hp = m->hpShown;
+        m->kiShown = BtlSide_GetKi(i);
+        m->switching = 0;
+        m->slide.value = 0.0f;
+    }
+    HudMini_Each(m, k, HudMini_Swap);
+    sHudMiniWho = i;
+    HudGauge_SetHp(k, hp);
+    HudGauge_SetKi(k, BtlSide_GetKi(i));
+    HudGauge_SetKiReserve(k, BtlSide_TestFlagBE(i) ? BtlSide_GetParamUnk2C(i) : 0);
+    HudGauge_SetBlast(k, BtlSide_GetBlast(i));
+    HudGauge_SetMaxPower(k, BtlSide_GetMaxPower(i));
+    HudGauge_SetFighter(k, BtlCtrl_GetObj(i));
+    gHudGauge->switching[k] = 0;
+    Vu0Cur_Push();
+    Mtx_StoreIdentity(mtx);
+    mtx[0][0] = scale;
+    mtx[1][1] = scale;
+    /* (about the screen's top left corner; a right side's gauge is mirrored about the screen after it) */
+    mtx[3][0] = dx; /* (the right side's mirroring is applied after this: the same corner on both) */
+    mtx[3][1] = top;
+    Vu0Cur_MulMtx(mtx);
+    HudGfx_ClearAlpha();
+    HudGauge_SelectSide(k);
+    Port_GsMarker(anchor); /* (after the side's own, which HudGauge_SelectSide sets) */
+    {
+        /* (placed from the middle: so are its life bar, ki and blast stock, which give their side's marker) */
+        extern void Port_GsMarkerForce(int effect);
+        Port_GsMarkerForce(anchor == PORT_2D_CENTER ? PORT_2D_CENTER : 0);
+        HudNode_Update(gHudGauge->grp);
+        HudNode_Draw(gHudGauge->grp, 0);
+        Port_GsMarkerForce(0);
+    }
+    Vu0Cur_Pop();
+    sHudMiniWho = -1;
+    HudMini_Each(m, k, HudMini_Swap);
+    gHudGauge->slideAll = slideAll;
+    HudGauge_SelectSide(was);
+}
+static void HudExtra_DrawGauge(s32 i, s32 place, f32 scale, f32 top, f32 dx) {
+    HudExtra_DrawGaugeIn(&sHudMini[i], &sHudMiniUsed[i], i, place, scale, top, dx, place ? PORT_2D_RIGHT : PORT_2D_LEFT);
+}
+
+/* ---- each player's own HUD (asked for by the user: "for each screen when not in 1p mode ... the player and the
+ * target", "the target on the right ... like the actual game") ----
+ * A split screen with more than two fighters (two halves, or the four quarters of four local players): every part
+ * of the screen has its player's gauge in its top left corner and its target's in its top right one, mirrored, as
+ * the game's own fight of one player has them, at half size; the game's two big gauges are not drawn
+ * (Port_MultiHud, hud_a.c). The ones next to the middle of the screen keep a gap for the timer and are placed from
+ * the middle in a wide picture. Each place has its own gauge state, started again when its fighter changes. */
+#define HUDP_SCALE 0.5f
+#define HUDP_GAP 24.0f
+static HudMiniSlot sHudPart[8];
+static s32 sHudPartUsed[8], sHudPartWho[8];
+
+s32 Port_MultiHud(void) {
+    extern s32 Battle_IsSplitScreen(void);
+    return BtlChar_GetCount() > 2 && Battle_IsSplitScreen();
+}
+
+/* How many parts the screen has (4 quarters, else 2 halves) and part r's fighter (its player's, or the one it
+   watches). */
+s32 Port_HudPartCount(void) {
+    extern s32 Port_QuadMode(void);
+    extern s32 Port_QuadThree(void);
+    return Port_QuadMode() ? (Port_QuadThree() ? 3 : 4) : 2;
+}
+s32 Port_HudPartFighter(s32 r) {
+    extern s32 Port_QuadMode(void);
+    extern s32 Port_QuarterFighter(s32 q);
+    extern s32 Port_Spectated(s32 p);
+    return Port_Spectated(Port_QuadMode() ? Port_QuarterFighter(r) : r);
+}
+
+static void HudExtra_DrawParts(void) {
+    extern s32 Port_QuadMode(void);
+    extern s32 Port_QuarterFighter(s32 q);
+    extern s32 Port_Spectated(s32 p);
+    extern s32 Port_CamTarget(s32 i);
+    extern s32 gPortTarget[];
+    extern s32 Port_QuadThree(void);
+    s32 quad = Port_QuadMode(), n = Port_HudPartCount(), r, role, three = Port_QuadThree();
+
+    for (r = 0; r < n; r++) {
+        s32 me = quad ? Port_QuarterFighter(r) : r;
+        s32 w = Port_Spectated(me);
+        s32 t = w == me ? Port_CamTarget(me) : gPortTarget[w];
+        f32 top = quad && r >= 2 ? 228.0f : 2.0f;
+        s32 right = r & 1; /* (a part on the right half of the screen) */
+        s32 wide = three && r == 2; /* (the whole bottom half: its target's gauge at the screen's right edge) */
+
+        for (role = 0; role < 2; role++) {
+            s32 slot = r * 2 + role, who = role == 0 ? w : t;
+            if ((u32)who >= (u32)BtlChar_GetCount() || (role == 1 && who == w)) {
+                continue;
+            }
+            if (sHudPartWho[slot] != who + 1) {
+                sHudPartWho[slot] = who + 1;
+                sHudPartUsed[slot] = 0;
+            }
+            if (role == 0) { /* (the player's: left, at the screen's edge or from the middle) */
+                HudExtra_DrawGaugeIn(&sHudPart[slot], &sHudPartUsed[slot], who, HUD_SCR(0), HUDP_SCALE, top,
+                                     right ? 256.0f + HUDP_GAP : 0.0f, right ? PORT_2D_CENTER : PORT_2D_LEFT);
+            } else { /* (the target's: right, mirrored) */
+                HudExtra_DrawGaugeIn(&sHudPart[slot], &sHudPartUsed[slot], who, HUD_SCR(1), HUDP_SCALE, top,
+                                     right || wide ? 0.0f : 255.0f + HUDP_GAP, right || wide ? PORT_2D_RIGHT : PORT_2D_CENTER);
+            }
+        }
+    }
+}
+
+static void HudExtra_DrawMini(s32 i, s32 place, s32 slot) {
+    HudExtra_DrawGauge(i, place, HUDM_SCALE, (f32)(HUDM_TOP + slot * HUDM_STEP), 2.0f);
+}
+
+/* Draws the rows; called by Hud_Draw behind the two passes of the gauge tree. */
+void HudGauge_DrawExtras(void) {
+    s32 used[2] = { 0, 0 }; /* rows taken, by side of the screen */
+    s32 count;
+    s32 i;
+
+    if (BtlChar_FindBySide(0) == NULL) {
+        return; /* (no roster yet) */
+    }
+    count = BtlChar_GetCount();
+    {
+        /* Four quarters (four local players): every quarter has its fighter's gauge in its own top corner, as the
+           game's two have theirs: the top quarters' are those two (Port_HudFighter), the bottom ones' the same gauge
+           half the screen lower. No rows of small gauges: a quarter has no room for them. */
+        extern s32 Port_QuadMode(void);
+        extern s32 Port_QuarterFighter(s32 q);
+        extern s32 Port_Spectated(s32 p);
+        if (Port_MultiHud()) {
+            HudExtra_DrawParts();
+            HudExtra_DrawTargetMark();
+            Port_GsMarker(HUD_SCR(1) ? PORT_2D_RIGHT : PORT_2D_LEFT);
+            return;
+        }
+    }
+    for (i = 0; i < count && i < PORT_FIGHTER_MAX; i++) {
+        /* (everybody but the two the gauges show: the player's and its target, Port_HudFighter; player 1's team
+           under player 1's gauge, player 2's under player 2's; a fighter of another team, which is everybody in a
+           free-for-all, goes to the side that has fewer rows, the right one first) */
+        s32 team = Port_Team(i);
+        if (count < 3 || i == HUD_WHO(0) || i == HUD_WHO(1)) {
+            continue;
+        }
+        s32 place = team == 0 ? HUD_SCR(0) : team == 1 ? HUD_SCR(1) : used[HUD_SCR(1)] <= used[HUD_SCR(0)] ? HUD_SCR(1) : HUD_SCR(0);
+        s32 n;
+
+        /* (one row a fighter; BT3_HUD_ROWS=<n>, testing, draws it n times to show a full stack) */
+        for (n = Port_HudTestRows(); n > 0 && used[place] < HUDX_SLOTS; n--) {
+            s32 slot = used[place]++;
+
+            HudExtra_DrawMini(i, place, slot);
+        }
+    }
+    if (count > 2) {
+        HudExtra_DrawTargetMark();
+        Port_GsMarker(HUD_SCR(1) ? PORT_2D_RIGHT : PORT_2D_LEFT); /* (as the second pass of the tree left it) */
+    }
+}
+
+/* The marker over the player's target (btl_char_flag_opp.c, Port_TargetMark): a small triangle pointing down
+   above its head, yellow while the game chooses the target (the nearest enemy) and red when the player has
+   chosen it. It is drawn straight in the picture's own coordinates (no 2D anchoring: it has to stay over the
+   fighter in any picture shape), its size from how tall the fighter is on the screen. */
+typedef struct { f32 x, y, z, w; } __attribute__((aligned(16))) HudXPoint; /* (a Vec4) */
+extern s32 Port_TargetMark(s32 p, HudXPoint *head, HudXPoint *feet, s32 *locked); /* btl_char_flag_opp.c */
+extern s32 Port_ProjectPoint(HudXPoint *pos, s32 *x, s32 *y);                   /* btl_cam.c */
+extern u64 *Dma_BeginDirect(void);
+extern void Dma_EndDirect(u64 *end);
+
+static void HudExtra_Triangle(s32 x0, s32 y0, s32 x1, s32 y1, s32 x2, s32 y2, u32 rgba) {
+    u64 *p = Dma_BeginDirect();
+    u64 *tag = p;
+
+    p += 2;
+    p[0] = rgba;
+    p[1] = 0x43; /* triangle, alpha blended, context 1 */
+    p += 2;
+    p[0] = 0;
+    p[1] = (u64)(u16)x0 | ((u64)(u16)y0 << 16);
+    p += 2;
+    p[0] = 0;
+    p[1] = (u64)(u16)x1 | ((u64)(u16)y1 << 16);
+    p += 2;
+    p[0] = 0;
+    p[1] = (u64)(u16)x2 | ((u64)(u16)y2 << 16);
+    p += 2;
+    tag[0] = ((u64)8 << 60) | ((u64)1 << 58) | ((u64)1 << 15) | 1; /* 8 registers, REGLIST, EOP, 1 loop */
+    tag[1] = 0x53535301;                                            /* RGBAQ, PRIM, 3 x (UV, XYZ2) */
+    Dma_EndDirect(p);
+}
+
+static void HudExtra_DrawTargetMark(void) {
+    extern s32 Port_QuadMode(void);
+    extern s32 Port_QuarterFighter(s32 q);
+    extern s32 Port_QuarterProject(s32 q, HudXPoint *pos, s32 *x, s32 *y); /* btl_cam.c */
+    HudXPoint head, feet;
+    s32 p, locked, ax, ay, fx, fy, h, s, tip;
+    s32 quad = Port_QuadMode(); /* (four quarters: each player's marker in its own quarter, through its camera) */
+
+    for (p = 0; p < (quad ? Port_HudPartCount() : 2); p++) {
+        if (quad) {
+            if (!Port_TargetMark(Port_QuarterFighter(p), &head, &feet, &locked) || !Port_QuarterProject(p, &head, &ax, &ay) ||
+                !Port_QuarterProject(p, &feet, &fx, &fy)) {
+                continue;
+            }
+        } else if (!Port_TargetMark(p, &head, &feet, &locked) || !Port_ProjectPoint(&head, &ax, &ay) ||
+                   !Port_ProjectPoint(&feet, &fx, &fy)) {
+            continue;
+        }
+        h = fy > ay ? fy - ay : ay - fy;     /* the fighter's height on the screen (head to feet) */
+        s = h / 8;
+        s = s < 4 * 16 ? 4 * 16 : s > 9 * 16 ? 9 * 16 : s;
+        tip = ay - h / 6 - s;                 /* above the head and its hair */
+        Port_GsMarker(PORT_2D_END);
+        HudExtra_Triangle(ax - s - 24, tip - s * 2 - 16, ax + s + 24, tip - s * 2 - 16, ax, tip + 24, 0x80000000);
+        HudExtra_Triangle(ax - s, tip - s * 2, ax + s, tip - s * 2, ax, tip,
+                          locked ? 0x80202CFF : 0x8030E0FF); /* (A B G R) */
+    }
+}
+
+/* Round reset: no trailing health is left over from the fight before. */
+void HudGauge_ResetExtras(void) {
+    memset(sHudExtraShown, 0, sizeof(sHudExtraShown));
+    memset(sHudExtraDrain, 0, sizeof(sHudExtraDrain));
+    memset(sHudMiniUsed, 0, sizeof(sHudMiniUsed)); /* (each small gauge starts again from its side's) */
+    memset(sHudPartUsed, 0, sizeof(sHudPartUsed));
+    memset(sHudPartWho, 0, sizeof(sHudPartWho));
+}
+#endif

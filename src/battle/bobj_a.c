@@ -1248,6 +1248,15 @@ void BtlObjHit_BuildVolumes(BobjObj *obj) {
     work->atkSphereCount = 0;
     work->atkObbCount = 0;
     work->contact &= 0xFFFFFF;
+#ifdef PORT
+    {
+        extern u16 gPortBodyTouch[]; /* eft_det_a.c: who this object's strike touched, for more than four fighters */
+        s32 id = *(s32 *)((u8 *)obj + 0x10); /* (the object's index in gBtlObjTbl: BtlObj.id, inside unk04 here) */
+        if ((u32)id < 12) {
+            gPortBodyTouch[id] = 0;
+        }
+    }
+#endif
     StgAabb_SetEmpty(&work->atkBox);
     if (obj->hit.hitIndex < 0) {
         return;

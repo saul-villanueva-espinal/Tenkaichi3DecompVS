@@ -1704,6 +1704,19 @@ void EftShotMgr_Init(EftTask *task) {
     c->task = BtlTaskList_AddTail(gEftShot->list, gEftShotCharClass, &arg[0]);
     c = gEftShot->chr + 1;
     c->task = BtlTaskList_AddTail(gEftShot->list, gEftShotCharClass, &arg[1]);
+#ifdef PORT
+    {
+        /* The experiment of more than two fighters: the original makes the tasks of characters 0 and 1 by name.
+           Without its task the third fighter had no shot data, and its first skill wrote through an empty
+           entry. One for every fighter past the two. */
+        s32 n;
+
+        for (n = 2; n < gEftShot->count; n++) {
+            c = gEftShot->chr + n;
+            c->task = BtlTaskList_AddTail(gEftShot->list, gEftShotCharClass, &n);
+        }
+    }
+#endif
 }
 
 /* Shot layer term callback: frees the blocks and empties pools 3, 4 and 5. */
@@ -1715,6 +1728,15 @@ void EftShotMgr_Term(void) {
     BtlPool_Reset(3);
     BtlPool_Reset(4);
     BtlPool_Reset(5);
+#ifdef PORT
+    {
+        s32 k;
+
+        for (k = 0; k < (BTL_POOL_SLOT_COUNT - 9) / 2; k++) { /* (the extra fighters' own) */
+            BtlPool_Reset(BTL_POOL_EXTRA_SHOT(k));
+        }
+    }
+#endif
 }
 
 /* Shot layer update callback: nothing. */
@@ -1766,6 +1788,11 @@ void EftShot_SetCharPool(s32 chr) {
     } else {
         pool = 5;
     }
+#ifdef PORT
+    if (chr >= 2) { /* (an extra fighter's own: side 2's is emptied when side 2 changes its model) */
+        pool = BTL_POOL_EXTRA_SHOT(chr - 2);
+    }
+#endif
     BtlPool_SetCurrent(pool);
 }
 
@@ -1778,6 +1805,11 @@ void EftShot_ResetCharPool(s32 chr) {
     } else {
         pool = 5;
     }
+#ifdef PORT
+    if (chr >= 2) { /* (an extra fighter's own: side 2's is emptied when side 2 changes its model) */
+        pool = BTL_POOL_EXTRA_SHOT(chr - 2);
+    }
+#endif
     BtlPool_Reset(pool);
 }
 

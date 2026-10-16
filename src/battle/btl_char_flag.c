@@ -178,6 +178,32 @@ void BtlChars_UpdateSightFlag(void) {
     BtlFlagChr *chr0 = BtlChar_Get(0);
     BtlFlagChr *chr1 = BtlChar_Get(1);
 
+#ifdef PORT
+    {
+        /* The third-fighter experiment. This is the line of sight between THE two fighters: scenery between them
+           marks both, and a marked fighter's punches are void (BtlHit_IsVoid). With a third fighter player 1 was
+           marked whenever a cliff stood between it and fighter 2, wherever the one it was punching stood ("cannot
+           punch him near cliffs", seen by the user). Player 1's line is to its opponent of the moment; the other
+           fighter of side 2 has a line of its own to player 1. */
+        extern s32 BtlChar_GetCount(void);
+        extern s32 gPortTarget[]; /* btl_char_flag_opp.c */
+        if (BtlChar_GetCount() >= 3) {
+            /* (Teams: each fighter's line is to its own target.) */
+            s32 k;
+            for (k = 0; k < BtlChar_GetCount(); k++) {
+                BtlFlagChr *c = BtlChar_Get(k);
+                BtlChar_ClearFlag(c, 0xBA);
+                BtlCharApi_GetNodePos(c->objId, 0x2F, &a);
+                BtlCharApi_GetNodePos(BtlChar_Get(gPortTarget[k])->objId, 0x2F, &b);
+                ColSeg_Set(seg, &a, &b);
+                if (StgCol_TraceSegment(seg)) {
+                    BtlChar_SetHeldFlag(c, 0xBA);
+                }
+            }
+            return;
+        }
+    }
+#endif
     BtlChar_ClearFlag(chr0, 0xBA);
     BtlChar_ClearFlag(chr1, 0xBA);
     BtlCharApi_GetNodePos(chr0->objId, 0x2F, &a);
@@ -208,6 +234,20 @@ void BtlChar_SetFrameBits(BtlFlagChr *chr, u64 bits) {
 
 /* The first clash won in a battle (by either side): set-once bit 0, flag 0xE3 and battle event 0x3C for this fighter. */
 void BtlChar_RaiseFirstClash(BtlFlagChr *chr) {
+#ifdef PORT
+    {
+        /* (The third-fighter experiment: "first" is asked of every fighter. With the two below alone, each clash
+           a third fighter won was the battle's first again until one of the two won one.) */
+        extern s32 BtlChar_GetCount(void);
+        s32 i;
+
+        for (i = 0; i < BtlChar_GetCount(); i++) {
+            if (BtlChar_TestOnceBit(BtlChar_Get(i), 0)) {
+                return;
+            }
+        }
+    }
+#endif
     if (!BtlChar_TestOnceBit(BtlChar_Get(0), 0) && !BtlChar_TestOnceBit(BtlChar_Get(1), 0)) {
         BtlChar_SetOnceBit(chr, 0);
         BtlChar_SetFlag(chr, 0xE3);

@@ -15,6 +15,7 @@
 #include <time.h>
 #include <time.h>
 #include "port_addr.h"
+#include "port_fighters.h"
 extern void Port_StateTouch(void *p, unsigned long n); /* gs/state.c */
 
 /* ---- second processor (IOP): heap and remote calls ---- */
@@ -127,6 +128,31 @@ void Port_GameSpeedSet(int percent) {
 int Port_SpeedMilli(void) {
     return Port_NetSession() || Port_NetActive() ? Port_NetSpeedMilli() : Port_GameSpeed() * 10;
 }
+/* BT3_LAG_LOG=1: when things happen in a tick, in microseconds since the start: V a vertical blank (after its wait),
+   R a pad read, E the window's events taken (which is when a controller's state is renewed), S a picture handed to
+   the window. For measuring how old the input is that the game reads, and how long until its picture is shown. */
+void Port_LagMark(int what) {
+    PORT_HOST static int on = -1;
+    PORT_HOST static unsigned long long first = 0;
+    unsigned long long t;
+    if (on < 0) {
+        on = getenv("BT3_LAG_LOG") != NULL;
+    }
+    if (!on) {
+        return;
+    }
+    t = now_ns();
+    if (first == 0) {
+        first = t;
+    }
+    {
+        extern unsigned gGsFrame; /* gs/gs_draw.c: the pictures so far */
+        fprintf(stderr, "lag %c %u %u\n", what, (unsigned)((t - first) / 1000ull), gGsFrame);
+    }
+}
+
+int Port_LateInput(void);
+
 /* A vertical blank's length: 16.68 ms at the game's own pace. */
 #define BLANK_NS (16683350ull * 1000ull / (unsigned long long)Port_SpeedMilli())
 unsigned long long Port_BlankNs(void) { return BLANK_NS; }
@@ -201,8 +227,49 @@ static void vblank_wait(void) {
 }
 
 #undef next
-static unsigned char sPadLast[2][18]; /* (defined with the pads below) */
+static unsigned char sPadLast[4][18]; /* (defined with the pads below) */
+
+/* ---- "Low input lag" (setting late_input, F1 > Video; BT3_LATE_INPUT=0/1) ------------------------------------
+ * The game reads the pads, computes the tick, and THEN waits for its vertical blanks (two in a fight) before the
+ * picture is shown: what is seen is 33 ms old in a fight although computing and drawing it took a few (measured
+ * with BT3_LAG_LOG: 1 ms and 2 ms on a fast machine). With this on, a blank the game asks for is not waited for
+ * there but owed, and waited for when the game next reads the pads: the tick's length is the same, the pads are
+ * read at its end instead of its start, and the picture follows the read by the time the work takes.
+ * Nothing of the game's state changes: the same reads, the same blanks, in the same order (a recording replays
+ * the same). Not in an online session and not with in-between pictures, which keep the original order.
+ * (PORT_HOST: real time, not the game's state.) */
+PORT_HOST static int sLateOwed = 0, sLateOn = -1;
+
+int Port_LateInput(void) {
+    if (sLateOn < 0) {
+        sLateOn = getenv("BT3_LATE_INPUT") != NULL ? atoi(getenv("BT3_LATE_INPUT")) != 0 : Port_Setting("late_input", 0) != 0;
+    }
+    return sLateOn;
+}
+
+void Port_LateInputSet(int on) {
+    extern void Port_SettingSave(const char *name, int value);
+    sLateOn = on != 0;
+    Port_SettingSave("late_input", sLateOn);
+}
+
+/* The blanks owed are waited for now: called before the first pad is read. */
+static void late_wait(void) {
+    extern void PortInput_Fresh(void); /* gs/gs_input.c */
+    if (sLateOwed == 0) {
+        return;
+    }
+    while (sLateOwed > 0) {
+        sLateOwed--;
+        vblank_wait();
+    }
+    Port_LagMark('L');
+    if (GsGpu_Enabled()) {
+        PortInput_Fresh(); /* the controllers and keys as they are now, not as they were when the last picture was shown */
+    }
+}
 void Port_VBlank(void) {
+    Port_LagMark('W'); /* (the game has come to wait for a blank) */
     {
         extern void Port_SessionPoll(void); /* gs/state.c: the state at the first blank is kept; an online session
                                                begins or ends here */
@@ -226,13 +293,23 @@ void Port_VBlank(void) {
             /* gs/gs_draw.c: the pictures of the tick that follow its first (in-between pictures and the real one):
                those due before this blank now, those due at it after the wait */
             extern void GsGpu_InterpPump(int ahead_ms, int all);
+            extern int gsInterp; /* gs/gs_draw.c: in-between pictures (their timing counts from the blanks) */
+            int timed = (GsGpu_Enabled() || getenv("BT3_PACED") != NULL) && getenv("BT3_UNCAPPED") == NULL && !warp && !again;
             /* (not while blanks are run again after a rollback or run ahead for an online session: those are
                not shown and not timed, and waiting for a picture here would slow the catching up) */
+            if (timed && Port_LateInput() && !Port_NetSession() && gsInterp <= 0 && sLateOwed < 2) {
+                /* "Low input lag": the wait is owed and made before the next pad read instead (scePad2Read), so
+                   that the tick is computed and shown right after its input was read, not a tick's wait later.
+                   At most two blanks are owed (a fight's tick has two); where the game reads no pad (loading)
+                   the blanks are waited for here as always. */
+                sLateOwed++;
+            } else {
             if (GsGpu_Enabled() && !warp && !again) {
                 GsGpu_InterpPump(-1, 0); /* (-1: what can be finished before the blank) */
             }
-            if ((GsGpu_Enabled() || getenv("BT3_PACED") != NULL) && getenv("BT3_UNCAPPED") == NULL && !warp && !again) {
+            if (timed) {
                 vblank_wait();
+            }
             }
             if (GsGpu_Enabled() && !warp && !again) {
                 GsGpu_InterpPump(6, 0);
@@ -242,6 +319,10 @@ void Port_VBlank(void) {
     {
         extern void PortA11y_GameTick(void); /* a11y_game.c: what the screen reader says (off without its library) */
         PortA11y_GameTick();
+    }
+    {
+        extern void PortPanels_GameTick(void); /* fight_panels.c: what the side bars show of a fight */
+        PortPanels_GameTick();
     }
     {   /* BT3_PAD_TABLE=<file>: what each pad read during the blank that ends here, 36 bytes per blank (the input
            of a session by blank and by pad: gs/net.c plays one player's column of it for its tests) */
@@ -256,6 +337,7 @@ void Port_VBlank(void) {
             fflush(table);
         }
     }
+    Port_LagMark('V');
     gPortVBlanks++;
     {
         extern int gPortResim;
@@ -312,7 +394,8 @@ long Port_PadPlayPos(void) { return sPadPlay != NULL ? ftell(sPadPlay) : -1; }
 void Port_PadPlaySeek(long pos) { if (sPadPlay != NULL) { fseek(sPadPlay, pos >= 0 ? pos : 0, SEEK_SET); } }
 
 /* The pads as the game last read them (for BT3_PAD_TABLE, below). */
-static unsigned char sPadLast[2][18] = {{0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80}, {0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80}};
+static unsigned char sPadLast[4][18] = {{0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80}, {0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80},
+                                        {0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80}, {0xFF, 0xFF, 0x80, 0x80, 0x80, 0x80}};
 static int pad_read(int socket, unsigned char *data);
 
 int scePad2Read(int socket, unsigned char *data) {
@@ -320,13 +403,19 @@ int scePad2Read(int socket, unsigned char *data) {
     extern void Port_NetInput(int player, unsigned char *data);
     int n;
 
+    if (socket == 0) {
+        late_wait();
+        Port_LagMark('R');
+    }
     if (Port_NetActive()) {
         Port_NetInput(socket, data); /* both pads come from the exchange with the other player */
         n = 18;
     } else {
+        extern void Port_ModesPad(int socket); /* plat_modes.c */
         n = pad_read(socket, data);
+        Port_ModesPad(socket); /* (counts the reads: the main menu's hint of the extra modes goes when the reads are not the menu's) */
     }
-    if (socket >= 0 && socket < 2) {
+    if (socket >= 0 && socket < 4) {
         memcpy(sPadLast[socket], data, 18);
     }
     return n;
@@ -443,6 +532,155 @@ int Port_AspectMilli(void) {
 void Port_SetAspectMilli(int milli) {
     sAspectMilli = milli < 1333 ? 1333 : milli > 4000 ? 4000 : milli;
 }
+/* BT3_THIRD=<character id> (an experiment, src/battle/btl_char_fx_c.c): a third body in a fight. -1 = not asked. */
+int Port_ThirdChara(void) {
+    static int id = -2;
+    if (id == -2) {
+        id = getenv("BT3_THIRD") != NULL ? atoi(getenv("BT3_THIRD")) : -1;
+        if (id > 160) { id = -1; }
+    }
+    return id;
+}
+/* The experiment of a third fighter of its own beside player 2's (src/battle: battle.c, battle_load.c,
+   battle_work.c, btl_char_mgr.c). Who it is and whether a fight has it (BT3_THIRD_FIGHTER=<character id>, or the
+   settings): plat_fighters.c. Now any number of them (port/include/port_fighters.h): gPortExtraSlot[k] /
+   gPortExtraObj[k] are extra fighter k's resource slot and battle object, set by the loader, and gPortExtraObjs
+   says how many have an object. */
+int gPortExtraSlot[PORT_EXTRA_MAX] = {-1, -1, -1, -1, -1, -1, -1, -1}, gPortExtraObj[PORT_EXTRA_MAX] = {-1, -1, -1, -1, -1, -1, -1, -1};
+int gPortExtraObjs;
+/* (the experiment's tool) Walks the game's heap and says where its chain of blocks first breaks: the block before
+   the break is the one that was written past its end. Called with a label from points of a fight's set-up and
+   frame (BT3_HEAPCHK=1); says each fault once. */
+typedef struct { uint32_t magic; int32_t used, fromTail; uint32_t align; int32_t size; uint32_t data; int32_t dataSize, unk1C; } PortHeapBlock;
+extern uint32_t gHeapStart[], gHeapEnd[]; /* (the game's pointers are 32 bits wide) */
+void Port_Dbg2(const char *what, int a, int b) {
+    static int count;
+    if (getenv("BT3_HEAPCHK") != NULL && count++ < 12) {
+        fprintf(stderr, "bt3: dbg: %s %d %d\n", what, a, b);
+    }
+}
+void Port_Dbg3(const char *what, int a, int b, int c, int d) {
+    if (getenv("BT3_HEAPCHK") != NULL) {
+        fprintf(stderr, "bt3: dbg: %s: %d %#x %#x %d\n", what, a, b, c, d);
+    }
+}
+/* An arena of the effect scene was asked for more than it holds (src/battle/btl_pool.c): what is written there
+   lands in the arena behind it. Always said: it is a fault, not a measurement. */
+void Port_PoolFull(int slot, int size, int used) {
+    fprintf(stderr, "bt3: EFFECT ARENA %d IS FULL: %d bytes, %d asked for\n", slot, size, used);
+}
+/* The effect scene asked for more textures in one frame than it has room for (src/battle/eft_ae.c): `what` 0 the
+   list, 1 VRAM. The texture is left out for the frame. */
+void Port_VramFull(int what, int asked, int room) {
+    fprintf(stderr, "bt3: effect textures: more than fit in one frame (%s: %d of %d)\n", what == 0 ? "textures in the list" : "the images end at VRAM block", asked, room);
+}
+int Port_HeapCheck(const char *where) {
+    static int on = -1, said;
+    PortHeapBlock *b, *prev = NULL;
+    if (on < 0) { on = getenv("BT3_HEAPCHK") != NULL; }
+    if (!on || said) { return 1; }
+    for (b = (PortHeapBlock *)(uintptr_t)gHeapStart[0]; b != NULL && (uintptr_t)b != gHeapEnd[0]; b = (PortHeapBlock *)((char *)b + b->size)) {
+        if (b->magic != ((PortHeapBlock *)(uintptr_t)gHeapStart[0])->magic) { break; }
+        if (b->size < 0x20 || (uintptr_t)b + (uintptr_t)b->size > gHeapEnd[0] || *(int32_t *)((char *)b + b->size - 4) != b->size) { break; }
+        prev = b;
+    }
+    if ((uintptr_t)b == gHeapEnd[0] || b == NULL) { return 1; }
+    said = 1;
+    fprintf(stderr, "bt3: HEAP BROKEN at \"%s\": the block at %p is not a block", where, (void *)b);
+    if (prev != NULL) {
+        fprintf(stderr, "; the one before it: data %#x, %d bytes asked (block %d), used %d\n", prev->data, prev->dataSize, prev->size, prev->used);
+    } else {
+        fprintf(stderr, " (the first)\n");
+    }
+    return 0;
+}
+int Port_TestHp(int i) { /* BT3_TEST_HP=<a>,<b>,<c>: starting health of fighters 0..2 (0 = as it is) */
+    const char *p = getenv("BT3_TEST_HP");
+    int v = 0;
+    for (; p != NULL && i >= 0; i--) {
+        v = atoi(p);
+        p = strchr(p, ',');
+        p = p != NULL ? p + 1 : NULL;
+        if (p == NULL && i > 0) { v = 0; }
+    }
+    return v;
+}
+/* (the experiment's tool) How much of the game's heap is free, and the largest free block (what one allocation can
+   still get). The loader asks before it reads a fighter's new files into the heap; BT3_HEAPCHK prints it. */
+int Port_HeapFree(int *largest) {
+    PortHeapBlock *b;
+    int h, total = 0, big = 0;
+    for (h = 0; h < 2; h++) {
+        if (gHeapStart[h] == 0) { continue; }
+        for (b = (PortHeapBlock *)(uintptr_t)gHeapStart[h]; (uintptr_t)b != gHeapEnd[h]; b = (PortHeapBlock *)((char *)b + b->size)) {
+            if (b->magic != ((PortHeapBlock *)(uintptr_t)gHeapStart[h])->magic || b->size < 0x20) { break; }
+            if (!b->used) {
+                total += b->size;
+                if (b->size > big) { big = b->size; }
+            }
+        }
+    }
+    if (largest != NULL) { *largest = big; }
+    return total;
+}
+/* (the experiment's tool) BT3_THIRD_TRANSFORM=<frame>[,<frame>...]: the third fighter is made to transform at each
+   of these frames of the fight (src/battle/btl_act_j.c: at the first moment from then on at which the game would
+   take the button for it), without its cost. For showing a model change in a run without a window.
+   Port_ThirdTransformDue: 1 while a frame of the list has come and its transformation has not been started;
+   Port_ThirdTransformTaken: it has. */
+static int third_transform_next(int take) {
+    static const char *p;
+    static int at = -2;
+    int was = at;
+    if (at == -2 || take) {
+        if (at == -2) { p = getenv("BT3_THIRD_TRANSFORM"); }
+        at = p != NULL && *p != 0 ? atoi(p) : -1;
+        if (p != NULL) {
+            p = strchr(p, ',');
+            p = p != NULL ? p + 1 : NULL;
+        }
+        if (was == -2) { was = at; }
+    }
+    return take ? was : at;
+}
+int Port_ThirdTransformDue(int frame) {
+    int at = third_transform_next(0);
+    return at >= 0 && frame >= at;
+}
+void Port_ThirdTransformTaken(int frame, int index, int chara) {
+    extern unsigned gGsFrame; /* gs_core.c (the number BT3_SHOT_FROM / BT3_SHOT_TO go by) */
+    third_transform_next(1);
+    fprintf(stderr, "bt3: the third fighter is made to transform at frame %d (picture %u): transformation %d, into character %d\n", frame, gGsFrame, index, chara);
+}
+/* (the experiment's tool) BT3_THIRD_DAMAGED=<frame>: src/battle/btl_char_mgr.c, BtlChars_UpdateMain. */
+int Port_ThirdDamagedDue(int frame) {
+    static int at = -2;
+    extern unsigned gGsFrame;
+    if (at == -2) { at = getenv("BT3_THIRD_DAMAGED") != NULL ? atoi(getenv("BT3_THIRD_DAMAGED")) : -1; }
+    if (at < 0 || frame < at) { return 0; }
+    at = -1;
+    fprintf(stderr, "bt3: the third fighter is told it was hit by a finishing technique at frame %d (picture %u)\n", frame, gGsFrame);
+    return 1;
+}
+/* BT3_DEMO_HUD=1 (testing): the attract demo draws the fight HUD instead of its caption (src/battle/hud_a.c). */
+int Port_DemoHud(void) {
+    static int on = -1;
+    if (on < 0) { on = getenv("BT3_DEMO_HUD") != NULL && atoi(getenv("BT3_DEMO_HUD")) != 0; }
+    return on;
+}
+/* BT3_HUD_ROWS=<n> (testing): the row of each fighter past the two sides is drawn n times (src/battle/hud_b.c),
+   to see how a full stack of them lies under a side. */
+int Port_HudTestRows(void) {
+    static int n = -1;
+    if (n < 0) {
+        n = getenv("BT3_HUD_ROWS") != NULL ? atoi(getenv("BT3_HUD_ROWS")) : 1;
+        if (n < 1 || n > 8) { n = 1; }
+    }
+    return n;
+}
+int Port_ThirdAi(void) {
+    return !(getenv("BT3_THIRD_AI") != NULL && atoi(getenv("BT3_THIRD_AI")) == 0);
+}
 int Port_IsWide(void) {
     return Port_AspectMilli() > 1340;
 }
@@ -469,4 +707,189 @@ void Port_Menus43Set(int on) {
 }
 int Port_PageAspectMilli(void) {
     return gPortMenuMode && Port_Menus43() ? 1333 : Port_AspectMilli();
+}
+
+/* (the third-fighter experiment's tool) BT3_FREEZE_LOG=1: once every 120 updates, each fighter's freeze level
+   (2 or 1: it holds the others still), its action and whether it is frozen itself. */
+/* (the third-fighter experiment's tools, for clashes: btl_char_flag_clash.c)
+   BT3_CLASH_PAIR_LOG=1: a line when a clash starts, is decided and is over: which two fighters (roster indices),
+   their two counts, who won, and the number of the picture.
+   BT3_FORCE_CLASH=n,a,b[,kind]: from the n-th update of the clash code on, fighters a and b are put into a clash
+   the next time they are near each other and none runs, and again n updates after that (kind 1, the default:
+   trading blows; 2: the vanishing exchange; 3: the struggle, whenever both are in a technique that can
+   struggle). */
+void Port_ClashPairLog(const char *what, int a, int b, int countA, int countB, int winner) {
+    extern unsigned gGsFrame; /* gs_core.c: the number of the picture (BT3_SHOT names its files by it) */
+    static int on = -1;
+    if (on < 0) { on = getenv("BT3_CLASH_PAIR_LOG") != NULL; }
+    if (!on) { return; }
+    if (winner >= 0) {
+        fprintf(stderr, "bt3: clash: frame %u: %s: fighters %d and %d, counts %d and %d, fighter %d wins\n", gGsFrame, what, a, b, countA, countB, winner);
+    } else {
+        fprintf(stderr, "bt3: clash: frame %u: %s: fighters %d and %d\n", gGsFrame, what, a, b);
+    }
+}
+static int sForceClashCalls, sForceClashNext;
+void Port_ForceClashDone(void) {
+    sForceClashNext = sForceClashCalls;
+}
+int Port_ForceClash(int *a, int *b) {
+    static int every = -1, fa, fb, kind = 1;
+    if (every < 0) {
+        const char *e = getenv("BT3_FORCE_CLASH");
+        every = 0;
+        if (e != NULL && sscanf(e, "%d,%d,%d,%d", &every, &fa, &fb, &kind) < 3) { every = 0; }
+        if (every < 0) { every = 0; }
+    }
+    if (every == 0) { return 0; }
+    sForceClashCalls++;
+    if (sForceClashCalls < sForceClashNext + every) { return 0; }
+    *a = fa;
+    *b = fb;
+    return kind == 2 || kind == 3 ? kind : 1;
+}
+
+/* BT3_CAM_LOG=1: each time a fighter's whole-screen camera (a throw's, a rush's, an ultimate's) is let onto the
+   screen or kept off it, with more than two fighters (btl_char_api.c, Port_CutShown): one line per change. */
+void Port_CamLog(int fighter, int target, int shown) {
+    static int on = -1;
+    static int last[16];
+    int v = 1 + target * 2 + (shown != 0);
+
+    if (on < 0) {
+        const char *e = getenv("BT3_CAM_LOG");
+        on = e != NULL && e[0] == '1';
+    }
+    if (!on || fighter < 0 || fighter >= 16 || last[fighter] == v) {
+        return;
+    }
+    last[fighter] = v;
+    fprintf(stderr, "bt3: camera: fighter %d's cut (target %d) %s\n", fighter, target,
+            shown ? "takes the screen" : "kept off the screen");
+}
+
+/* BT3_CAM_LOG=1, too: a technique not about a player holding only its target still (btl_char_mgr.c), one line
+   each time the one held or the level changes, and a count of the frames. */
+void Port_HoldLog(int fighter, int target, int level) {
+    static int on = -1, frames;
+    static int last[16];
+    int v = 1 + target * 3 + level;
+
+    if (on < 0) {
+        const char *e = getenv("BT3_CAM_LOG");
+        on = e != NULL && e[0] == '1';
+    }
+    if (!on || fighter < 0 || fighter >= 16) {
+        return;
+    }
+    frames++;
+    if (last[fighter] == v) {
+        return;
+    }
+    last[fighter] = v;
+    fprintf(stderr, "bt3: camera: fighter %d's hold (level %d) on fighter %d only (%d frames held so far)\n",
+            fighter, level, target, frames);
+}
+
+/* BT3_TARGET_FLICK=<n> (testing, btl_char_flag_opp.c): fighter 0 counts as a player for the choice of target and
+   flicks the right stick to the right every n frames by itself (asked with -1: whether the switch is on). */
+int Port_TargetTestFlick(int i) {
+    static int period = -1, frames;
+
+    if (period < 0) {
+        const char *e = getenv("BT3_TARGET_FLICK");
+        period = e != NULL ? atoi(e) : 0;
+    }
+    if (i < 0 || period <= 0) {
+        return period > 0;
+    }
+    if (i != 0) {
+        return 0;
+    }
+    return ++frames % period == 0 ? 1 : 0;
+}
+
+/* BT3_CAM_LOG=1, too: what the player's camera looks at and the game's target, at each change of either. */
+void Port_CamFollowLog(int i, int cam, int game, int action) {
+    static int on = -1;
+
+    if (on < 0) {
+        const char *e = getenv("BT3_CAM_LOG");
+        on = e != NULL && e[0] == '1';
+    }
+    if (on) {
+        fprintf(stderr, "bt3: target: fighter %d's camera on %d, the game's target %d (action 0x%X)\n", i, cam, game, action);
+    }
+}
+
+/* BT3_CAM_LOG=1, too: the player's choice of target. */
+void Port_TargetLog(int i, int target, int x, int locked) {
+    static int on = -1;
+
+    if (on < 0) {
+        const char *e = getenv("BT3_CAM_LOG");
+        on = e != NULL && e[0] == '1';
+    }
+    if (on) {
+        if (locked) {
+            fprintf(stderr, "bt3: target: fighter %d chooses fighter %d (screen x %d)\n", i, target, (x - 0x7000) / 16);
+        } else {
+            fprintf(stderr, "bt3: target: fighter %d's choice %d is down: the nearest again\n", i, target);
+        }
+    }
+}
+
+/* (the experiment's tool) BT3_SPECTATE_LOG=1: player p's fighter is down and p watches another (why: 0 the first,
+   1 the one watched went down, 2 R3) */
+void Port_SpectateLog(int p, int fighter, int why) {
+    static int on = -1;
+    if (on < 0) { on = getenv("BT3_SPECTATE_LOG") != NULL; }
+    if (on) {
+        fprintf(stderr, "bt3: player %d watches fighter %d (%s)\n", p + 1, fighter,
+                why == 0 ? "its fighter is down" : why == 1 ? "the one watched went down" : "R3");
+    }
+}
+
+/* (the experiment's tool) BT3_BEAM_LOG=1: a technique's beam hits an enemy besides its own victim (eft_det_a.c) */
+void Port_BeamLog(int owner, int victim, int primary) {
+    static int on = -1;
+    if (on < 0) { on = getenv("BT3_BEAM_LOG") != NULL; }
+    if (on) {
+        fprintf(stderr, "bt3: beam of fighter %d also hits fighter %d (its own victim: %d)\n", owner, victim, primary);
+    }
+}
+
+void Port_DmaOverflow(long used, long size) {
+    fprintf(stderr, "bt3: the frame's display list took %ld bytes, past its buffer of %ld: stopped\n", used, size);
+    abort();
+}
+
+void Port_B1Log(int fighter) {
+    static int on = -1;
+    static unsigned n[16];
+    if (on < 0) { on = getenv("BT3_B1_LOG") != NULL; }
+    if (!on || fighter < 0 || fighter >= 16) { return; }
+    if (n[fighter]++ % 300 == 0) {
+        fprintf(stderr, "bt3: fighter %d stands with its input dropped for 'the opponent is down' (%u frames)\n", fighter, n[fighter]);
+    }
+}
+
+void Port_FreezeCount(int held, int count) {
+    static int on = -1, frame;
+    if (on < 0) { on = getenv("BT3_FREEZE_COUNT") != NULL; }
+    if (!on) { return; }
+    frame++;
+    if (held >= 3) {
+        fprintf(stderr, "bt3: held %d of %d fighters (frame %d)\n", held, count, frame);
+    }
+}
+
+void Port_FreezeLog(int i, int level, int action, int frozen, int count) {
+    static int on = -1, calls;
+    if (on < 0) { on = getenv("BT3_FREEZE_LOG") != NULL; }
+    if (!on) { return; }
+    if (i == 0) { calls++; }
+    if (calls % 120 == 0) {
+        fprintf(stderr, "bt3: freeze %d: fighter %d of %d: level %d, action 0x%X, %s\n", calls, i, count, level, action, frozen ? "frozen" : "moving");
+    }
 }

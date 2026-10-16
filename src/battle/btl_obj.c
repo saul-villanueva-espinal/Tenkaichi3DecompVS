@@ -23,6 +23,11 @@
  */
 #include "common.h"
 #include "battle/btl_obj.h"
+#ifdef PORT
+/* (the object table of this build: BTL_OBJ_MAX entries, see the header) */
+static BtlObj *sPortObjTbl[BTL_OBJ_MAX];
+#define gBtlObjTbl sPortObjTbl
+#endif
 #include "battle/battle.h"
 #include "battle/btl_cam.h"
 #include "sys/common.h"
@@ -258,6 +263,51 @@ void BtlObjLight_FindRes1(s32 key) {
     TexFile_UploadOne(BtlObjLight_Get()->res, 1, key, -1);
 }
 
+#ifdef PORT
+/* The experiment of more than two fighters: memory for what the work block has too little of when there are more
+   objects than the game ever makes. The block holds 512 model parts (every mesh of every object takes one), four
+   face states (one for each object with eyes or a mouth: the fifth fighter's was a null pointer, a crash when
+   its object was made), five shadows and three fighter work buffers. When one of these runs out, more is taken
+   here: from the port's memory where there is such (the heap is sized for two fighters), zeroed, remembered,
+   and given back when the work block is (BtlObj_Term). A fight of two never comes here. */
+extern unsigned Port_GameBigAlloc(int size); /* port/src/plat_mem.c */
+extern int Port_GameBigFree(unsigned addr);
+#define PORT_OBJ_EXTRA_MAX 64
+static void *sPortObjExtra[PORT_OBJ_EXTRA_MAX];
+static s32 sPortObjExtras;
+void *Port_ObjExtraAlloc(s32 size) {
+    void *mem;
+
+    if (sPortObjExtras >= PORT_OBJ_EXTRA_MAX) {
+        return NULL;
+    }
+    mem = (void *)Port_GameBigAlloc(size);
+    if (mem == NULL) {
+        mem = Heap_Alloc(size, 0x40, 0, HEAP_ANY);
+    }
+    if (mem != NULL) {
+        memset(mem, 0, size);
+        sPortObjExtra[sPortObjExtras++] = mem;
+    }
+    return mem;
+}
+static u8 *sPortCharaWork[BTL_OBJ_MAX];
+/* `heap`: the heap's blocks are freed too (0 when the heap itself may have been emptied since: a work block that
+   was never shut down). */
+static void Port_ObjExtraFreeAll(s32 heap) {
+    s32 i;
+
+    for (i = 0; i < sPortObjExtras; i++) {
+        if (!Port_GameBigFree((unsigned)sPortObjExtra[i]) && heap) {
+            Heap_Free(sPortObjExtra[i]);
+        }
+        sPortObjExtra[i] = NULL;
+    }
+    sPortObjExtras = 0;
+    memset(sPortCharaWork, 0, sizeof(sPortCharaWork));
+}
+#endif
+
 /* Returns the 0xE0-byte node pool. */
 BtlObjPoolE0Work *BtlObjPoolE0_Get(void) {
     return &gBtlObjWork->poolE0;
@@ -281,6 +331,17 @@ void BtlObjPoolE0_Init(void) {
 BtlObjPoolE0 *BtlObjPoolE0_Alloc(void) {
     BtlObjPoolE0 *node = (BtlObjPoolE0 *)SList_PopFront(&BtlObjPoolE0_Get()->free);
 
+#ifdef PORT
+    if (node == NULL) { /* (the 512 are in use: 128 more) */
+        BtlObjPoolE0 *more = Port_ObjExtraAlloc(128 * sizeof(BtlObjPoolE0));
+        s32 i;
+
+        for (i = 0; more != NULL && i < 128; i++) {
+            SList_PushFront(&BtlObjPoolE0_Get()->free, &more[i].link);
+        }
+        node = (BtlObjPoolE0 *)SList_PopFront(&BtlObjPoolE0_Get()->free);
+    }
+#endif
     if (node == NULL) {
         return NULL;
     }
@@ -322,6 +383,17 @@ BtlObjPool70 *BtlObjPool70_Alloc(void) {
     SListNode *link = SList_PopFront(&BtlObjPool70_Get()->free);
     BtlObjPool70 *node = (BtlObjPool70 *)link;
 
+#ifdef PORT
+    if (node == NULL) { /* (the four are in use: one for each object there can be) */
+        BtlObjPool70 *more = Port_ObjExtraAlloc(BTL_OBJ_MAX * sizeof(BtlObjPool70));
+        s32 i;
+
+        for (i = 0; more != NULL && i < BTL_OBJ_MAX; i++) {
+            SList_PushFront(&BtlObjPool70_Get()->free, &more[i].link);
+        }
+        node = (BtlObjPool70 *)SList_PopFront(&BtlObjPool70_Get()->free);
+    }
+#endif
     return node;
 }
 
@@ -438,13 +510,33 @@ BtlObj *BtlObj_Get(s32 id) {
 }
 
 /* Returns the big work buffer that goes with a fighter object id. */
+#ifdef PORT
+/* The experiment of more than two fighters: the work buffers of the fighters whose object id is 3 or more (the
+   table has three). 107 KB each, taken when the object is first made (Port_ObjExtraAlloc) and given back with
+   the table. */
+#define PORT_CHARA_WORK_SIZE 0x1A0C0
+extern int Port_FightExtras(void); /* port/src/plat_fighters.c */
+static u8 *Port_CharaWork(u32 id) {
+    if (id >= BTL_OBJ_MAX || id >= (u32)(2 + Port_FightExtras())) {
+        return NULL; /* (not a fighter's object) */
+    }
+    if (sPortCharaWork[id] == NULL) {
+        sPortCharaWork[id] = Port_ObjExtraAlloc(PORT_CHARA_WORK_SIZE);
+    }
+    return sPortCharaWork[id];
+}
+#endif
 u8 *BtlObj_GetCharaWork(u32 id) {
     BtlObjTable *tbl = BtlObj_GetTable();
 
     if (id < 3) {
         return tbl->charaWork[id];
     }
+#ifdef PORT
+    return Port_CharaWork(id);
+#else
     return NULL;
+#endif
 }
 
 /* Binds an object to a loaded model and fills its header. */
@@ -538,6 +630,9 @@ void BtlRes_CommitReloadEx(void) {
 
 /* Allocates the work block and initialises every part of it. */
 void BtlObj_Init(s32 prealloc) {
+#ifdef PORT
+    Port_ObjExtraFreeAll(0);
+#endif
     gBtlObjWork = Heap_Alloc(BTL_OBJ_WORK_SIZE, 0x20, 0, HEAP_ANY);
     memset(gBtlObjWork, 0, BTL_OBJ_WORK_SIZE);
     BtlRes_Init(prealloc);
@@ -557,6 +652,9 @@ void BtlObj_Term(void) {
     BtlObj_TermNop();
     BtlRes_Term();
     ObjShadow_TermPool();
+#ifdef PORT
+    Port_ObjExtraFreeAll(1);
+#endif
     Heap_Free(gBtlObjWork);
     gBtlObjWork = NULL;
 }
@@ -863,7 +961,15 @@ void BtlObj_BuildDrawList(BtlObjDrawList *list, s32 view) {
                             list->objs[list->count++] = obj;
                         }
                     } else if (rec->flags & BTL_OBJ_FLAG_PASS2) {
+#ifdef PORT
+                        /* (the view's own fighter: in split screen the one its camera shows, which with more than
+                           two fighters need not be object 0 / 1: an extra fighter seen through its own camera was
+                           not drawn last, and lost its head, four local players) */
+                        extern s32 Port_ViewOwnObj(s32 view);
+                        if ((Battle_IsSplitScreen() ? Port_ViewOwnObj(view) : view) == obj->id && obj->type == BTL_OBJ_TYPE_CHARA) {
+#else
                         if (view == obj->id && obj->type == BTL_OBJ_TYPE_CHARA) {
+#endif
                             own = obj;
                         } else {
                             list->objs[list->count++] = obj;
@@ -1234,6 +1340,17 @@ void BtlRes_Term(void) {
     BtlResSlot *slot;
     s32 i;
 
+#ifdef PORT
+    {
+        /* (the experiment of more than two fighters: what a change of a heap slot still holds, see Port_ResReload) */
+        extern void Port_ResCommitAll(void);
+        extern void Port_ResReleaseOld(s32 number);
+        Port_ResCommitAll();
+        for (i = 0; i < BTL_RES_FIXED_MAX + BTL_RES_SLOT_MAX; i++) {
+            Port_ResReleaseOld(i);
+        }
+    }
+#endif
     for (i = 0; i < BTL_RES_SLOT_MAX; i++) {
         BtlRes_Free(res->slots[i].number);
     }
@@ -1360,6 +1477,164 @@ void BtlRes_CommitReload2(void) {
     }
 }
 
+#ifdef PORT
+/*
+ * The experiment of more than two fighters: a character change for a fighter whose files are in a heap slot (the
+ * two fixed slots are the sides'; BtlRes_Reload refuses any other). The same in two steps as for a fixed slot,
+ * with one difference: every new file is read into a buffer of its own while the old ones stay as they are, and
+ * the commit puts the new ones in the slot (a fixed slot reads its animation files over the old ones: it has the
+ * room for one set). The old files are freed after the object has been bound again (Port_ResReleaseOld).
+ *
+ * The buffers come from the port's memory, not from the game's heap, which is sized for two fighters; they have
+ * the sizes of a fixed slot's buffers, which hold any character of the disc, so a freed one fits the next change
+ * (that memory hands a freed block out again by its size). Where the port has no such memory (the 32-bit
+ * program), the heap is asked, and only if it keeps room to spare: the change is refused otherwise and the
+ * fighter keeps its files (Port_ResReload returns 0).
+ *
+ * One record per slot number, so that any number of fighters can change.
+ */
+#define PORT_RES_HEAP_SPARE 0x200000 /* what the heap's largest free block must keep after a file read into it */
+static BtlResFile sPortResNext[BTL_RES_FIXED_MAX + BTL_RES_SLOT_MAX][3]; /* new files read, or old files to free */
+static u8 sPortResPending[BTL_RES_FIXED_MAX + BTL_RES_SLOT_MAX];         /* waiting for the commit: 1, 2 = refused */
+
+void Port_ResReleaseOld(s32 number);
+
+extern void Port_Dbg3(const char *what, int a, int b, int c, int d); /* port/src/plat_stub.c (BT3_HEAPCHK) */
+static void *Port_ResBuffer(s32 id, s32 room) {
+    extern unsigned Port_GameBigAlloc(int size); /* port/src/plat_mem.c */
+    extern int Port_HeapFree(int *largest);      /* port/src/plat_stub.c */
+    s32 size = File_GetSize(id);
+    s32 largest = 0;
+    void *buf;
+
+    if (room < size) {
+        room = size; /* (a file larger than the disc's largest: a buffer of its own size) */
+    }
+    buf = (void *)Port_GameBigAlloc(room);
+    if (buf != NULL) {
+        Port_Dbg3("fighter file buffer: file / at / room / -", id, (int)buf, room, 0);
+        return File_Request3(id, buf, room);
+    }
+    Port_HeapFree(&largest);
+    if (largest < size + PORT_RES_HEAP_SPARE) {
+        return NULL;
+    }
+    return File_Request3(id, NULL, 0);
+}
+
+/* Takes a heap slot for a fighter that is not a side and queues its three files, as BtlRes_Request does, into
+   buffers of the port's memory: a character's files are up to 3.1 MB, and with them in it the heap of a fight
+   of three had 1.3 MB left (3.7 MB without them: measured). Where the port has no such memory, into the heap
+   as before. Returns the slot number or -1. */
+s32 Port_ResRequest(s32 model, s32 anim0, s32 anim1) {
+    static const s32 room[3] = { BTL_RES_MODEL_SIZE, BTL_RES_ANIM0_SIZE, BTL_RES_ANIM1_SIZE };
+    BtlResSlot *slot = BtlRes_AllocSlot();
+    s32 i;
+
+    if (slot == NULL) {
+        return -1;
+    }
+    for (i = 0; i < 3; i++) {
+        BtlRes_FreeFile(&slot->file[i]);
+        BtlRes_SetFileId(&slot->file[i], i == 0 ? model : i == 1 ? anim0 : anim1);
+        if (slot->file[i].id >= 0) {
+            slot->file[i].buf = Port_ResBuffer(slot->file[i].id, room[i]);
+            if (slot->file[i].buf == NULL) {
+                slot->file[i].buf = File_Request3(slot->file[i].id, NULL, 0);
+            }
+        }
+    }
+    slot->flags |= BTL_RES_SLOT_HEAP;
+    return slot->number;
+}
+
+/* Queues new files for a heap slot (a file id of -1: that file stays). 0: no memory, nothing was queued. */
+s32 Port_ResReload(s32 number, s32 model, s32 anim0, s32 anim1) {
+    static const s32 room[3] = { BTL_RES_MODEL_SIZE, BTL_RES_ANIM0_SIZE, BTL_RES_ANIM1_SIZE };
+    BtlResSlot *slot = BtlRes_FindSlot(number);
+    BtlResFile *next;
+    s32 id[3];
+    s32 i;
+
+    if (slot == NULL || number < 0 || number >= BTL_RES_FIXED_MAX + BTL_RES_SLOT_MAX || sPortResPending[number]) {
+        return 0;
+    }
+    Port_ResReleaseOld(number);
+    next = sPortResNext[number];
+    id[0] = model;
+    id[1] = anim0;
+    id[2] = anim1;
+    for (i = 0; i < 3; i++) {
+        next[i].buf = NULL;
+        next[i].id = -1;
+        next[i].size = 0;
+        if (id[i] >= 0) {
+            next[i].buf = Port_ResBuffer(id[i], room[i]);
+            if (next[i].buf == NULL) {
+                /* (the files asked so far are read all the same, into buffers that the commit hands back) */
+                break;
+            }
+            next[i].id = id[i];
+            next[i].size = File_GetSize(id[i]);
+        }
+    }
+    sPortResPending[number] = i == 3 ? 1 : 2;
+    return i == 3;
+}
+
+/* After the files have been read: the new ones into the slot, the old ones kept aside until the object has let
+   go of them (it reads its old model once more when it is bound again). With a change that was refused half
+   way, the old ones stay and what was read is what is kept aside. Returns 1 if the slot has new files. */
+s32 Port_ResCommit(s32 number) {
+    BtlResSlot *slot = BtlRes_FindSlot(number);
+    s32 whole;
+    s32 i;
+
+    if (slot == NULL || number < 0 || number >= BTL_RES_FIXED_MAX + BTL_RES_SLOT_MAX || !sPortResPending[number]) {
+        return 0;
+    }
+    whole = sPortResPending[number] == 1;
+    sPortResPending[number] = 0;
+    for (i = 0; i < 3 && whole; i++) {
+        if (sPortResNext[number][i].buf != NULL) {
+            BtlRes_SwapFile(&slot->file[i], &sPortResNext[number][i]);
+        }
+    }
+    return whole;
+}
+
+/* The file id of the model a slot holds, -1 if there is no such slot (for the experiment's log). */
+s32 Port_ResModelFile(s32 number) {
+    BtlResSlot *slot = BtlRes_GetSlot(number);
+
+    return slot != NULL ? slot->file[0].id : -1;
+}
+
+/* Frees what Port_ResCommit kept aside. */
+void Port_ResReleaseOld(s32 number) {
+    s32 i;
+
+    if (number < 0 || number >= BTL_RES_FIXED_MAX + BTL_RES_SLOT_MAX || sPortResPending[number]) {
+        return;
+    }
+    for (i = 0; i < 3; i++) {
+        if (sPortResNext[number][i].buf != NULL) {
+            Port_Dbg3("fighter file buffer freed: slot / at / file / -", number, (int)sPortResNext[number][i].buf, sPortResNext[number][i].id, 0);
+        }
+        BtlRes_FreeFile(&sPortResNext[number][i]);
+    }
+}
+
+/* A restart drops the loader's jobs: a change that was on its way is committed, as BtlRes_CommitReload does for
+   a fixed slot. The caller binds the objects again and then releases the old files. */
+void Port_ResCommitAll(void) {
+    s32 n;
+
+    for (n = 0; n < BTL_RES_FIXED_MAX + BTL_RES_SLOT_MAX; n++) {
+        Port_ResCommit(n);
+    }
+}
+#endif
 /* Loads one model into a caller-owned slot record (not one of the work block's). */
 void BtlRes_LoadSingle(s32 fromHeap, BtlResSlot *slot, s32 model) {
     if (model > 0) {

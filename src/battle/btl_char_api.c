@@ -605,12 +605,107 @@ f32 BtlCharApi_GetCamUnk4A0(s32 objId) {
     return 0.0f;
 }
 
+#ifdef PORT
+/* More than two fighters: the camera of a throw, a grab, a rush or an ultimate (flag 0xD3) took the whole screen
+   whoever it was on, so a fight elsewhere on the field cut the player's picture away to it (seen by the user:
+   "grab attacks switch camera to people who grab, and characters who do skills it switches camera to them
+   regardless if you were the target"). Such a camera now has the screen only when it is a player's own or its
+   fighter's target is a player: a player is fighter 0 or 1 when that side is not computer-controlled (with both
+   computer-controlled, a demo, fighter 0 as the default view is). With two fighters every camera passes. Asked
+   by the camera and by drawing code only (whose view is shown, which effects are hidden while a cut runs). */
+extern s32 gPortTarget[];             /* btl_char_flag_opp.c */
+extern s32 BattleSide_IsCpu(s32 side); /* battle_load.c */
+static s32 Port_IsWatched(s32 i) {
+    extern s32 Port_SpectateOf(s32 i); /* btl_char_flag_opp.c: watched by a player whose fighter is down */
+    if (Port_SpectateOf(i)) {
+        return 1;
+    }
+    if (i == 0 || i == 1) {
+        return !BattleSide_IsCpu(i) || (i == 0 && BattleSide_IsCpu(1));
+    }
+    {
+        extern s32 Port_TargetHuman(s32 i); /* (an extra fighter on a controller: players 3 and 4) */
+        return Port_TargetHuman(i);
+    }
+}
+extern void Port_CamLog(int fighter, int target, int shown); /* port/src/plat_stub.c (BT3_CAM_LOG) */
+/* 1 when what fighter i does is about a player: i is one, or its target is (always 1 with two fighters). Also
+   asked by the freeze and the hiding of a technique's start (btl_char_mgr.c). */
+s32 Port_AboutPlayer(s32 i) {
+    if (BtlChar_GetCount() < 3 || (u32)i >= (u32)BtlChar_GetCount()) {
+        return 1;
+    }
+    return Port_IsWatched(i) || Port_IsWatched(gPortTarget[i]);
+}
+static s32 Port_CutShown(s32 i) {
+    s32 shown;
+
+    if (BtlChar_GetCount() < 3 || (u32)i >= (u32)BtlChar_GetCount()) {
+        return 1;
+    }
+    shown = Port_AboutPlayer(i);
+    Port_CamLog(i, gPortTarget[i], shown);
+    return shown;
+}
+#endif
+
+#ifdef PORT
+/* For the effects that stand still while the fight does (btl_scene.c): with more than two fighters, 1 when one of
+   the two the player watches (Port_HudFighter: the player's, or the one it watches, and its target) is frozen, or
+   one of them is in a rush sequence. Somebody somewhere is in hit-stop nearly every frame with ten, and every ki
+   blast on the field stood still each time. */
+s32 Port_WatchedStopped(void) {
+    extern s32 Port_HudFighter(s32 side);
+    extern s32 BtlChar_IsFrozen(BtlCharApiChr *chr);
+    s32 s;
+
+    extern s32 Port_QuadMode(void);
+    extern s32 Port_QuarterFighter(s32 q);
+    extern s32 Port_Spectated(s32 p);
+    s32 quad = Port_QuadMode(); /* (four quarters: the four players' fighters; their targets are not looked at) */
+
+    extern s32 Port_QuadThree(void);
+    for (s = 0; s < (quad ? (Port_QuadThree() ? 3 : 4) : 2); s++) {
+        s32 i = quad ? Port_Spectated(Port_QuarterFighter(s)) : Port_HudFighter(s);
+        if ((u32)i < (u32)BtlChar_GetCount() &&
+            (BtlChar_IsFrozen(BtlChar_Get(i)) || BtlCharApi_IsInRushSequence(BtlChar_Get(i)->objId))) {
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* The same for a technique's camera cut (eft_a.c, EftCam_Start), which knows its fighter by object: 1 when the cut
+   may take the screen. */
+s32 Port_CutShownObj(s32 objId) {
+    BtlCharApiChr *chr;
+
+    if (BtlChar_GetCount() < 3 || objId < 0) {
+        return 1;
+    }
+    {
+        /* (four quarters: the demo camera would take the whole screen from three players; the technique plays on
+           in its fighter's own quarter) */
+        extern s32 Port_QuadMode(void);
+        if (Port_QuadMode()) {
+            return 0;
+        }
+    }
+    chr = BtlChar_FindByObjId(objId);
+    return chr == NULL || Port_CutShown(chr->side);
+}
+#endif
+
 /* Fighter flag 0xD3 as 0 / 1: this fighter's camera wants the whole screen. */
 s32 BtlCharApi_HasCamPriority(s32 objId) {
     BtlCharApiChr *chr = BtlChar_FindByObjId(objId);
 
     if (chr != NULL) {
+#ifdef PORT
+        return BtlChar_TestFlag(chr, 0xD3) != 0 && Port_CutShown(chr->side);
+#else
         return BtlChar_TestFlag(chr, 0xD3) != 0;
+#endif
     }
     return 0;
 }
@@ -696,7 +791,11 @@ s32 BtlCharApi_AnyCamPriority(void) {
     }
     for (i = 0; i < gBtlChars->count; i++) {
         chr = BtlChar_Get(i);
+#ifdef PORT
+        if (ChrCam_IsCutActive(chr) && BtlChar_TestFlag(chr, 0xD3) && Port_CutShown(chr->side)) {
+#else
         if (ChrCam_IsCutActive(chr) && BtlChar_TestFlag(chr, 0xD3)) {
+#endif
             return 1;
         }
     }

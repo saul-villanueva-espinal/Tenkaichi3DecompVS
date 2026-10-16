@@ -129,7 +129,17 @@ void BtlScene_Init(s32 layerMask) {
     if (layerMask == 0) {
         gBtlScene->layerMask = BTL_SCENE_LAYER_ALL;
     }
+#ifdef PORT
+    {
+        /* The third-fighter experiment: the effect scene keeps its per-fighter tables (the technique events, the
+           shots, the glow, the auras, the bolts: eight modules) by this count, indexed by object id. The extra
+           fighters' objects are the ones made after the two sides' (ids 2 on). */
+        extern int gPortExtraObjs; /* port/src/plat_stub.c */
+        BtlScene_SetCharCount(2 + gPortExtraObjs);
+    }
+#else
     BtlScene_SetCharCount(2);
+#endif
     if (Battle_IsSplitScreen()) {
         BtlScene_SetSingleView(0);
     } else {
@@ -179,8 +189,34 @@ void BtlScene_PostUpdate(void) {
     EftHit_SpawnImpacts();
 }
 
+#ifdef PORT
+/* More than two fighters: what a reset does to a technique's camera cut that is running. The game forgets the
+   cut on every reset. A reset of one fighter's tasks (modes 2, 3, and 5 on: extra fighter mode - 5's own group)
+   now leaves another fighter's cut alone; and when the cut is forgotten the camera it plays on is let go too
+   (the task that would have ended it is being reset: the camera stayed on the cut's last picture for good).
+   Returns 0 when the cut is to be kept. */
+extern int gPortExtraObjs;         /* port/src/plat_stub.c: the extra fighters of the fight */
+extern s32 Port_EftCamOwner(void); /* eft_a.c: whose cut is running, -1 none */
+extern void DemoCam_Stop(void);
+static s32 Port_SceneResetCam(s32 mode) {
+    s32 owner = mode == 2 ? 0 : mode == 3 ? 1 : mode >= 5 ? mode - 3 : -1;
+
+    if (gPortExtraObjs <= 0 || Port_EftCamOwner() < 0) {
+        return 1; /* (two fighters, or no cut of a fighter's: the game's own) */
+    }
+    if (owner >= 0 && Port_EftCamOwner() != owner) {
+        return 0;
+    }
+    DemoCam_Stop();
+    return 1;
+}
+#endif
+
 /* Resets the tasks selected by mode (BTL_SCENE_RESET_*) and drops a pending stage change request. */
 void BtlScene_Reset(s32 mode) {
+#ifdef PORT
+    if (Port_SceneResetCam(mode))
+#endif
     EftCam_Clear();
     BtlScene_ClearStageChangeRequest();
     gBtlScene->randState = 0;
@@ -203,6 +239,13 @@ void BtlScene_Reset(s32 mode) {
     case 4:
         BtlTaskList_Reset(gBtlScene->root, 0x2000);
         break;
+#ifdef PORT
+    default:
+        if (mode >= 5 && mode < 13) { /* (an extra fighter's own tasks: EFT_OWNER_RESET in the effect files) */
+            BtlTaskList_Reset(gBtlScene->root, 0x100000 << (mode - 5));
+        }
+        break;
+#endif
     }
 }
 
@@ -295,6 +338,15 @@ s32 BtlScene_IsCharStopped(s32 objId) {
 s32 BtlScene_IsAnyCharStopped(void) {
     s32 result = BtlCharApi_AnyFrozen() != 0;
 
+#ifdef PORT
+    {   /* (more than two fighters: only the two the player watches; btl_char_api.c, Port_WatchedStopped) */
+        extern s32 BtlChar_GetCount(void);
+        extern s32 Port_WatchedStopped(void);
+        if (BtlChar_GetCount() > 2) {
+            return Port_WatchedStopped() || (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) != 0;
+        }
+    }
+#endif
     if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {
         result = 1;
     }
@@ -554,6 +606,9 @@ s32 BtlScene_IsEffectHidden(s32 objId, s32 kind) {
     if (kind == 0) {
         if (BtlCharApi_AnyCamPriority()) {
             result = 1;
+        } else if (BtlChar_GetCount() > 2) {
+            extern s32 Port_WatchedStopped(void);
+            result = Port_WatchedStopped(); /* (a rush elsewhere hid effects over the whole field) */
         } else if (BtlCharApi_IsInRushSequence(0)) {
             result = 1;
         } else if (BtlCharApi_IsInRushSequence(1)) {

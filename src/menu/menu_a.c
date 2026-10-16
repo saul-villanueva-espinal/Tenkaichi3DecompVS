@@ -5,6 +5,15 @@ extern void Port_NetMenuOpen(void);
 extern int Port_NetMenuListed(void);
 extern int Port_NetSession(void);
 extern void Port_NetLeave(void);
+extern int Port_ModesMenu(void); /* port/src/plat_modes.c: the extra modes, this menu's second set of entries */
+extern void Port_ModesSheets(int off, int on);
+extern void Port_ModesShow(const int *rows);
+extern void Port_ModesCursor(int entry);
+extern int Port_ModesChoose(int entry);
+extern int Port_ModesLeave(void);
+extern void Port_ModesShowPlayers(const int *rows);
+extern int Port_ModesChoosePlayers(int entry, int n);
+#include "battle/col_c.h" /* FontStyle / FONT_ALIGN_* / FONT_SHADOW_*, for the extra modes line in the message window */
 #endif
 #include "sys/pad.h"
 #include "sys/save.h"
@@ -22,6 +31,105 @@ MainMenu *gMainMenu = NULL;
 
 /* The item under the cursor. */
 #define MAINMENU_CUR(m) ((m)->items[((m)->top + (m)->cursor + 1) % (m)->itemCount])
+#ifdef PORT
+
+/* The extra modes (fights with more than two fighters: Team Battle, Free-for-All, Training) are a second set of
+   entries of this menu; SELECT switches to it and back. The set is this menu with a list of three: the plates,
+   the cursor, the sounds and the movie are the menu's own. Each mode sits on the plate of one of the menu's
+   entries, whose icon it shows, and the port draws the mode's name where that entry's name is
+   (port/src/gs/menu_text.c). */
+#define PORTMODES_NUM 3
+static const s32 sPortModesItem[PORTMODES_NUM] = { 3, 2, 6 }; /* the plates of Duel, Dragon World Tour, Ultimate Training */
+static char *const sPortModesHelp[PORTMODES_NUM] = {
+    "Teams of up to five fighters,\nall in the fight at the same time.",
+    "Fill both lists with fighters.\nEvery one fights for itself.",
+    "Training, with the extra fighter\nset up in the settings (F1).",
+};
+/* After Team Battle or Free-for-All, the same menu lists the number of players (asked for by the user: "1 Player,
+   2 Players and so on"): 1 against the computer, 2 the game's two-player split screen, 3 and 4 that with players
+   3 and 4 on the teams' second members in quarters (port/src/plat_fighters.c, Local players). Four rows: the
+   fourth row's plate is shown for it. */
+#define PORTPLAYERS_NUM 4
+static const s32 sPortPlayersItem[PORTPLAYERS_NUM] = { 3, 2, 6, 1 };
+static char *const sPortPlayersHelp[PORTPLAYERS_NUM] = {
+    "One player against the computer.",
+    "Two players, the screen split in two.",
+    "Three players, the screen in quarters:\ncontroller 3 plays team 1's second fighter.",
+    "Four players, the screen in quarters:\ncontrollers 3 and 4 play the second fighters.",
+};
+static s32 sPortModesPick; /* the mode the number of players is asked for (0 Team Battle, 1 Free-for-All) */
+static s32 sPortModes; /* 0 the menu's own entries, 1 the extra modes, 2 its own again from this frame on, 3 the
+                          number of players */
+/* the menu's own list while the extra modes are showing */
+static struct {
+    s32 items[MAINMENU_ITEM_MAX];
+    s32 itemCount;
+    s32 top;
+    s32 cursor;
+    s32 extra;
+} sPortModesOwn;
+static s32 sPortModesDuel[2]; /* the versus menu's two answers as the player left them, while Team Battle or Free-for-All is on */
+#endif
+
+#ifdef PORT
+/*
+ * PC only: "Tenkaichi Budokai Online" (item 11), listed after Dragon Net Battle (after Duel when that one is
+ * hidden). Its label is written into the free fourth row of the second label sheet of each plate state (label 11,
+ * the item's own number), put together from the letters of the other labels of the player's disc
+ * (port/src/gs/menu_text.c, Port_MainItemLabel); without them (another edition of the game) from port_tbo_label.h. Its
+ * icon is Dragon Net Battle's. Choosing it opens the port's screen mode (menu/port_screen.c) with the screens of
+ * menu/port_tbo.c. It has no voiced line of the guides.
+ */
+#include "port_tbo_label.h"
+
+#define MAINMENU_TBO 11
+#define MM_ICON(item) ((item) == MAINMENU_TBO ? 4 : (item)) /* whose icon an item shows */
+
+/* A label sheet's pixels are stored the way the GS keeps 8-bit textures (in blocks): where pixel (x, y) is. */
+static s32 PortMainMenu_PixelAt(s32 x, s32 y) {
+    s32 block = (y & ~0xF) * 512 + (x & ~0xF) * 2;
+    s32 swap = (((y + 2) >> 2) & 1) * 4;
+    s32 line = (((y & ~3) >> 1) + (y & 1)) & 7;
+
+    return block + line * 512 * 2 + ((x + swap) & 7) * 4 + ((y >> 1) & 1) + ((x >> 2) & 2);
+}
+
+/* Writes runs of palette indices into label row `row` of a sheet. */
+static void PortMainMenu_WriteRuns(u8 *tex, s32 row, const PortLabelRun *run, s32 count) {
+    u8 *px = *(u8 **)(tex + 0x38) + 0x60;
+    s32 i;
+    s32 k;
+
+    for (i = 0; i < count; i++) {
+        for (k = 0; k < run[i].len; k++) {
+            px[PortMainMenu_PixelAt(run[i].x + k, row * 0x20 + run[i].y)] = run[i].v;
+        }
+    }
+}
+
+/* The label in the disc's lettering into row `row` of a sheet; 0 when it could not be made. */
+static s32 PortMainMenu_WriteDisc(u8 *tex, s32 row, s32 lit) {
+    extern s32 Port_MainItemLabel(s32 entry, s32 lit, s32 out);
+    static u8 index[512 * 0x20];
+    u8 *px = *(u8 **)(tex + 0x38) + 0x60;
+    s32 x;
+    s32 y;
+
+    if (!Port_MainItemLabel((s32)(u32)tex, lit, (s32)(u32)index)) {
+        return 0;
+    }
+    for (y = 0; y < 0x20; y++) {
+        for (x = 0; x < 512; x++) {
+            px[PortMainMenu_PixelAt(x, row * 0x20 + y)] = index[y * 512 + x];
+        }
+    }
+    return 1;
+}
+#define MAINMENU_VOICED(item) ((item) < MAINMENU_TBO)
+#else
+#define MM_ICON(item) (item)
+#define MAINMENU_VOICED(item) 1
+#endif
 
 /* Starts the idle loop of the seven dragon balls (all seven collected). */
 void MainMenu_StartBallLoops(void) {
@@ -49,8 +157,13 @@ void MainMenu_Init(s32 section) {
     if (gMenuArc1 == NULL) {
         gMenuArc1 = File_LoadSync(gProgress->baseFile + 1, NULL, 0);
     }
+#ifdef PORT
+    gMainMenu = Heap_Alloc(sizeof(MainMenu), 0x20, 0, 2); /* (its item list is longer on the PC: MAINMENU_ITEM_MAX) */
+    memset(gMainMenu, 0, sizeof(MainMenu));
+#else
     gMainMenu = Heap_Alloc(0x188, 0x20, 0, 2);
     memset(gMainMenu, 0, 0x188);
+#endif
     gMainMenu->pack = (u32 *)MPACK_AT(gMenuArc1, section);
     gMainMenu->res = Sprite_Unpack(gMainMenu->pack, NULL, NULL);
     MM_RES(1);
@@ -145,6 +258,9 @@ void MainMenu_Init(s32 section) {
         if (i == 4 && !Port_NetMenuListed()) {
             continue;
         }
+        if (i == MAINMENU_TBO) { /* (listed after Dragon Net Battle, below: not again at the end) */
+            continue;
+        }
 #else
         if (i == 4) {
             continue;
@@ -154,7 +270,19 @@ void MainMenu_Init(s32 section) {
             continue;
         }
         gMainMenu->items[gMainMenu->itemCount++] = i;
+#ifdef PORT
+        if (i == (Port_NetMenuListed() ? 4 : 3)) {
+            gMainMenu->items[gMainMenu->itemCount++] = MAINMENU_TBO;
+        }
+#endif
     }
+#ifdef PORT
+    /* the second sheet of each state (slot 8 not chosen, 12 chosen) is the entry behind the first */
+    if (!PortMainMenu_WriteDisc(gMainMenu->tex[8] + 0x40, 3, 0) || !PortMainMenu_WriteDisc(gMainMenu->tex[12] + 0x40, 3, 1)) {
+        PortMainMenu_WriteRuns(gMainMenu->tex[8] + 0x40, 3, sPortTboOff, sizeof(sPortTboOff) / sizeof(sPortTboOff[0]));
+        PortMainMenu_WriteRuns(gMainMenu->tex[12] + 0x40, 3, sPortTboOn, sizeof(sPortTboOn) / sizeof(sPortTboOn[0]));
+    }
+#endif
     gMainMenu->top = gMainMenu->itemCount - 1;
     for (i = 0; i < gMainMenu->itemCount; i++) {
         if (gMainMenu->items[i] == gProgress->mainMenuItem) {
@@ -169,6 +297,12 @@ void MainMenu_Init(s32 section) {
     for (i = 0; i < 4; i++) {
         gMainMenu->blink[i] = Rand_Range(0x20);
     }
+#ifdef PORT
+    /* the sheets with the first eight entries' names: tex[8] as the plates not under the cursor have them
+       ("mc_menu_text_off"), tex[12] as the plate under it has ("mc_menu_text_on") */
+    sPortModes = 0;
+    Port_ModesSheets((s32)(u32)gMainMenu->tex[8], (s32)(u32)gMainMenu->tex[12]);
+#endif
 }
 
 /* Frees the screen.
@@ -194,6 +328,46 @@ void MainMenu_Term(void) {
     }
 }
 
+#ifdef PORT
+/* The extra modes' list is three long and sits on the first three rows. The plates around them (the one above,
+   the fourth row, the one below, the one that scrolls in) and the two scroll arrows are taken out of the picture
+   while it is up, and put back when the menu's own list is. */
+static void MainMenu_PortModesPlates(s32 show) {
+    static const s32 plates[4] = { 1, 5, 6, 7 };
+    MFlashRef ref;
+    char name[64];
+    s32 i;
+    MFlash *flash = &gMainMenu->flash[0];
+
+    for (i = 0; i < 4; i++) {
+        sprintf(name, "mc_menu_plate_%d", plates[i]);
+        Flash_FindLabel(flash, NULL, name, &ref);
+        Flash_ClipSetFlags(flash, &ref, 2, show || (sPortModes == 3 && plates[i] == 5)); /* (the fourth row: 4 Players) */
+    }
+    for (i = 0; i < 2; i++) {
+        Flash_FindLabel(flash, NULL, i ? "mc_menu_yajirusi_down" : "mc_menu_yajirusi_up", &ref);
+        Flash_ClipSetFlags(flash, &ref, 2, show);
+    }
+}
+
+/* The message window's line while the extra modes are up: what the mode under the cursor is, printed with the
+   game's font where the window has the guides' lines (which are not spoken then). */
+static void MainMenu_PortModesHelp(void) {
+    extern void Font_PrintAsciiAt(s32 x, s32 y, char *str);
+    extern FontStyle gFontStyle;
+    FontStyle saved = gFontStyle;
+
+    gFontStyle.align = FONT_ALIGN_LEFT;
+    gFontStyle.color = 0x80FFFFFF;
+    gFontStyle.shadowMode = FONT_SHADOW_DROP;
+    gFontStyle.shadowColor = 0x80000000;
+    gFontStyle.shadowDx = 1;
+    gFontStyle.shadowDy = 1;
+    Font_PrintAsciiAt(25, 369, sPortModes == 3 ? sPortPlayersHelp[gMainMenu->cursor] : sPortModesHelp[gMainMenu->cursor]);
+    gFontStyle = saved;
+}
+
+#endif
 /* Draws the background, sets up every clip of the movie for this frame and draws it and the two windows. */
 void MainMenu_Draw(void) {
     MFlashRef ref;
@@ -251,22 +425,22 @@ void MainMenu_Draw(void) {
             Flash_FindLabel(flash, name, "mc_menu_text_on", &ref);
             Flash_ClipSetUv(flash, &ref, &uv);
             Flash_ClipSetTex(flash, &ref, item / 8);
-            uv.x0 = (item % 4) * 0x40;
-            uv.y0 = (item / 4) * 0x40;
+            uv.x0 = (MM_ICON(item) % 4) * 0x40;
+            uv.y0 = (MM_ICON(item) / 4) * 0x40;
             uv.x1 = uv.x0 + 0x40;
             uv.y1 = uv.y0 + 0x40;
             Flash_FindLabel(flash, name, "mc_icon_off", &ref);
             Flash_ClipSetUv(flash, &ref, &uv);
             uv.x0 = 0;
-            uv.y0 = (item % 10) * 0x30;
+            uv.y0 = (MM_ICON(item) % 10) * 0x30;
             uv.x1 = 0x30;
             uv.y1 = uv.y0 + 0x30;
             Flash_FindLabel(flash, name, "mc_icon_play", &ref);
             Flash_ClipSetUv(flash, &ref, &uv);
-            Flash_ClipSetTex(flash, &ref, item / 10);
+            Flash_ClipSetTex(flash, &ref, MM_ICON(item) / 10);
             if (item == MAINMENU_CUR(gMainMenu)) {
                 FlashAnim_Sheet(flash, &ref, &gMainMenu->iconTimer, &gMainMenu->iconFrame, &uv,
-                                cols[MAINMENU_CUR(gMainMenu)], 1, MAINMENU_CUR(gMainMenu) == 3 ? 3 : 6);
+                                cols[MM_ICON(MAINMENU_CUR(gMainMenu))], 1, MM_ICON(MAINMENU_CUR(gMainMenu)) == 3 ? 3 : 6);
             }
         }
     }
@@ -283,19 +457,19 @@ void MainMenu_Draw(void) {
         Flash_FindLabel(flash, "mc_menu_plate_7", "mc_menu_text_on", &ref);
         Flash_ClipSetUv(flash, &ref, &uv);
         Flash_ClipSetTex(flash, &ref, item / 8);
-        uv.x0 = (item % 4) * 0x40;
-        uv.y0 = (item / 4) * 0x40;
+        uv.x0 = (MM_ICON(item) % 4) * 0x40;
+        uv.y0 = (MM_ICON(item) / 4) * 0x40;
         uv.x1 = uv.x0 + 0x40;
         uv.y1 = uv.y0 + 0x40;
         Flash_FindLabel(flash, "mc_menu_plate_7", "mc_icon_off", &ref);
         Flash_ClipSetUv(flash, &ref, &uv);
         uv.x0 = 0;
-        uv.y0 = (item % 10) * 0x30;
+        uv.y0 = (MM_ICON(item) % 10) * 0x30;
         uv.x1 = 0x30;
         uv.y1 = uv.y0 + 0x30;
         Flash_FindLabel(flash, "mc_menu_plate_7", "mc_icon_play", &ref);
         Flash_ClipSetUv(flash, &ref, &uv);
-        Flash_ClipSetTex(flash, &ref, item / 10);
+        Flash_ClipSetTex(flash, &ref, MM_ICON(item) / 10);
     }
 
     for (i = 0; i < 2; i++) {
@@ -333,10 +507,23 @@ void MainMenu_Draw(void) {
         FlashAnim_Scroll(flash, &ref, &uv, &gMainMenu->cloud[i], NULL, i ? -0.18962963f : -0.35555556f, 0.0f);
     }
 
+#ifdef PORT
+    if (sPortModes != 0) {
+        MainMenu_PortModesPlates(sPortModes == 2);
+        if (sPortModes == 2) {
+            sPortModes = 0;
+        }
+    }
+#endif
     for (i = 0; i < MAINMENU_FLASH_NUM; i++) {
         Flash_Draw(&gMainMenu->flash[i]);
     }
     IconWin_Draw();
+#ifdef PORT
+    if ((sPortModes == 1 || sPortModes == 3) && (gMainMenu->flash[0].flags & MFLASH_PAD)) {
+        MainMenu_PortModesHelp(); /* (drawn with the window's own text: MsgWin_Draw ends with the font's queue) */
+    }
+#endif
     MsgWin_Draw(0, 0, gMainMenu->voiceLine);
 }
 
@@ -359,8 +546,12 @@ void MainMenu_Update(void) {
         if (gMainMenu->voiceLine == gMainMenu->guide + 0xC || gMainMenu->voiceLine == gMainMenu->guide + 0x3C) {
             if (Voice_GetStat(0) == 5) {
                 gMainMenu->guide = Rand_Range(4);
-                gMainMenu->voiceLine = MAINMENU_CUR(gMainMenu) * 4 + gMainMenu->guide + 0x10;
-                Voice_PlayWithSubtitle(gMainMenu->subtitles, MAINMENU_VOICE_BASE, gMainMenu->voiceLine);
+                if (MAINMENU_VOICED(MAINMENU_CUR(gMainMenu))) {
+                    gMainMenu->voiceLine = MAINMENU_CUR(gMainMenu) * 4 + gMainMenu->guide + 0x10;
+                    Voice_PlayWithSubtitle(gMainMenu->subtitles, MAINMENU_VOICE_BASE, gMainMenu->voiceLine);
+                } else {
+                    gMainMenu->voiceLine = -1;
+                }
             }
         }
     }
@@ -428,8 +619,12 @@ void MainMenu_Input(s32 *result) {
     moved:
         MainMenu_PlateGoto(0, "fl_on_start");
         gMainMenu->guide = Rand_Range(4);
-        gMainMenu->voiceLine = MAINMENU_CUR(gMainMenu) * 4 + gMainMenu->guide + 0x10;
-        Voice_PlayWithSubtitle(gMainMenu->subtitles, MAINMENU_VOICE_BASE, gMainMenu->voiceLine);
+        if (MAINMENU_VOICED(MAINMENU_CUR(gMainMenu))) {
+            gMainMenu->voiceLine = MAINMENU_CUR(gMainMenu) * 4 + gMainMenu->guide + 0x10;
+            Voice_PlayWithSubtitle(gMainMenu->subtitles, MAINMENU_VOICE_BASE, gMainMenu->voiceLine);
+        } else {
+            gMainMenu->voiceLine = -1;
+        }
         Snd_PlaySe(1, 0);
     } else if (gPad[0].gamePressed & 0x200) {
         switch (MAINMENU_CUR(gMainMenu)) {
@@ -478,6 +673,13 @@ void MainMenu_Input(s32 *result) {
             MAINMENU_COUNT();
             MAINMENU_CHOOSE(70);
             break;
+#ifdef PORT
+        case MAINMENU_TBO: /* "Tenkaichi Budokai Online": the port's screen mode runs its screens (menu/port_tbo.c) */
+            gPortScreen = PORT_SCREEN_TBO;
+            MAINMENU_COUNT();
+            MAINMENU_CHOOSE(MPROG_MODE_PORT_SCREEN);
+            break;
+#endif
         }
         MainMenu_PlateGoto(0, "fl_ok");
         Snd_PlaySe(1, 1);
@@ -491,6 +693,153 @@ void MainMenu_Input(s32 *result) {
     }
 }
 
+#ifdef PORT
+/* Switches the list: to the extra modes (`on`), or back to the menu's own entries where they were left. The plate
+   under the cursor goes dark and the one under the new cursor lights up, as when the cursor moves. */
+static void MainMenu_PortModesSwitch(s32 on) {
+    extern void Voice_StopWithLip(void);
+    s32 i;
+
+    MainMenu_PlateGoto(0, "fl_off_start");
+    gMainMenu->iconTimer = 0;
+    gMainMenu->iconFrame = 0;
+    if (on) {
+        for (i = 0; i < MAINMENU_ITEM_MAX; i++) {
+            sPortModesOwn.items[i] = gMainMenu->items[i];
+        }
+        sPortModesOwn.itemCount = gMainMenu->itemCount;
+        sPortModesOwn.top = gMainMenu->top;
+        sPortModesOwn.cursor = gMainMenu->cursor;
+        sPortModesOwn.extra = gMainMenu->extra;
+        for (i = 0; i < PORTMODES_NUM; i++) {
+            gMainMenu->items[i] = sPortModesItem[i];
+        }
+        gMainMenu->itemCount = PORTMODES_NUM;
+        gMainMenu->top = PORTMODES_NUM - 1; /* (the first of the list on the first row) */
+        gMainMenu->cursor = 0;
+        gMainMenu->extra = 0;
+        /* the guides have no lines for these entries: the one being spoken stops, and its subtitle goes */
+        Voice_StopWithLip();
+        gMainMenu->voiceLine = -1;
+        sPortModes = 1;
+        Port_ModesShow(sPortModesItem);
+        Snd_PlaySe(1, 1);
+    } else {
+        for (i = 0; i < MAINMENU_ITEM_MAX; i++) {
+            gMainMenu->items[i] = sPortModesOwn.items[i];
+        }
+        gMainMenu->itemCount = sPortModesOwn.itemCount;
+        gMainMenu->top = sPortModesOwn.top;
+        gMainMenu->cursor = sPortModesOwn.cursor;
+        gMainMenu->extra = sPortModesOwn.extra;
+        /* a guide reads out the entry the cursor is back on, as after a move */
+        gMainMenu->guide = Rand_Range(4);
+        gMainMenu->voiceLine = MAINMENU_CUR(gMainMenu) * 4 + gMainMenu->guide + 0x10;
+        Voice_PlayWithSubtitle(gMainMenu->subtitles, MAINMENU_VOICE_BASE, gMainMenu->voiceLine);
+        sPortModes = 2;
+        Port_ModesShow(NULL);
+        Snd_PlaySe(1, 2);
+    }
+    MainMenu_PlateGoto(0, "fl_on_start");
+}
+
+/* Between the extra modes (players 0) and the number of players for mode entry `pick` (players 1). */
+static void MainMenu_PortPlayersSwitch(s32 players, s32 pick) {
+    s32 i;
+
+    MainMenu_PlateGoto(0, "fl_off_start");
+    gMainMenu->iconTimer = 0;
+    gMainMenu->iconFrame = 0;
+    if (players) {
+        sPortModesPick = pick;
+        for (i = 0; i < PORTPLAYERS_NUM; i++) {
+            gMainMenu->items[i] = sPortPlayersItem[i];
+        }
+        gMainMenu->itemCount = PORTPLAYERS_NUM;
+        gMainMenu->top = PORTPLAYERS_NUM - 1;
+        gMainMenu->cursor = 0;
+        sPortModes = 3;
+        Port_ModesShowPlayers(sPortPlayersItem);
+        Snd_PlaySe(1, 1);
+    } else {
+        for (i = 0; i < PORTMODES_NUM; i++) {
+            gMainMenu->items[i] = sPortModesItem[i];
+        }
+        gMainMenu->itemCount = PORTMODES_NUM;
+        gMainMenu->top = PORTMODES_NUM - 1;
+        gMainMenu->cursor = sPortModesPick;
+        sPortModes = 1;
+        Port_ModesShow(sPortModesItem);
+        Port_ModesCursor(sPortModesPick);
+        Snd_PlaySe(1, 2);
+    }
+
+    MainMenu_PlateGoto(0, "fl_on_start");
+}
+
+/* The pad on the frames the menu takes input, before MainMenu_Input. SELECT switches to the extra modes; while
+   they are up the pad is theirs: up / down move the cursor over the three (no scrolling), confirm chooses, cancel,
+   Circle or SELECT goes back to the menu's own entries. A choice is made the way an entry's is (MAINMENU_CHOOSE), but for
+   the character select behind the versus menu (40, the team select) or behind the training menu (45), and what
+   that menu would have left in gProgress is set here. Returns 1 when this frame's input was taken. */
+static s32 MainMenu_PortModes(void) {
+    s32 next;
+    s32 move;
+
+    if (!(gMainMenu->flash[0].flags & MFLASH_PAD) || !(gMainMenu->flags & MAINMENU_STARTED)) {
+        return 0;
+    }
+    if (!Port_ModesMenu()) {
+        return 0; /* (not offered: an online session) */
+    }
+    if (sPortModes != 1 && sPortModes != 3) {
+        if (gPad[0].gamePressed & 0x2000) {
+            MainMenu_PortModesSwitch(1);
+            return 1;
+        }
+        return 0;
+    }
+    move = (gPad[0].gameRepeat & 8) ? -1 : (gPad[0].gameRepeat & 4) ? 1 : 0;
+    if (move != 0) {
+        s32 num = sPortModes == 3 ? PORTPLAYERS_NUM : PORTMODES_NUM;
+        MainMenu_PlateGoto(0, "fl_off_start");
+        gMainMenu->iconTimer = 0;
+        gMainMenu->iconFrame = 0;
+        gMainMenu->cursor = (gMainMenu->cursor + move + num) % num;
+        MainMenu_PlateGoto(0, "fl_on_start");
+        Port_ModesCursor(gMainMenu->cursor);
+        Snd_PlaySe(1, 0);
+    } else if (sPortModes == 1 && (gPad[0].gamePressed & 0x200) && gMainMenu->cursor < 2) {
+        MainMenu_PortPlayersSwitch(1, gMainMenu->cursor); /* (Team Battle, Free-for-All: how many players) */
+    } else if (sPortModes == 3 && (gPad[0].gamePressed & (0x400 | 0x100 | 0x2000))) {
+        MainMenu_PortPlayersSwitch(0, 0); /* (back to the extra modes) */
+    } else if (gPad[0].gamePressed & 0x200) {
+        s32 players = sPortModes == 3 ? gMainMenu->cursor + 1 : 1;
+        next = sPortModes == 3 ? Port_ModesChoosePlayers(sPortModesPick, players) : Port_ModesChoose(gMainMenu->cursor);
+        if (next == 40) {
+            /* the versus menu's two answers (DuelProgress, include/menu/menu_g.h): 1P vs COM (1P vs 2P for two
+               players or more: the team select's two players, split screen), a team battle */
+            sPortModesDuel[0] = *(s32 *)((u8 *)gProgress + 0x620);
+            sPortModesDuel[1] = *(s32 *)((u8 *)gProgress + 0x624);
+            *(s32 *)((u8 *)gProgress + 0x620) = players >= 2 ? 1 : 0;
+            *(s32 *)((u8 *)gProgress + 0x624) = 1;
+        } else if (next == 45) {
+            /* the training menu's note that it was left for the character select (MPTRAIN_SELECT,
+               include/menu/menu_i.h): going back from the select, that menu opens as it does after its own entry */
+            *(s32 *)((u8 *)gProgress + 0x7D4) |= 0x10;
+        }
+        if (next > 0) {
+            MAINMENU_CHOOSE(next);
+            MainMenu_PlateGoto(0, "fl_ok");
+            Snd_PlaySe(1, 1);
+        }
+    } else if (gPad[0].gamePressed & (0x400 | 0x100 | 0x2000)) {
+        MainMenu_PortModesSwitch(0);
+    }
+    return 1;
+}
+
+#endif
 /* The main menu's own frame loop. Returns 1 when a mode was chosen (gProgress->mode is set), 0 on cancel. */
 s32 MainMenu_Run(s32 section) {
     s32 result = 1;
@@ -498,6 +847,12 @@ s32 MainMenu_Run(s32 section) {
 #ifdef PORT
     if (Port_NetSession()) {
         Port_NetLeave(); /* an online session lives in the versus mode: back at the main menu it is over (no return) */
+    }
+    /* a mode chosen from the extra modes ends here too: Duel is the game's own again, and its menu opens on what
+       the player chose there last, not on the team battle the mode was entered with */
+    if (Port_ModesLeave() == 40) {
+        *(s32 *)((u8 *)gProgress + 0x620) = sPortModesDuel[0];
+        *(s32 *)((u8 *)gProgress + 0x624) = sPortModesDuel[1];
     }
 #endif
     MainMenu_Init(section);
@@ -544,10 +899,23 @@ s32 MainMenu_Run(s32 section) {
                 gProgress->mainMenuItem = MAINMENU_CUR(gMainMenu);
             }
         } else {
+#ifdef PORT
+            if (MainMenu_PortModes()) {
+                continue;
+            }
+#endif
             MainMenu_Input(&result);
         }
     }
     sceGsSyncPath(0, 0);
+#ifdef PORT
+    if (sPortModes == 1) {
+        /* left through an extra mode: the cursor comes back where it was among the menu's own entries */
+        gProgress->mainMenuItem = sPortModesOwn.items[(sPortModesOwn.top + sPortModesOwn.cursor + 1) % sPortModesOwn.itemCount];
+        Port_ModesShow(NULL);
+    }
+    sPortModes = 0;
+#endif
     MainMenu_Term();
     Dma_ResetBuffers();
     return result;

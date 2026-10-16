@@ -105,6 +105,25 @@ s32 Battle_Load(void) {
     Load_RunBlocking();
     BattleSide_SetObjId(0, BtlObj_CreateChara(BattleSide_GetModelSlot(0)));
     BattleSide_SetObjId(1, BtlObj_CreateChara(BattleSide_GetModelSlot(1)));
+#ifdef PORT
+    {
+        /* The extra fighters' objects (the experiment of more than two fighters), in their order: extra fighter k
+           is roster index 2 + k, and everything that is kept by fighter takes its object's id for that same
+           number. An extra fighter whose object could not be made, or was given another number, ends the row:
+           the fight has the ones before it. */
+        extern int gPortExtraSlot[], gPortExtraObj[], gPortExtraObjs;
+        extern int Port_FightExtras(void);
+        s32 k;
+
+        for (k = 0; k < Port_FightExtras() && gPortExtraSlot[k] >= 0; k++) {
+            gPortExtraObj[k] = BtlObj_CreateChara(gPortExtraSlot[k]);
+            if (gPortExtraObj[k] != 2 + k) {
+                break;
+            }
+            gPortExtraObjs = k + 1;
+        }
+    }
+#endif
     return 1;
 }
 

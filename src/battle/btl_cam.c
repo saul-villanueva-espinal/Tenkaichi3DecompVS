@@ -358,14 +358,180 @@ void BtlCam_Term(void) {
     DemoCam_Term();
 }
 
+#ifdef PORT
+/* Four local players (btl_char_flag_opp.c, Port_QuadMode): the screen in quarters. The game has two views; the
+   picture is made with them twice a frame: the update gives views 0 and 1 the top quarters (players 1 and 2), and
+   the drawing (battle.c) draws those, then gives the two views the bottom quarters (players 3 and 4) with their
+   objects' visibility, draws again, and puts the top ones back. A quarter is the whole screen's view at half its
+   size (half the distance to the screen, centred in the quarter): each player sees as much as on a full screen. */
+s32 gPortViewPass; /* 0: views 0 and 1 are the top quarters, 1: the bottom ones */
+static View sPortQuad[5]; /* the four quarters, and (4) the whole bottom half: three players */
+static s32 sPortQuadAspect = -1;
+
+static View *Port_QuadLayout(s32 q) {
+    s32 aspect = (s32)(Port_WideFactor() * 1000.0f);
+
+    if (sPortQuadAspect != aspect) {
+        s32 n;
+        Vec4 size;
+
+        sPortQuadAspect = aspect;
+        for (n = 0; n < 5; n++) {
+            View *v = &sPortQuad[n];
+            memset(v, 0, sizeof(View));
+            v->aspect = 1.1666667f;
+            /* (4, the bottom half: as high as a quarter, as wide as the screen: the same picture, more of it to the
+               sides; the stage's culling is made wide enough for it, stg_a.c) */
+            Vec4_Set(&size, n == 4 ? 2047.0f : 1919.0f, 1935.0f, 0.1f, 16777215.0f);
+            View_SetProjection(v, &size, 433.0f * 0.5f, 1.0f, v->aspect, n == 4 ? 2048.0f : (n & 1) ? 2176.0f : 1920.0f,
+                               n < 2 ? 1936.0f : 2160.0f, 1.0f, 10877000.0f, 0.3f, 65536.0f, 1.0f);
+            v->scissorX0 = n != 4 && (n & 1) ? 257 : 0;
+            v->scissorX1 = n == 4 || (n & 1) ? 511 : 254;
+            v->scissorY0 = n < 2 ? 0 : 226;
+            v->scissorY1 = n < 2 ? 221 : 447;
+        }
+    }
+    return &sPortQuad[q];
+}
+
+/* The layout of quarter q: its own, or the whole bottom half for player 3 of three. */
+static s32 Port_QuadSlot(s32 q) {
+    extern s32 Port_QuadThree(void);
+    return q == 2 && Port_QuadThree() ? 4 : q;
+}
+
+/* How many views pass `pass` has: two, or one at the bottom with three players. */
+s32 Port_QuadPassViews(s32 pass) {
+    extern s32 Port_QuadThree(void);
+    return pass == 1 && Port_QuadThree() ? 1 : 2;
+}
+
+/* Where a point of the world is in quarter q's picture (Port_ProjectPoint's units), through a view of its own made
+   for the question (nothing is loaded for drawing: the HUD asks, between its own drawing). */
+s32 Port_QuarterProject(s32 q, Vec4 *pos, s32 *x, s32 *y) {
+    extern s32 Port_QuarterFighter(s32 q);
+    extern s32 Port_Spectated(s32 p);
+    extern s32 Port_FighterObjId(s32 i);
+    extern s32 Port_ProjectPoint(Vec4 *pos, s32 *x, s32 *y); /* (below) */
+    static BtlCamView tmp;
+    View *was = gBtlCamView;
+    s32 r;
+
+    tmp.view = *Port_QuadLayout(Port_QuadSlot(q & 3));
+    BtlCharApi_GetCamPose(Port_FighterObjId(Port_Spectated(Port_QuarterFighter(q & 3))), &tmp.pos, &tmp.rot);
+    BtlCam_BuildView(&tmp, 0);
+    gBtlCamView = &tmp.view;
+    r = Port_ProjectPoint(pos, x, y);
+    gBtlCamView = was;
+    return r;
+}
+
+/* Views 0 and 1 for pass `pass` (0 top, 1 bottom): their cameras. */
+void Port_QuadCams(s32 pass) {
+    s32 i;
+
+    gPortViewPass = pass;
+    for (i = 0; i < 2; i++) {
+        BtlCam_SelectView(i);
+        BtlCam_UpdateView(i);
+    }
+}
+
+/* The same, and their objects' visibility (also while the fight is paused, when the game itself leaves it as it
+   was: it would be the other pass's). */
+void Port_QuadViews(s32 pass) {
+    extern void BtlObj_UpdateVisibility(s32 view);
+    extern void BtlObj_FinishVisibility(s32 split);
+    u32 paused = Battle_GetWork()->flags & BATTLE_FLAG_PAUSE;
+    s32 i, n = Port_QuadPassViews(pass);
+
+    Port_QuadCams(pass);
+    Battle_GetWork()->flags &= ~BATTLE_FLAG_PAUSE;
+    for (i = 0; i < n; i++) {
+        BtlCam_SelectView(i);
+        BtlCam_ApplyView(0);
+        BtlObj_UpdateVisibility(i);
+    }
+    BtlObj_FinishVisibility(n == 2);
+    if (n == 1) {
+        /* (one view: the objects' pass loads no view of its own then, BtlObjDraw_ApplyView) */
+        BtlCam_SelectView(0);
+        BtlCam_ApplyView(1);
+    }
+    Battle_GetWork()->flags |= paused;
+}
+#endif
+
+#ifdef PORT
+/* The object of the fighter whose camera each of the two views shows now (the views' own fighters, drawn last
+   by btl_obj.c, BtlObj_BuildDrawList); -1: not set yet. */
+static s32 sPortViewObj[2] = { -1, -1 };
+s32 Port_ViewOwnObj(s32 view) {
+    return (u32)view < 2 && sPortViewObj[view] >= 0 ? sPortViewObj[view] : view;
+}
+#endif
+
 /* Per frame: copies one side's fighter camera pose and priority into the selected view and builds it. */
 void BtlCam_UpdateView(s32 side) {
     BtlCamView *view = gBtlCam->cur;
     s32 objId = BattleSide_GetObjId(side);
+#ifdef PORT
+    {
+        extern s32 Port_QuadMode(void);
+        extern s32 Port_QuarterFighter(s32 q);
+        extern s32 Port_Spectated(s32 p);
+        extern s32 Port_FighterObjId(s32 i);
+        if (Port_QuadMode() && (side == 0 || side == 1)) {
+            s32 q = gPortViewPass * 2 + side;
+            s32 f = Port_Spectated(Port_QuarterFighter(q));
+
+            view->split = 1;
+            view->view = *Port_QuadLayout(Port_QuadSlot(q));
+            objId = Port_FighterObjId(f);
+            sPortViewObj[side] = objId;
+            BtlCharApi_GetCamPose(objId, &view->pos, &view->rot);
+            view->priority = BtlCharApi_HasCamPriority(objId);
+            BtlCam_BuildView(view, 1);
+            return;
+        }
+    }
+#endif
 
     if (Battle_IsSplitScreen()) {
         BtlCam_SetLayout(1, 0);
     }
+#ifdef PORT
+    {
+        /* The third-fighter experiment: a view shows its side's fighter, and the screen goes to the view whose
+           camera asks for it (a technique's cut-in, where everyone else is hidden). The third fighter had no
+           view to ask through: the screen stayed on a hidden player 1. Side 2's view is the third's while the
+           third's camera asks and side 2's own does not. */
+        extern s32 gPortExtraObjs; /* port/src/plat_stub.c: the extra fighters of the fight (objects 2 on) */
+        s32 k;
+
+        /* (with several extra fighters: the first of them that asks) */
+        for (k = 2; side == 1 && k < 2 + gPortExtraObjs; k++) {
+            if (BtlCharApi_HasCamPriority(k) > BtlCharApi_HasCamPriority(objId)) {
+                objId = k;
+                break;
+            }
+        }
+    }
+    {
+        /* (spectating, btl_char_flag_opp.c: a player whose fighter is down sees the camera of the one it watches) */
+        extern s32 Port_Spectated(s32 p);
+        extern s32 Port_FighterObjId(s32 i); /* (an extra fighter's object; the two sides' are the setup's) */
+        s32 w = Port_Spectated(side);
+        if (w != side) {
+            objId = w >= 2 ? Port_FighterObjId(w) : BattleSide_GetObjId(w);
+        }
+    }
+#endif
+#ifdef PORT
+    if (side == 0 || side == 1) {
+        sPortViewObj[side] = objId;
+    }
+#endif
     BtlCharApi_GetCamPose(objId, &view->pos, &view->rot);
     view->priority = BtlCharApi_HasCamPriority(objId);
     BtlCam_BuildView(view, 1);
@@ -511,6 +677,22 @@ void BtlCam_ApplyView(s32 scissor) {
 
 #ifdef PORT
 extern int Port_NetView(void); /* port/src/gs/net.c: the local player's view (0 or 1), or -1 */
+
+/* Where a point of the world is on the screen of the current view, in the GS units the picture is drawn in (1/16
+   pixel, with the frame's offset); 0 when it is behind the camera. (The player's target choice and its marker,
+   btl_char_flag_opp.c / hud_b.c.) */
+extern s32 Mtx_ProjectPoint(s32 *out, Mtx44 *m, Vec4 *pos);
+s32 Port_ProjectPoint(Vec4 *pos, s32 *x, s32 *y) {
+    s32 scr[4] __attribute__((aligned(16)));
+
+    if (gBtlCamView == NULL) {
+        return 0;
+    }
+    Mtx_ProjectPoint(scr, &gBtlCamView->world2screen, pos);
+    *x = scr[0];
+    *y = scr[1];
+    return scr[3] > 0;
+}
 #endif
 /* Decides whether one full-screen view replaces the per-player views this frame; returns 1 if so. */
 s32 BtlCam_UpdateOverride(void) {
@@ -529,6 +711,13 @@ s32 BtlCam_UpdateOverride(void) {
     } else {
         idx = BtlCam_GetPriorityView();
 #ifdef PORT
+        {
+            /* (four quarters: a fighter's camera asking for the screen keeps to its own quarter) */
+            extern s32 Port_QuadMode(void);
+            if (Port_QuadMode()) {
+                idx = -1;
+            }
+        }
         /* Online play: both machines run the two-player game with its two cameras, and each shows only its own
            player's view, full screen. That is this function's own case of "one view has priority", with the
            local player's view taking the place when the game itself gives none priority. */

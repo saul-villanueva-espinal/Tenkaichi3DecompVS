@@ -873,8 +873,86 @@ s32 BtlSeqIntroTalk_Enter(BtlSeqTalkCtx *ctx) {
     return 1;
 }
 
+#ifdef PORT
+/* More than two fighters: an intro for every member (the user). The two leads' turns are the game's (their pair
+   lines, voices and camera cuts); each other fighter gets a turn of its own the same way, with a generic line
+   (0 or 1, as the game picks when the pair has no special dialogue): the first lead, its teammates, the second
+   lead, then everybody else. A member's turn is taken between the game's steps (step 2: before the second lead;
+   step 4: before the end) as steps 20 / 21, and goes back to the step it was taken from. There are two voice
+   players: a member speaks on its lead's, whose line has ended by then. Start skips the whole intro as before. */
+#define PORT_INTRO_TURN 20
+static s32 sPortIntroQ[16], sPortIntroN, sPortIntroSplit, sPortIntroAt, sPortIntroCur, sPortIntroBack, sPortIntroLine,
+    sPortIntroVoice;
+
+static s32 Port_IntroOn(void) {
+    extern s32 BtlChar_GetCount(void);
+    return BtlChar_GetCount() > 2 && Battle_GetMode() != 1;
+}
+
+/* At step 0: the order of the members' turns. */
+static void Port_IntroQueue(BtlSeqTalkCtx *ctx) {
+    extern s32 BtlChar_GetCount(void);
+    extern s32 Port_Team(s32 i);
+    s32 k, pass;
+
+    sPortIntroN = sPortIntroAt = 0;
+    for (pass = 0; pass < 2; pass++) {
+        for (k = 2; k < BtlChar_GetCount() && sPortIntroN < 16; k++) {
+            if ((Port_Team(k) == Port_Team(ctx->side[0])) == (pass == 0)) {
+                sPortIntroQ[sPortIntroN++] = k;
+            }
+        }
+        if (pass == 0) {
+            sPortIntroSplit = sPortIntroN;
+        }
+    }
+}
+
+/* At step 2 or 4: takes the next member's turn when one is due before that step. */
+static void Port_IntroDivert(BtlSeqTalkCtx *ctx) {
+    if (!Port_IntroOn() || (ctx->step != 2 && ctx->step != 4)) {
+        return;
+    }
+    if (sPortIntroAt < (ctx->step == 2 ? sPortIntroSplit : sPortIntroN)) {
+        sPortIntroBack = ctx->step;
+        sPortIntroCur = sPortIntroQ[sPortIntroAt++];
+        sPortIntroVoice = ctx->step == 2 ? ctx->side[0] : ctx->side[1];
+        ctx->step = PORT_INTRO_TURN;
+    }
+}
+
+/* The ends of all the members' poses (state exit). */
+static void Port_IntroEnd(void) {
+    extern s32 BtlChar_GetCount(void);
+    s32 k;
+
+    for (k = 2; k < BtlChar_GetCount(); k++) {
+        BtlCtrl_EndEntrance(k);
+        BtlObj_SetSubState(BtlObj_Get(k), 0, -1);
+    }
+}
+#endif
+
 /* State 1 preUpdate: at steps 0 and 2 starts a speaker's pose, camera cut, voice line and talk animation. */
 s32 BtlSeqIntroTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
+#ifdef PORT
+    if (ctx->step == 0 && Port_IntroOn()) {
+        Port_IntroQueue(ctx);
+    }
+    Port_IntroDivert(ctx);
+    if (ctx->step == PORT_INTRO_TURN) {
+        BtlSeqObj *obj = BtlObj_Get(sPortIntroCur);
+
+        sPortIntroLine = rand() % 2;
+        BtlCtrl_StartEntrance(sPortIntroCur);
+        Ramp_Start(&ctx->timer, 10.0f, 0.0f, 1.0f);
+        DemoCam_PlayObjAnim(sPortIntroCur, 0);
+        Voice_PlayChara(sPortIntroVoice, obj->chara, sPortIntroLine);
+        BtlObj_SetSubState(obj, 2, sPortIntroLine);
+        ctx->step = PORT_INTRO_TURN + 1;
+        return 1;
+    }
+#endif
     switch (ctx->step) {
     case 0:
         BtlCtrl_StartEntrance(ctx->side[0]);
@@ -900,6 +978,18 @@ s32 BtlSeqIntroTalk_PreUpdate(BtlSeqTalkCtx *ctx) {
 
 /* State 1 update: waits for each line to end (voice stopped or 10 s), or for the skip; then goes to state 2. */
 s32 BtlSeqIntroTalk_Update(BtlSeqTalkCtx *ctx) {
+#ifdef PORT
+    Port_IntroDivert(ctx);
+    if (ctx->step == PORT_INTRO_TURN + 1 && BtlCtrl_IsPoseReached(sPortIntroCur)) {
+        if (Voice_IsStopped(sPortIntroVoice) || Ramp_Step(&ctx->timer)) {
+            ScrXfade_RequestCapture();
+            ScrXfade_Start(1, 1.0f);
+            BtlObj_SetSubState(BtlObj_Get(sPortIntroCur), 0, -1);
+            ctx->step = sPortIntroBack;
+            Port_IntroDivert(ctx); /* (the next member's turn, if one is due) */
+        }
+    }
+#endif
     switch (ctx->step) {
     case 0:
     case 1:
@@ -958,6 +1048,11 @@ s32 BtlSeqIntroTalk_Exit(BtlSeqTalkCtx *ctx) {
         DemoCam_Stop();
         BtlCtrl_EndEntrance(ctx->side[0]);
         BtlCtrl_EndEntrance(ctx->side[1]);
+#ifdef PORT
+        if (Port_IntroOn()) {
+            Port_IntroEnd();
+        }
+#endif
     }
     return 1;
 }
@@ -1243,12 +1338,51 @@ void BtlSeq_JudgeByHealth(BattleResult *result) {
  *   file is split, the call goes through a second declaration of the same symbol. */
 extern s32 BtlSeq_TickClocksExt(void) __asm__("BtlSeq_TickClocks");
 
+#ifdef PORT
+extern void Port_Dbg2(const char *what, int a, int b); /* port/src/plat_stub.c (the experiment's tool) */
+extern s32 BtlChar_GetCount(void);
+extern s32 Port_Team(s32 i); /* btl_char_flag_opp.c */
+#define PORT_ENDDBG(n) (Port_Dbg2("the fight ends by rule", n, (int)result->reason), Port_Dbg2("the fight ends: winner (1 player 1, 2 player 2) / fighters", (int)result->winner, BtlChar_GetCount()))
+#define PORT_SEQ_TEAMS 10 /* (PORT_TEAM_MAX, port/include/port_fighters.h) */
+extern s32 BtlCharApi_GetHp(s32 objId);
+/* More than two fighters, the time is up: the team with the most health left in all its fighters has won (the
+   game compares the two sides' fighters). Player 1's team = player 1 wins, any other = player 2 wins. 0: two
+   fighters, or the best teams are level: the game's own rule decides. */
+static s32 Port_JudgeTeams(BattleResult *result) {
+    s32 hp[PORT_SEQ_TEAMS], i, best = 0, level = 0;
+
+    if (BtlChar_GetCount() <= 2) {
+        return 0;
+    }
+    memset(hp, 0, sizeof(hp));
+    for (i = 0; i < BtlChar_GetCount(); i++) {
+        if ((u32)Port_Team(i) < PORT_SEQ_TEAMS && BtlCharApi_GetHp(i) > 0) {
+            hp[Port_Team(i)] += BtlCharApi_GetHp(i);
+        }
+    }
+    for (i = 1; i < PORT_SEQ_TEAMS; i++) {
+        if (hp[i] > hp[best]) {
+            best = i;
+            level = 0;
+        } else if (hp[i] == hp[best]) {
+            level = 1;
+        }
+    }
+    if (level) {
+        return 0;
+    }
+    result->winner = best == 0 ? BTL_RESULT_WIN_P1 : BTL_RESULT_WIN_P2;
+    return 1;
+}
+#else
+#define PORT_ENDDBG(n)
+#endif
 s32 BtlSeq_CheckBattleEnd(void) {
     BattleResult *result = Battle_GetResult();
     s32 timeUp;
 
     if (result->winner & 0x1F) {
-        return 1;
+        { PORT_ENDDBG(1); return 1; }
     }
     if (BtlSeq_GetEndCheckOff()) {
         return 0;
@@ -1268,39 +1402,73 @@ s32 BtlSeq_CheckBattleEnd(void) {
     }
     if (timeUp) {
         result->reason = BTL_REASON_TIME_UP;
+#ifdef PORT
+        if (!Port_JudgeTeams(result))
+#endif
         BtlSeq_JudgeByHealth(result);
-        return 1;
+        { PORT_ENDDBG(2); return 1; }
     }
     if (BtlCtrl_TestFlag7(0) && BtlCtrl_TestFlag7(1)) {
         result->reason = BTL_REASON_FLAG7;
         BtlSeq_JudgeByHealth(result);
-        return 1;
+        { PORT_ENDDBG(3); return 1; }
     }
     if (BtlCtrl_TestFlag7(1)) {
         result->winner = BTL_RESULT_WIN_P1;
         result->reason = BTL_REASON_FLAG7;
-        return 1;
+        { PORT_ENDDBG(4); return 1; }
     }
     if (BtlCtrl_TestFlag7(0)) {
         result->winner = BTL_RESULT_WIN_P2;
         result->reason = BTL_REASON_FLAG7;
-        return 1;
+        { PORT_ENDDBG(5); return 1; }
     }
+#ifdef PORT
+    /* More than two fighters: a knock-out ends the fight when one team is left (teams: btl_char_flag_opp.c;
+       a Team Battle ends when every fighter of a team is down, a Free-for-All when one fighter is left). The
+       result only knows two sides: player 1's team left = player 1 wins, any other team left = player 2 wins. */
+    if (BtlChar_GetCount() > 2) {
+        s32 alive[PORT_SEQ_TEAMS], i, teams = 0;
+
+        memset(alive, 0, sizeof(alive));
+        for (i = 0; i < BtlChar_GetCount(); i++) {
+            if (!BtlCtrl_IsTeamDead(i) && (u32)Port_Team(i) < PORT_SEQ_TEAMS) {
+                alive[Port_Team(i)] = 1;
+            }
+        }
+        for (i = 0; i < PORT_SEQ_TEAMS; i++) {
+            teams += alive[i];
+        }
+        if (teams == 0) {
+            result->reason = BTL_REASON_KO;
+            BtlSeq_JudgeByHealth(result);
+            { PORT_ENDDBG(10); return 1; }
+        }
+        if (teams == 1) {
+            result->winner = alive[0] ? BTL_RESULT_WIN_P1 : BTL_RESULT_WIN_P2;
+            result->reason = BTL_REASON_KO;
+            { PORT_ENDDBG(11); return 1; }
+        }
+    } else {
+#endif
     if (BtlCtrl_IsTeamDead(0) && BtlCtrl_IsTeamDead(1)) {
         result->reason = BTL_REASON_KO;
         BtlSeq_JudgeByHealth(result);
-        return 1;
+        { PORT_ENDDBG(6); return 1; }
     }
     if (BtlCtrl_IsTeamDead(1)) {
         result->winner = BTL_RESULT_WIN_P1;
         result->reason = BTL_REASON_KO;
-        return 1;
+        { PORT_ENDDBG(7); return 1; }
     }
     if (BtlCtrl_IsTeamDead(0)) {
         result->winner = BTL_RESULT_WIN_P2;
         result->reason = BTL_REASON_KO;
-        return 1;
+        { PORT_ENDDBG(8); return 1; }
     }
+#ifdef PORT
+    }
+#endif
     if (!BattleReplay_IsActive()) {
         return 0;
     }
@@ -1309,13 +1477,19 @@ s32 BtlSeq_CheckBattleEnd(void) {
     }
     result->winner = BTL_RESULT_OTHER;
     result->reason = BTL_REASON_BIT18;
-    return 1;
+    { PORT_ENDDBG(9); return 1; }
 }
 
 /* State 3 enter: releases the fighters (clears the demo and ready flags); mode 8 shows the HUD. */
 s32 BtlSeqFight_Enter(BtlSeqWaitCtx *ctx) {
     Battle_GetWork()->flags &= ~BATTLE_FLAG_DEMO;
     Battle_GetWork()->flags &= ~BATTLE_FLAG_READY;
+#ifdef PORT
+    {
+        extern void Port_TestHealth(void); /* btl_capi_b.c (the experiment's tool) */
+        Port_TestHealth();
+    }
+#endif
     if (Battle_GetMode() == 8) {
         Hud_ShowAll(1);
     }

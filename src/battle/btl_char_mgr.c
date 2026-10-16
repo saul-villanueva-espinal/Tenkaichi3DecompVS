@@ -245,6 +245,14 @@ void BtlChar_BindObject(BtlMgrChr *chr) {
     s32 i;
 
     chr->objId = BattleSide_GetObjId(chr->side);
+#ifdef PORT
+    {
+        extern int gPortExtraObj[]; /* port/src/plat_stub.c */
+        if (chr->side >= 2) { /* (an extra fighter has an object of its own) */
+            chr->objId = gPortExtraObj[chr->side - 2];
+        }
+    }
+#endif
     obj = BtlChar_GetObj(chr);
     chr->unk980 = -1;
     for (i = 0; i < 3; i++) {
@@ -303,6 +311,23 @@ void BtlChar_CopyAllAbility(BtlMgrChr *chr) {
     }
 }
 
+#ifdef PORT
+/* The experiment of more than two fighters: an extra fighter that is a member of a side's team takes its items'
+   bonus levels and abilities from that member (BtlChar_CopyMemberBonus and BtlChar_CopyMemberAbility read member 0
+   of side 2 for it). */
+static void Port_CopyMemberItems(BtlMgrChr *chr, BattleMember *src) {
+    BtlMgrMember *dst = &chr->members[0];
+    s32 i;
+
+    for (i = 0; i < 7; i++) {
+        dst->bonus[i] = src->bonus[i + 1];
+    }
+    for (i = 0; i < 4; i++) {
+        dst->ability[i] = src->ability[i];
+    }
+}
+#endif
+
 /* Resets one fighter from its side of the battle setup. */
 void BtlChar_Reset(BtlMgrChr *chr) {
     s32 side = chr->side;
@@ -315,12 +340,29 @@ void BtlChar_Reset(BtlMgrChr *chr) {
     BtlChar_SetStage(chr, BTL_CHR_STAGE_RESET);
     chr->optA = BattleSide_GetOptionA(side);
     chr->optBOff = BattleSide_GetOptionB(side) == 0;
+#ifdef PORT /* (a save flag of each of the two players: controllers 3 and 4 take player 1's) */
+    chr->padFlagA = (gSaveData->flags & (2 << (chr->pad < 2 ? chr->pad : 0))) != 0;
+#else
     chr->padFlagA = (gSaveData->flags & (2 << chr->pad)) != 0;
+#endif
     chr->unk1590 = -1;
     chr->unk1594 = -1;
     BtlInput_Init(chr);
     BtlAct_ClearQueue(chr);
     chr->injectOn = BattleSide_IsCpu(side);
+#ifdef PORT
+    {
+        extern int Port_ThirdAi(void); /* port/src/plat_stub.c: BT3_THIRD_AI, 1 unless set to 0 */
+        extern int Port_FightPad(int k); /* port/src/plat_fighters.c: extra k's controller, -1 the computer */
+        if (side >= 2) { /* (an extra fighter is the computer's, unless a controller was given to it) */
+            chr->injectOn = Port_FightPad(side - 2) >= 0 ? 0 : Port_ThirdAi();
+        }
+        {
+            extern void Port_PlayerLog(int fighter, int pad, int cpu); /* port/src/plat_fighters.c */
+            Port_PlayerLog(side, chr->pad, chr->injectOn);
+        }
+    }
+#endif
     BtlChar_PlaceAtStart(chr);
     BtlReplay_Rewind(chr);
     BtlChar_ResetLook(chr);
@@ -343,6 +385,29 @@ void BtlChar_Reset(BtlMgrChr *chr) {
         mem->cpuLevel = BattleSide_GetMember(side, i)->cpuLevel;
         mem->aiType = BattleSide_GetMember(side, i)->aiType;
         m = BattleSide_GetMember(side, i);
+#ifdef PORT
+        if (side >= 2) {
+            /* The experiment of more than two fighters. A fighter that is not a side has no team in the battle
+               setup: it was given side 2's, and so took itself for side 2's character (that one's health and
+               gauge, and that one's model when it asked for its own again, the damaged costume). It is one
+               member, the character it was made from, in its first costume. */
+            extern int Port_FightChara(int k), Port_FightCostume(int k), Port_FightMember(int k); /* port/src/plat_fighters.c */
+            s32 from = Port_FightMember(side - 2);
+
+            chr->memberCount = 1;
+            mem->chara = Port_FightChara(side - 2);
+            mem->costume = Port_FightCostume(side - 2);
+            if (from >= 0) {
+                /* (a member of a side's team that fights beside it: Port_LoadExtras, battle_load.c. Its health,
+                   its items' levels and abilities and its AI type are its own member's.) */
+                m = BattleSide_GetMember(from >> 3, from & 7);
+                mem->aiType = m->aiType;
+                Port_CopyMemberItems(chr, m);
+            }
+            BtlMember_LoadParams(chr, i, 1, m->health, 0);
+            continue;
+        }
+#endif
         BtlMember_LoadParams(chr, i, 1, m->health, BattleSide_GetMemberVariant(side, i));
     }
     chr->unk99C = 0;
@@ -564,7 +629,14 @@ void BtlChar_ResetObjWork(BtlMgrChr *chr) {
 
 /* Decides which fighters are frozen (hit-stop) and counts the freeze timers down. */
 void BtlChars_UpdateFreeze(void) {
+#ifdef PORT
+    s32 level[10]; /* (PORT_FIGHTER_MAX: one per fighter; the third's was written past the two) */
+    s32 local[10]; /* (a hold that is not about a player: its target only) */
+    extern s32 Port_AboutPlayer(s32 i); /* btl_char_api.c */
+    extern s32 gPortTarget[];           /* btl_char_flag_opp.c */
+#else
     s32 level[2];
+#endif
     s32 i;
     s32 max;
     u8 *bytes;
@@ -580,10 +652,40 @@ void BtlChars_UpdateFreeze(void) {
         } else if (BtlChar_TestFlag(chr, 0x126)) {
             level[i] = 1;
         }
+#ifdef PORT
+        {
+            /* More than two fighters: while a model request is active only its owner holds the others still
+               (btl_char_ctl_b.c, Port_ChangeOwner). */
+            extern s32 Port_ChangeOwner(void);
+            if (level[i] != 0 && BtlChar_GetCount() > 2 && Port_ChangeOwner() >= 0 && Port_ChangeOwner() != i) {
+                level[i] = 0;
+            }
+            /* The start of a super holds every other fighter still (and BtlChars_UpdateObjFlag2 hides them): in
+               the game that is its opponent, while its camera has the screen. With more than two fighters it
+               holds only its target, below, whoever it is about: holding everyone stood the whole field still
+               for every super of a player's or aimed at one, eight fighters with ten (the user: "only the
+               attacker and the target are frozen"). Its camera still has the screen only when it is about a
+               player (btl_char_api.c). */
+            local[i] = 0;
+            if (level[i] != 0 && BtlChar_GetCount() > 2) {
+                local[i] = level[i];
+                level[i] = 0;
+            }
+        }
+#endif
         if (max < level[i]) {
             max = level[i];
         }
     }
+#ifdef PORT
+    {   /* (the experiment's tool) BT3_FREEZE_LOG=1: who holds the freeze, and what each fighter is doing */
+        extern void Port_FreezeLog(int i, int level, int action, int frozen, int count);
+        for (i = 0; i < BtlChar_GetCount(); i++) {
+            chr = BtlChar_Get(i);
+            Port_FreezeLog(i, level[i], chr->action, chr->freezeNext, BtlChar_GetCount());
+        }
+    }
+#endif
     if (max > 0) {
         for (i = 0; i < BtlChar_GetCount(); i++) {
             chr = BtlChar_Get(i);
@@ -607,6 +709,34 @@ void BtlChars_UpdateFreeze(void) {
             }
         }
     }
+#ifdef PORT
+    for (i = 0; i < BtlChar_GetCount() && i < 10; i++) {
+        s32 t = gPortTarget[i];
+
+        if (local[i] > 0 && (u32)t < (u32)BtlChar_GetCount() && t != i && level[t] + local[t] < local[i]) {
+            chr = BtlChar_Get(t);
+            /* (a fighter busy with its own technique, 0x127, is not held: a beam stops while its fighter is
+               frozen, and one fighter's super start stood another's beam still for its whole charge; the user:
+               "the beam freezes until that one is done") */
+            if (!BtlChar_TestFlag(chr, 0x127)) {
+                extern void Port_HoldLog(int fighter, int target, int level);
+                chr->freezeNext = 1;
+                chr->freezeDelay = 0;
+                Port_HoldLog(i, t, local[i]);
+            }
+        }
+    }
+#endif
+#ifdef PORT
+    {   /* (the experiment's tool) BT3_FREEZE_COUNT=1: every frame in which three or more fighters are held at once */
+        extern void Port_FreezeCount(int held, int count);
+        s32 held = 0;
+        for (i = 0; i < BtlChar_GetCount(); i++) {
+            held += BtlChar_Get(i)->freezeNext != 0;
+        }
+        Port_FreezeCount(held, BtlChar_GetCount());
+    }
+#endif
     for (i = 0; i < BtlChar_GetCount(); i++) {
         chr = BtlChar_Get(i);
         if (chr->freeze > 0) {
@@ -635,7 +765,13 @@ void BtlChars_UpdateObjFlag2(void) {
     BtlMgrChr *chr;
 
     for (i = 0; i < BtlChar_GetCount(); i++) {
+#ifdef PORT
+        /* (only for a technique about a player: see BtlChars_UpdateFreeze) */
+        extern s32 Port_AboutPlayer(s32 i);
+        if (BtlChar_TestFlag(BtlChar_Get(i), 0x12A) && Port_AboutPlayer(i)) {
+#else
         if (BtlChar_TestFlag(BtlChar_Get(i), 0x12A)) {
+#endif
             found = i;
             break;
         }
@@ -1183,7 +1319,17 @@ void BtlChar_UpdateCamera(BtlMgrChr *chr) {
     if (!BtlChar_IsFrozen(chr)) {
         ChrCam_StartCut(chr);
         ChrCam_UpdateDemo(chr);
+#ifdef PORT
+        {
+            /* (more than two fighters: the player's camera looks at the chosen enemy, btl_char_flag_opp.c) */
+            extern s32 gPortCamOf;
+            gPortCamOf = chr->side;
+            ChrCam_UpdateInput(chr);
+            gPortCamOf = -1;
+        }
+#else
         ChrCam_UpdateInput(chr);
+#endif
         BtlObj_SetMoveVec(obj, BtlChar_GetPos(chr)->unk30);
         BtlObj_UpdateChains(obj);
         BtlChar_UpdateHead(chr);
@@ -1210,7 +1356,16 @@ void BtlChar_PostScene(BtlMgrChr *chr) {
         return;
     }
     BtlChar_ObjToPose(chr);
+#ifdef PORT
+    {
+        extern s32 gPortCamOf;
+        gPortCamOf = chr->side;
+        ChrCam_Update(chr);
+        gPortCamOf = -1;
+    }
+#else
     ChrCam_Update(chr);
+#endif
     BtlFx_UpdatePostScene(chr);
     if (BtlMember_GetActiveGauge(chr)->health < 10000) {
         BtlMember_GetActiveGauge(chr)->lowHealth = 1;
@@ -1334,6 +1489,18 @@ void BtlChar_ResetAll(void) {
         pad = BattleSide_GetPad(i);
         chr->index = i;
         chr->pad = pad;
+#ifdef PORT
+        if (i >= 2) {
+            /* The experiment's third fighter. The second number of a fighter is the VIEW it belongs to (the
+               screen's half in split screen; the screen filters, the radial blur and the like are kept per
+               view, two of them): it has no view of its own and is given its side's. */
+            extern int Port_FightPad(int k);
+            chr->index = 1;
+            if (Port_FightPad(i - 2) >= 0) {
+                chr->pad = Port_FightPad(i - 2); /* (a player's: its controller) */
+            }
+        }
+#endif
         BtlChar_BindObject(chr);
         BtlChar_Reset(chr);
     }
@@ -1418,9 +1585,64 @@ void BtlChars_UpdateInput(void) {
 }
 
 /* Phase 4: the simulation proper, as seven passes over the roster. */
+#ifdef PORT
+extern void Port_UpdateTarget(void); /* btl_char_flag_opp.c: the third-fighter experiment, player 1's target */
+/* (for the code that tests fighter against fighter: the object of roster entry i, -1 past the roster) */
+s32 Port_FighterObjId(s32 i) {
+    return i >= 0 && i < BtlChar_GetCount() ? BtlChar_Get(i)->objId : -1;
+}
+#endif
+
 void BtlChars_UpdateMain(void) {
     s32 i;
 
+#ifdef PORT
+    Port_UpdateTarget();
+    {
+        /* (the experiment's tool, BT3_HEAPCHK: what each fighter is doing, every five seconds) */
+        extern void Port_Dbg3(const char *what, int a, int b, int c, int d);
+        extern s32 BtlAct_GetCurrent(BtlMgrChr *chr);
+        extern s32 BtlAnim_GetId(BtlMgrChr *chr);
+        extern s32 BtlAct_GetPrev(BtlMgrChr *chr);
+        extern s32 gPortTarget[];
+        static s32 n;
+        static s32 lost;
+        for (i = 0; i < BtlChar_GetCount(); i++) { /* (a place far off the map, or not a number: said once a fighter) */
+            BtlMgrChr *c = BtlChar_Get(i);
+            f32 *at = (f32 *)BtlChar_GetPos(c);
+            if (!(lost & (1 << i)) && !(at[0] > -1.0e6f && at[0] < 1.0e6f && at[1] > -1.0e6f && at[1] < 1.0e6f && at[2] > -1.0e6f && at[2] < 1.0e6f)) {
+                lost |= 1 << i;
+                Port_Dbg3("a fighter's place is not on the map: fighter / action / its target / that one's action", i, BtlAct_GetCurrent(c),
+                          gPortTarget[i], BtlAct_GetCurrent(BtlChar_Get(gPortTarget[i])));
+                Port_Dbg3("... frame / its animation / previous action / -", n, BtlAnim_GetId(c), BtlAct_GetPrev(c), 0);
+            }
+        }
+        if (++n % 150 == 0) {
+            for (i = 0; i < BtlChar_GetCount(); i++) {
+                BtlMgrChr *c = BtlChar_Get(i);
+                Port_Dbg3("fighter / action / animation / frozen", i, BtlAct_GetCurrent(c), BtlAnim_GetId(c), BtlChar_IsFrozen(c));
+            }
+            Port_Dbg3("targets of 0, 1, 2 / time stopped", gPortTarget[0], gPortTarget[1], gPortTarget[2], BtlChars_IsTimeStopped());
+            Port_Dbg3("fighters / the battle's flags / the sequence's state / -", BtlChar_GetCount(), (s32)Battle_GetWork()->flags, BtlSeq_GetState(), 0);
+            {
+                extern int Port_HeapFree(int *largest); /* port/src/plat_stub.c */
+                s32 largest = 0;
+                s32 all = Port_HeapFree(&largest);
+                Port_Dbg3("the heap: fighters / free in all, bytes / the largest free block", BtlChar_GetCount(), all, largest, 0);
+            }
+        }
+    }
+    {
+        /* (the experiment's tool, BT3_THIRD_DAMAGED=<frame>: at that frame of the fight the third fighter is told
+           it was hit by a finishing technique, as the effect scene tells a fighter: action 0x104, which loads
+           the damaged costume if it does not wear it. For showing that model change in a run without a window.) */
+        extern int Port_ThirdDamagedDue(int frame); /* port/src/plat_stub.c: 1 once, when the frame has come */
+        extern s32 BtlChar_FrameMod(s32 n);
+        if (BtlChar_GetCount() > 2 && Port_ThirdDamagedDue(BtlChar_FrameMod(0x7FFFFFFF))) {
+            BtlChar_SetHeldFlag(BtlChar_Get(2), 0xAB);
+        }
+    }
+#endif
     if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {
         return;
     }

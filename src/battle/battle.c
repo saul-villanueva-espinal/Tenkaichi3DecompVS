@@ -133,32 +133,66 @@ extern void BtlObj_FinishVisibility(s32 split);
 extern void Gsc_Update(void);
 extern void BtlScript_Update(void);
 /* Puts every battle subsystem back to the start of a match (first start and rematch) and fades in over 1 s. */
+#ifdef PORT
+extern int Port_HeapCheck(const char *where); /* port/src/plat_stub.c (the third-fighter experiment's tool) */
+#define PORT_HEAPCHK(w) Port_HeapCheck(w)
+#else
+#define PORT_HEAPCHK(w)
+#endif
 s32 Battle_Restart(void) {
     Snd_StopBankAndResume(0x3C);
+    PORT_HEAPCHK("after Snd_StopBankAndResume");
     Battle_ResetWork();
+    PORT_HEAPCHK("after Battle_ResetWork");
     BtlScene_Reset(0);
+    PORT_HEAPCHK("after BtlScene_Reset");
     StgFx_Reset();
+    PORT_HEAPCHK("after StgFx_Reset");
     BtlGame_Reset();
+    PORT_HEAPCHK("after BtlGame_Reset");
     BtlStage_Reset();
+    PORT_HEAPCHK("after BtlStage_Reset");
     BtlChar_ResetAll();
+    PORT_HEAPCHK("after BtlChar_ResetAll");
     Fade_ResetAll();
+    PORT_HEAPCHK("after Fade_ResetAll");
     Fade_Start(0, 1, 1.0f);
+    PORT_HEAPCHK("after Fade_Start");
     return 0;
 }
 
 /* Loads the battle data, creates every battle subsystem, then starts the first match. */
 s32 Battle_Init(void) {
     Battle_Load();
+    PORT_HEAPCHK("after Battle_Load");
     StgFx_Init();
+    PORT_HEAPCHK("after StgFx_Init");
     StgModel_InitStage();
+    PORT_HEAPCHK("after StgModel_InitStage");
+#ifdef PORT
+    PORT_HEAPCHK("before BtlChar_AllocAll");
+    {
+        extern int gPortExtraObjs; /* port/src/plat_stub.c: the extra fighters that have an object */
+        BtlChar_AllocAll(2 + gPortExtraObjs); /* (the experiment of more than two fighters) */
+    }
+#else
     BtlChar_AllocAll(2);
+    PORT_HEAPCHK("after BtlChar_AllocAll");
+#endif
     BtlAiMgr_Init();
+    PORT_HEAPCHK("after BtlAiMgr_Init");
     BtlCam_Init();
+    PORT_HEAPCHK("after BtlCam_Init");
     StgNav_Init();
+    PORT_HEAPCHK("after StgNav_Init");
     BtlGame_Init();
+    PORT_HEAPCHK("after BtlGame_Init");
     Ot_Init();
+    PORT_HEAPCHK("after Ot_Init");
     BtlScene_Init(0);
+    PORT_HEAPCHK("after BtlScene_Init");
     Battle_Restart();
+    PORT_HEAPCHK("after Battle_Restart");
     return 0;
 }
 
@@ -188,34 +222,58 @@ s32 Battle_Update(void) {
     s32 singleView;
 
     BtlChars_UpdateInput();
+
+    PORT_HEAPCHK("update: after BtlChars_UpdateInput");
     BtlChars_UpdateMain();
+    PORT_HEAPCHK("update: after BtlChars_UpdateMain");
     BtlScene_Update();
+    PORT_HEAPCHK("update: after BtlScene_Update");
     EftDet_Update();
+    PORT_HEAPCHK("update: after EftDet_Update");
     BtlScene_PostUpdate();
+    PORT_HEAPCHK("update: after BtlScene_PostUpdate");
     BtlChars_PostScene();
+    PORT_HEAPCHK("update: after BtlChars_PostScene");
     BtlScene_CheckStageChange();
+    PORT_HEAPCHK("update: after BtlScene_CheckStageChange");
     BtlLoad_PollCharaRequest();
+    PORT_HEAPCHK("update: after BtlLoad_PollCharaRequest");
     BtlLoad_PollObjectRequest();
+    PORT_HEAPCHK("update: after BtlLoad_PollObjectRequest");
     BtlStage_Update();
+    PORT_HEAPCHK("update: after BtlStage_Update");
     BtlCam_SelectView(0);
+    PORT_HEAPCHK("update: after BtlCam_SelectView");
     BtlCam_UpdateView(0);
+    PORT_HEAPCHK("update: after BtlCam_UpdateView");
     BtlCam_SelectView(1);
+    PORT_HEAPCHK("update: after BtlCam_SelectView");
     BtlCam_UpdateView(1);
+    PORT_HEAPCHK("update: after BtlCam_UpdateView");
     singleView = BtlCam_UpdateOverride();
     BtlChars_EndFrame();
+    PORT_HEAPCHK("update: after BtlChars_EndFrame");
     BtlObj_UpdateAll();
+    PORT_HEAPCHK("update: after BtlObj_UpdateAll");
     if (Battle_IsSplitScreen() && !singleView) {
         for (i = 0; i < 2; i++) {
             BtlCam_SelectView(i);
+            PORT_HEAPCHK("update: after BtlCam_SelectView");
             BtlCam_ApplyView(0);
+            PORT_HEAPCHK("update: after BtlCam_ApplyView");
             BtlObj_UpdateVisibility(i);
+            PORT_HEAPCHK("update: after BtlObj_UpdateVisibility");
         }
         BtlObj_FinishVisibility(1);
+        PORT_HEAPCHK("update: after BtlObj_FinishVisibility");
     } else {
         BtlObj_UpdateVisibility(0);
+        PORT_HEAPCHK("update: after BtlObj_UpdateVisibility");
         BtlObj_FinishVisibility(0);
+        PORT_HEAPCHK("update: after BtlObj_FinishVisibility");
     }
     BtlScene_SetSingleView(singleView);
+    PORT_HEAPCHK("update: after BtlScene_SetSingleView");
     return singleView == 0;
 }
 
@@ -268,9 +326,93 @@ s32 Battle_Draw(void) {
     return 0;
 }
 
+#ifdef PORT
+/* Four quarters (btl_cam.c, Port_QuadViews / Port_QuadCams): Battle_DrawSplit's passes, each for the four. In the
+   game's order, which matters: the stage of every view comes first (the fighters' textures take the place of the
+   stage's: drawn after a first view's fighters, the bottom quarters' stage had noise for textures), then the
+   fighters, top views and bottom ones (their objects' visibility made again for each pair), then the effects; what
+   is over the whole screen once. The update's top views are put back at the end. */
+static void Port_DrawQuad(void) {
+    extern void Port_QuadViews(s32 pass);
+    extern void Port_QuadCams(s32 pass);
+    extern s32 Port_QuadPassViews(s32 pass); /* (two views a pass; the bottom one alone with three players) */
+    s32 pass, i;
+
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(1);
+    for (pass = 0; pass < 2; pass++) {
+        Port_QuadCams(pass);
+        for (i = 0; i < Port_QuadPassViews(pass); i++) {
+            BtlCam_SelectView(i);
+            BtlCam_ApplyView(1);
+            StgModel_Cull(gBtlCamView);
+            StgModel_Draw(gBtlCamView);
+        }
+    }
+    Port_QuadCams(0); /* (the top views' visibility is the update's, still there) */
+    Dbg_ProfColor(gBattleProf, 0x80FF4040);
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(3);
+    StgFx_DrawPre();
+    Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(2);
+    BtlObjDraw_Draw();
+    Port_QuadViews(1);
+    BtlObjDraw_Draw();
+    Dbg_ProfColor(gBattleProf, 0x8040FF40);
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(3);
+    StgFx_DrawNop();
+    Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(4);
+    Gfx_AddDefaultEnv();
+    for (pass = 0; pass < 2; pass++) {
+        Port_QuadCams(pass);
+        for (i = 0; i < Port_QuadPassViews(pass); i++) {
+            BtlCam_SelectView(i);
+            BtlCam_ApplyView(1);
+            BtlScene_Draw(i == 0 && pass == 0);
+            Ot_Draw();
+        }
+    }
+    Port_QuadViews(0);
+    Dbg_ProfColor(gBattleProf, 0x804040FF);
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(3);
+    StgFx_DrawPost();
+    Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(0);
+    BtlGame_Draw();
+    Dbg_ProfColor(gBattleProf, 0x80FF40FF);
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(0);
+    Font_FlushAll();
+    FontIcon_Stub23D1E0();
+    Dbg_ProfColor(gBattleProf, 0x80FF40FF);
+    Dbg_ProfMark(gBattleProf);
+    Gfx_MarkPass(3);
+    StgFx_DrawOverlay();
+    Dbg_ProfColor(gBattleProf, 0x80FFFFFF);
+    Gfx_MarkPass(0);
+}
+#endif
+
 /* Draws the frame with two views: the stage pass and the fighter pass run once per view, the rest once. */
 s32 Battle_DrawSplit(void) {
     s32 i;
+
+#ifdef PORT
+    {
+        extern s32 Port_QuadMode(void);
+        if (Port_QuadMode()) {
+            Port_DrawQuad();
+            return 0;
+        }
+    }
+#endif
 
     Dbg_ProfMark(gBattleProf);
     Gfx_MarkPass(1);

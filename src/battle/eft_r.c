@@ -1,4 +1,19 @@
 #include "common.h"
+
+#ifndef EFT_OWNER_TAG
+#ifdef PORT
+/* More than two fighters: whose a task is. The game has two tags, "object 0's" and "anybody else's", and ends a
+   fighter's effects by resetting every task of its tag: with more fighters one fighter's change of model ended
+   the techniques of all the others past the first (a beam gone, and a technique's camera cut left running with
+   its data freed under it: a crash). Every extra fighter (objects 2..9) has a tag and a reset group of its own
+   (BtlTaskList_Reset, BtlScene_Reset); any other object keeps "anybody else's". */
+#define EFT_OWNER_TAG(n) ((n) == 0 ? 0x800 : ((u32)(n) - 2 < 8) ? (0x100000 << ((n) - 2)) : 0x1000)
+#define EFT_OWNER_RESET(n) ((n) == 0 ? 2 : ((u32)(n) - 2 < 8) ? (n) + 3 : 3)
+#else
+#define EFT_OWNER_TAG(n) n == 0 ? 0x800 : 0x1000
+#define EFT_OWNER_RESET(n) n == 0 ? 2 : 3
+#endif
+#endif
 #include "battle/eft_r.h"
 
 /*
@@ -165,6 +180,18 @@ s32 EftCharaFx_Stop(s32 objId) {
 
 /* ---- beam struggle ------------------------------------------------------------------------------------------ */
 
+#ifdef PORT
+/* The third-fighter experiment: the struggle is between the two fighters of the clash (btl_char_flag_clash.c names
+   the pair, the lower roster index first), which the game takes for objects 0 and 1. Roster indices and object ids
+   are the same numbers for fighters. */
+extern s32 gPortClash[2];
+#define STRUGGLE_P0 gPortClash[0]
+#define STRUGGLE_P1 gPortClash[1]
+#else
+#define STRUGGLE_P0 0
+#define STRUGGLE_P1 1
+#endif
+
 /* Starts the struggle between two technique records that met head-on (called by the hit pass, 0x1B0910, after it
    set task flag 0x100 on both). The task gets copies of both records, object 0's first. Returns how far along the
    line between the two start points record 0 got. */
@@ -174,7 +201,7 @@ f32 EftStruggle_Start(EftRVec *pos, EftRRec *a, EftRRec *b) {
 
     memset(&arg, 0, sizeof(EftStruggleArg));
     Vec4_Copy(&arg.pos, pos);
-    if (a->objId == 0) {
+    if (a->objId == STRUGGLE_P0) {
         arg.rec[0] = *a;
         arg.rec[1] = *b;
     } else {
@@ -224,18 +251,26 @@ void EftStruggle_End(s32 winner) {
     }
     w->flags |= EFT_STRUGGLE_END;
     if (winner == -1) {
-        EftTechEvt_RequestExpire(0);
-        EftTechEvt_RequestExpire(1);
+        EftTechEvt_RequestExpire(STRUGGLE_P0);
+        EftTechEvt_RequestExpire(STRUGGLE_P1);
+#ifdef PORT
+        BtlScene_Reset(EFT_OWNER_RESET(STRUGGLE_P0)); /* (the two fighters' own reset groups) */
+        BtlScene_Reset(EFT_OWNER_RESET(STRUGGLE_P1));
+#else
         BtlScene_Reset(2);
         BtlScene_Reset(3);
+#endif
     } else {
-        if (winner == 0) {
-            loser = 1;
+        if (winner == STRUGGLE_P0) {
+            loser = STRUGGLE_P1;
             layer = 3;
         } else {
-            loser = 0;
+            loser = STRUGGLE_P0;
             layer = 2;
         }
+#ifdef PORT
+        layer = EFT_OWNER_RESET(loser); /* (the loser's own reset group, whoever the two are) */
+#endif
         EftTechEvt_RequestExpire(loser);
         BtlScene_Reset(layer);
     }
@@ -535,7 +570,7 @@ void EftStruggle_Step(EftRTask *task) {
     f32 tmp;
 
     w->frames++;
-    if (!BtlCharApi_IsInClashA(0) || !BtlCharApi_IsInClashA(1)) {
+    if (!BtlCharApi_IsInClashA(STRUGGLE_P0) || !BtlCharApi_IsInClashA(STRUGGLE_P1)) {
         w->flags |= EFT_STRUGGLE_END;
     }
     if (w->flags & EFT_STRUGGLE_END) {
@@ -849,7 +884,7 @@ void EftCharge_Init(EftRTask *task, s32 *arg) {
     EftEmit_SetNode(&w->nodes, 0, 3, NULL);
     w->flags |= EFT_CHARGE_ALIVE;
     w->life = EftEmit_GetEndFrames(w->set);
-    BtlTask_SetOwnerTag(task, arg[0] == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, EFT_OWNER_TAG(arg[0]));
 }
 
 /* Task term: releases the emitter state and the fighter's task slot. */
@@ -1166,7 +1201,7 @@ void EftKiBlast_Init(EftRTask *task, EftRArg *arg) {
     if (BtlCharApi_IsLockedOn(arg->objId)) {
         w->flags |= EFT_KIBLAST_HOMING;
     }
-    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, EFT_OWNER_TAG(arg->objId));
 }
 
 /* Task term. */
@@ -1402,7 +1437,7 @@ void EftBlastCharge_Init(EftRTask *task, EftBlastChargeArg *arg) {
     w->mask |= 1;
     EftEmit_SetNode(&w->nodes, 0, arg->node, NULL);
     w->life = EftEmit_GetEndFrames(w->set);
-    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, EFT_OWNER_TAG(arg->objId));
 }
 
 /* Task term: releases the emitter state and the fighter's task slot. */
@@ -1615,7 +1650,7 @@ void EftKiBomb_Init(EftRTask *task, EftRArg *arg) {
     w->arg.srcId = arg->objId;
     EftKiBomb_Launch(task);
     w->flags |= EFT_KIBOMB_SHOWN | EFT_KIBOMB_HITS;
-    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, EFT_OWNER_TAG(arg->objId));
 }
 
 /* Task term: frees the model instance. */
@@ -1999,7 +2034,7 @@ void EftKiObj_Init(EftRTask *task, EftRArg *arg) {
     w->b.arg.srcId = arg->objId;
     EftKiObj_Launch(task);
     w->b.flags |= EFT_KIBOMB_SHOWN | EFT_KIBOMB_HITS;
-    BtlTask_SetOwnerTag(task, arg->objId == 0 ? 0x800 : 0x1000);
+    BtlTask_SetOwnerTag(task, EFT_OWNER_TAG(arg->objId));
 }
 
 /* Task term: frees the model instance. */
