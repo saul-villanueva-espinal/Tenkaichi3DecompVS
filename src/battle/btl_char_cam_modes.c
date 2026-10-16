@@ -554,6 +554,21 @@ shake:
     }
     Vec4_Add(&cam->rot, &cam->rot, &shakeRot);
     BtlUtil_WrapAngles(&cam->rot, &cam->rot);
+#ifdef PORT
+    extern int gPortPhotoMode;
+    extern float gPortPhotoYaw, gPortPhotoPitch, gPortPhotoDist;
+    if (gPortPhotoMode) {
+        cam->rot.y += gPortPhotoYaw;
+        cam->rot.x += gPortPhotoPitch;
+        BtlUtil_WrapAngles(&cam->rot, &cam->rot);
+        Vec4 diff;
+        Vec4_Sub(&diff, &cam->eye, &cam->target);
+        if (gPortPhotoDist > 0.1f && gPortPhotoDist < 10.0f) {
+            Vec4_Scale(&diff, &diff, gPortPhotoDist);
+            Vec4_Add(&cam->eye, &cam->target, &diff);
+        }
+    }
+#endif
     cam->eye.w = 1.0f;
     cam->rot.w = 0.0f;
     cam->pos.w = 1.0f;

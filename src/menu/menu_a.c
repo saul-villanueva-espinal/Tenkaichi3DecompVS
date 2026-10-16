@@ -38,11 +38,12 @@ MainMenu *gMainMenu = NULL;
    the cursor, the sounds and the movie are the menu's own. Each mode sits on the plate of one of the menu's
    entries, whose icon it shows, and the port draws the mode's name where that entry's name is
    (port/src/gs/menu_text.c). */
-#define PORTMODES_NUM 3
-static const s32 sPortModesItem[PORTMODES_NUM] = { 3, 2, 6 }; /* the plates of Duel, Dragon World Tour, Ultimate Training */
+#define PORTMODES_NUM 4
+static const s32 sPortModesItem[PORTMODES_NUM] = { 3, 2, 1, 6 }; /* Duel, Dragon World Tour, Ultimate Battle, Ultimate Training */
 static char *const sPortModesHelp[PORTMODES_NUM] = {
     "Batalla en Equipo (Tag Team / 2v2 a 5v5):\nTodos los luchadores combaten a la vez.",
     "Todos contra Todos (Free-for-All):\nBatalla campal libre, cada uno lucha por su cuenta.",
+    "Modo Raid Boss (Jefe Colosal Coop):\nTu equipo contra un jefe titanico con super armadura.",
     "Entrenamiento con Companero Extra:\nPractica libre con luchador adicional (F1).",
 };
 /* After Team Battle or Free-for-All, the same menu lists the number of players (asked for by the user: "1 Player,
@@ -342,7 +343,7 @@ static void MainMenu_PortModesPlates(s32 show) {
     for (i = 0; i < 4; i++) {
         sprintf(name, "mc_menu_plate_%d", plates[i]);
         Flash_FindLabel(flash, NULL, name, &ref);
-        Flash_ClipSetFlags(flash, &ref, 2, show || (sPortModes == 3 && plates[i] == 5)); /* (the fourth row: 4 Players) */
+        Flash_ClipSetFlags(flash, &ref, 2, show || ((sPortModes == 1 || sPortModes == 3) && plates[i] == 5)); /* (the fourth row: 4th mode & 4 Players) */
     }
     for (i = 0; i < 2; i++) {
         Flash_FindLabel(flash, NULL, i ? "mc_menu_yajirusi_down" : "mc_menu_yajirusi_up", &ref);
@@ -810,8 +811,8 @@ static s32 MainMenu_PortModes(void) {
         MainMenu_PlateGoto(0, "fl_on_start");
         Port_ModesCursor(gMainMenu->cursor);
         Snd_PlaySe(1, 0);
-    } else if (sPortModes == 1 && (gPad[0].gamePressed & 0x200) && gMainMenu->cursor < 2) {
-        MainMenu_PortPlayersSwitch(1, gMainMenu->cursor); /* (Team Battle, Free-for-All: how many players) */
+    } else if (sPortModes == 1 && (gPad[0].gamePressed & 0x200) && gMainMenu->cursor < 3) {
+        MainMenu_PortPlayersSwitch(1, gMainMenu->cursor); /* (Team Battle, Free-for-All, Raid Boss: how many players) */
     } else if (sPortModes == 3 && (gPad[0].gamePressed & (0x400 | 0x100 | 0x2000))) {
         MainMenu_PortPlayersSwitch(0, 0); /* (back to the extra modes) */
     } else if (gPad[0].gamePressed & 0x200) {

@@ -632,6 +632,12 @@ void Hud_SlideIn(f32 seconds) {
    gHud->replayMode picks what happens: 0 updates everything and draws only the caption part, 1 draws everything
    but the caption part, 2 only updates. */
 void Hud_Draw(void) {
+#ifdef PORT
+    extern int gPortHideHud;
+    if (gPortHideHud) {
+        return;
+    }
+#endif
     Vu0Cur_ResetStack();
     Vu0Cur_LoadIdentity();
     HudGfx_SetEnv();

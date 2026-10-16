@@ -1684,7 +1684,21 @@ f32 TeamSel_Input(s32 *result) {
                     CUR_SIDE->chara = CUR_SIDE->chip[0][CUR_MEMBER.col];
                     TeamSel_RequestFace(CUR_N);
                     Snd_PlaySe(2, 1);
-                } else if (gPad[i].gamePressed & 0x200) {
+                }
+#ifdef PORT
+                /* Instant Form Picker: L1 / R1 or L2 / R2 cycles forms directly on the team grid */
+                else if (CUR_CELL.formCount > 1 && (gPad[i].pressed & (PAD_L1 | PAD_R1 | PAD_L2 | PAD_R2))) {
+                    if (gPad[i].pressed & (PAD_R1 | PAD_R2)) {
+                        CUR_MEMBER.form = (CUR_MEMBER.form + 1) % CUR_CELL.formCount;
+                    } else {
+                        CUR_MEMBER.form = (CUR_MEMBER.form - 1 + CUR_CELL.formCount) % CUR_CELL.formCount;
+                    }
+                    CUR_SIDE->chara = CUR_CELL.form[CUR_MEMBER.form];
+                    TeamSel_RequestFace(CUR_N);
+                    Snd_PlaySe(2, 0);
+                }
+#endif
+                else if (gPad[i].gamePressed & 0x200) {
                     if (CUR_CELL.id == TS_RANDOM) {
                         /* random: straight to the plates; the character is drawn when the costume is confirmed */
                         Flash_GotoLabel(&gTeamSel->flash[CUR_N + 5], "fl_custom_in", 1);

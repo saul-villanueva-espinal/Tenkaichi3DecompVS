@@ -172,6 +172,15 @@ void BtlMember_LoadParams(BtlMemberChr *chr, s32 member, s32 init, f32 healthPct
         }
         g->variant = variant;
         g->maxPower = 0;
+#ifdef PORT
+        extern int Port_ModesFight(void);
+        if (Port_ModesFight() == 3 && chr->side == 1) {
+            g->healthMax = 60000;
+            g->health = 60000;
+            g->ki = g->kiMax;
+            g->blast = g->blastMax;
+        }
+#endif
     }
 }
 
@@ -440,6 +449,17 @@ s32 BtlMember_Damage(BtlMemberChr *chr, s32 amount, s32 flags) {
         }
     }
     g->health = health - amount;
+#ifdef PORT
+    if (amount >= 50) {
+        extern void Port_AddDamagePopup(int side, int damage, float x, float y, float z);
+        BtlMemberPose *pose = BtlChar_GetPos(chr);
+        if (pose != NULL) {
+            Port_AddDamagePopup(chr->side, amount, pose->pos.x, pose->pos.y + 1.2f, pose->pos.z);
+        } else {
+            Port_AddDamagePopup(chr->side, amount, 0.0f, 0.0f, 0.0f);
+        }
+    }
+#endif
     if (amount > 0 || (flags & BTL_DMG_FORCE)) {
         if (flags & BTL_DMG_NO_HIT) {
             if (!(flags & BTL_DMG_NO_TOTAL)) {

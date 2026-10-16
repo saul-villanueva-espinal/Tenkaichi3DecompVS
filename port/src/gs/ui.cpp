@@ -2213,6 +2213,204 @@ extern "C" void Port_UiNotice(const char *text) {
     sNoticeNew = 1;
 }
 
+// ============================================================================
+// SPARKING! ZERO STYLE FLOATING DAMAGE POPUPS & CINEMATIC PHOTO MODE 360°
+// ============================================================================
+struct PortDamagePopup {
+    int side;
+    int damage;
+    float x, y;
+    float vy;
+    float timer;
+    float max_timer;
+    bool is_massive;
+};
+
+#define MAX_DAMAGE_POPUPS 32
+static PortDamagePopup sPopups[MAX_DAMAGE_POPUPS];
+static int sPopupCount = 0;
+
+extern "C" void Port_AddDamagePopup(int side, int damage, float x, float y, float z) {
+    (void)x; (void)y; (void)z;
+    if (damage <= 0 || gUiPresentW <= 0 || gUiPresentH <= 0) return;
+    if (sPopupCount >= MAX_DAMAGE_POPUPS) {
+        for (int i = 0; i < MAX_DAMAGE_POPUPS - 1; i++) {
+            sPopups[i] = sPopups[i + 1];
+        }
+        sPopupCount = MAX_DAMAGE_POPUPS - 1;
+    }
+    PortDamagePopup &p = sPopups[sPopupCount++];
+    p.side = side;
+    p.damage = damage;
+    p.max_timer = 1.25f;
+    p.timer = 1.25f;
+    p.vy = 55.0f;
+    p.is_massive = damage >= 2500;
+
+    float base_x = (side == 0) ? ((float)gUiPresentX + (float)gUiPresentW * 0.35f) : ((float)gUiPresentX + (float)gUiPresentW * 0.65f);
+    float base_y = (float)gUiPresentY + (float)gUiPresentH * 0.45f;
+    float scatter_x = (float)((rand() % 90) - 45);
+    float scatter_y = (float)((rand() % 60) - 30);
+    p.x = base_x + scatter_x;
+    p.y = base_y + scatter_y;
+}
+
+static void Port_DrawDamagePopups(ImDrawList *dl) {
+    if (sPopupCount == 0 || gUiPresentW <= 0 || gUiPresentH <= 0) return;
+    float dt = ImGui::GetIO().DeltaTime;
+    if (dt <= 0.0f || dt > 0.1f) dt = 1.0f / 60.0f;
+
+    ImFont *font = ImGui::GetFont();
+    int active = 0;
+    for (int i = 0; i < sPopupCount; i++) {
+        PortDamagePopup &p = sPopups[i];
+        p.timer -= dt;
+        p.y -= p.vy * dt;
+        p.vy *= 0.93f;
+        if (p.timer <= 0.0f) {
+            continue;
+        }
+
+        float progress = p.timer / p.max_timer;
+        float alpha = progress > 0.2f ? 1.0f : (progress / 0.2f);
+        int a_byte = (int)(alpha * 255.0f);
+        if (a_byte < 5) continue;
+
+        float size = (p.is_massive ? 28.0f : 20.0f) * ((float)gUiPresentH / 448.0f);
+        if (progress > 0.88f) {
+            size *= 1.3f;
+        }
+
+        char buf[32];
+        snprintf(buf, sizeof(buf), "-%d", p.damage);
+
+        ImU32 text_col;
+        if (p.is_massive) {
+            text_col = IM_COL32(255, 65, 30, a_byte);
+        } else if (p.damage >= 1000) {
+            text_col = IM_COL32(255, 215, 0, a_byte);
+        } else {
+            text_col = IM_COL32(255, 255, 225, a_byte);
+        }
+        ImU32 shadow_col = IM_COL32(0, 0, 0, (int)(a_byte * 0.95f));
+
+        for (int ox = -2; ox <= 2; ox++) {
+            for (int oy = -2; oy <= 2; oy++) {
+                if (ox != 0 || oy != 0) {
+                    dl->AddText(font, size, ImVec2(p.x + (float)ox, p.y + (float)oy), shadow_col, buf);
+                }
+            }
+        }
+        dl->AddText(font, size, ImVec2(p.x, p.y), text_col, buf);
+
+        if (active != i) {
+            sPopups[active] = p;
+        }
+        active++;
+    }
+    sPopupCount = active;
+}
+
+// Cinematic Photo Mode 360° & Clean HUD Toggle
+extern "C" {
+int gPortPhotoMode = 0;
+int gPortHideHud = 0;
+float gPortPhotoYaw = 0.0f;
+float gPortPhotoPitch = 0.0f;
+float gPortPhotoDist = 1.0f;
+}
+
+static float sPhotoToastTimer = 0.0f;
+static const char *sPhotoToast = "";
+
+extern "C" void Port_TogglePhotoMode(void) {
+    gPortPhotoMode = !gPortPhotoMode;
+    sPhotoToast = gPortPhotoMode ? "MODO FOTO ACTIVADO (Camara Libre 360)" : "MODO FOTO DESACTIVADO";
+    sPhotoToastTimer = 2.5f;
+}
+
+extern "C" void Port_ToggleHud(void) {
+    gPortHideHud = !gPortHideHud;
+    sPhotoToast = gPortHideHud ? "INTERFAZ OCULTA (Foto Limpia)" : "INTERFAZ VISIBLE";
+    sPhotoToastTimer = 2.0f;
+}
+
+static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
+    float dt = ImGui::GetIO().DeltaTime;
+    if (dt <= 0.0f || dt > 0.1f) dt = 1.0f / 60.0f;
+
+    // Toggle hotkeys
+    if (ImGui::IsKeyPressed(ImGuiKey_P, false)) {
+        Port_TogglePhotoMode();
+    }
+    if (ImGui::IsKeyPressed(ImGuiKey_H, false)) {
+        Port_ToggleHud();
+    }
+
+    if (gPortPhotoMode) {
+        // Orbit Controls
+        if (ImGui::IsKeyDown(ImGuiKey_LeftArrow) || ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadLeft)) {
+            gPortPhotoYaw -= 2.0f * dt;
+        }
+        if (ImGui::IsKeyDown(ImGuiKey_RightArrow) || ImGui::IsKeyDown(ImGuiKey_D) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadRight)) {
+            gPortPhotoYaw += 2.0f * dt;
+        }
+        if (ImGui::IsKeyDown(ImGuiKey_UpArrow) || ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadUp)) {
+            gPortPhotoPitch += 1.5f * dt;
+        }
+        if (ImGui::IsKeyDown(ImGuiKey_DownArrow) || ImGui::IsKeyDown(ImGuiKey_S) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadDown)) {
+            gPortPhotoPitch -= 1.5f * dt;
+        }
+        if (ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsKeyDown(ImGuiKey_GamepadL1)) {
+            gPortPhotoDist *= (1.0f - 1.2f * dt);
+            if (gPortPhotoDist < 0.25f) gPortPhotoDist = 0.25f;
+        }
+        if (ImGui::IsKeyDown(ImGuiKey_E) || ImGui::IsKeyDown(ImGuiKey_GamepadR1)) {
+            gPortPhotoDist *= (1.0f + 1.2f * dt);
+            if (gPortPhotoDist > 3.5f) gPortPhotoDist = 3.5f;
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadR3, false)) {
+            gPortPhotoYaw = 0.0f;
+            gPortPhotoPitch = 0.0f;
+            gPortPhotoDist = 1.0f;
+        }
+
+        // Draw sleek photo mode controls bar if HUD is not hidden
+        if (!gPortHideHud && gUiPresentW > 0 && gUiPresentH > 0) {
+            float sy = (float)gUiPresentH / 448.0f;
+            float font_size = 14.0f * sy;
+            const char *barText = "[MODO FOTO 360] Orbitar: Flechas/WASD | Zoom: Q/E (L1/R1) | Reset: [R] | Ocultar HUD: [H] | Salir: [P]";
+            ImFont *font = ImGui::GetFont();
+            ImVec2 tsz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, barText);
+            float bx = (float)gUiPresentX + ((float)gUiPresentW - tsz.x) * 0.5f;
+            float by = (float)gUiPresentY + (float)gUiPresentH - 32.0f * sy;
+
+            dl->AddRectFilled(ImVec2(bx - 14.0f, by - 4.0f), ImVec2(bx + tsz.x + 14.0f, by + tsz.y + 4.0f), IM_COL32(15, 20, 30, 220), 8.0f);
+            dl->AddRect(ImVec2(bx - 14.0f, by - 4.0f), ImVec2(bx + tsz.x + 14.0f, by + tsz.y + 4.0f), IM_COL32(255, 180, 0, 200), 8.0f, 0, 1.5f);
+            dl->AddText(font, font_size, ImVec2(bx, by), IM_COL32(255, 255, 255, 255), barText);
+        }
+    }
+
+    // Toast notification
+    if (sPhotoToastTimer > 0.0f && gUiPresentW > 0 && gUiPresentH > 0) {
+        sPhotoToastTimer -= dt;
+        float alpha = sPhotoToastTimer > 0.5f ? 1.0f : (sPhotoToastTimer / 0.5f);
+        int a_byte = (int)(alpha * 255.0f);
+        if (a_byte > 10) {
+            float sy = (float)gUiPresentH / 448.0f;
+            float font_size = 16.0f * sy;
+            ImFont *font = ImGui::GetFont();
+            ImVec2 tsz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, sPhotoToast);
+            float tx = (float)gUiPresentX + ((float)gUiPresentW - tsz.x) * 0.5f;
+            float ty = (float)gUiPresentY + 28.0f * sy;
+
+            dl->AddRectFilled(ImVec2(tx - 18.0f, ty - 6.0f), ImVec2(tx + tsz.x + 18.0f, ty + tsz.y + 6.0f), IM_COL32(10, 12, 18, (int)(a_byte * 0.9f)), 10.0f);
+            dl->AddRect(ImVec2(tx - 18.0f, ty - 6.0f), ImVec2(tx + tsz.x + 18.0f, ty + tsz.y + 6.0f), IM_COL32(255, 190, 40, a_byte), 10.0f, 0, 1.5f);
+            dl->AddText(font, font_size, ImVec2(tx, ty), IM_COL32(255, 255, 255, a_byte), sPhotoToast);
+        }
+    }
+}
+
 // The meter: frames shown and the game's speed, and in an online match the connection. A setting (Video tab).
 static bool meter_on(void) {
     if (sMeter < 0) {
@@ -2634,6 +2832,11 @@ static bool frame_build(void) {
     if (chat) {
         chat_draw();
     }
+    // Draw Floating Damage Numbers (Sparking! Zero style)
+    Port_DrawDamagePopups(ImGui::GetForegroundDrawList());
+
+    // Update & Draw Cinematic Photo Mode 360 & HUD Toggle
+    Port_UpdateAndDrawPhotoMode(ImGui::GetForegroundDrawList());
     if (names && GsDraw_HudShown() && gUiPresentW > 0 && gUiPresentH > 0) { // (with the HUD: not over an intro)
         // Under each side's health bar (the game's 512 x 448 page: the bars end at about y 50). The left place is
         // side 0's, or this player's own side when the HUD's sides are swapped.

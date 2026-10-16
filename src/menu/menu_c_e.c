@@ -1529,7 +1529,21 @@ void CharSel_Input(s32 *running) {
                 CS_SIDE->chara = CS_SIDE->chip[CS_SIDE->col];
                 CharSel_RequestFace(CS_N);
                 Snd_PlaySe(2, 1);
-            } else if (gPad[i].gamePressed & 0x200) {
+            }
+#ifdef PORT
+            /* Instant Form Picker: L1 / R1 or L2 / R2 cycles through forms right on the grid */
+            else if (CS_CELL.formCount > 1 && (gPad[i].pressed & (PAD_L1 | PAD_R1 | PAD_L2 | PAD_R2))) {
+                if (gPad[i].pressed & (PAD_R1 | PAD_R2)) {
+                    CS_SIDE->form = (CS_SIDE->form + 1) % CS_CELL.formCount;
+                } else {
+                    CS_SIDE->form = (CS_SIDE->form - 1 + CS_CELL.formCount) % CS_CELL.formCount;
+                }
+                CS_SIDE->chara = CS_CELL.form[CS_SIDE->form];
+                CharSel_RequestFace(CS_N);
+                Snd_PlaySe(2, 0);
+            }
+#endif
+            else if (gPad[i].gamePressed & 0x200) {
                 if (CS_CELL.id == MCHR_RANDOM) {
                     Flash_GotoLabel(CS_PLATE, "fl_custom_in", 1);
                     CharSel_ClipGoto(CS_N + 1, CS_N, CHARSEL_CLIP_CHIP, "fl_ok");

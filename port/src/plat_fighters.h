@@ -28,7 +28,7 @@ int Port_TestRoster(int side, int index);
 const char *Port_FighterName(int chara); /* a character's name from the game data ("" if it gave none); the window's thread only */
 
 /* plat_modes.c: the extra modes, the main menu's second set of entries (SELECT there) */
-enum { PORT_MODE_NONE, PORT_MODE_TEAM, PORT_MODE_FFA, PORT_MODE_TRAINING, PORT_MODE_COUNT };
+enum { PORT_MODE_NONE, PORT_MODE_TEAM, PORT_MODE_FFA, PORT_MODE_RAID, PORT_MODE_TRAINING, PORT_MODE_COUNT };
 
 typedef struct PortModesView { /* what the main menu shows now, for the code that draws the hint (gs/ui.cpp) */
     int hint;   /* the game's main menu is up and takes input: the hint is shown */
@@ -43,7 +43,20 @@ int Port_ModesCount(void);     /* ... and how many of the Experiments tab's extr
 const char *Port_ModesName(int mode);
 const char *Port_ModesPlayersName(int n); /* "1 Player" .. "4 Players" */
 
+/* Floating Damage Popups (Sparking! Zero style) */
+void Port_AddDamagePopup(int side, int damage, float x, float y, float z);
+
+/* Cinematic Photo Mode 360 & HUD Toggle */
+extern int gPortPhotoMode;
+extern int gPortHideHud;
+extern float gPortPhotoYaw;
+extern float gPortPhotoPitch;
+extern float gPortPhotoDist;
+void Port_TogglePhotoMode(void);
+void Port_ToggleHud(void);
+
 #ifdef __cplusplus
 }
 #endif
 #endif
+

@@ -1208,6 +1208,12 @@ void BtlHit_ApplyHit(HitChr *atk) {
         react = BtlAtk_GetReactionG(atk);
     } else {
         s32 lvl = 0;
+#ifdef PORT
+        extern int Port_ModesFight(void);
+        if (Port_ModesFight() == 3 && def->side == 1) {
+            lvl += 2;
+        }
+#endif
 
         if (BtlParam_GetFlags(def) & 4) {
             lvl = 1;

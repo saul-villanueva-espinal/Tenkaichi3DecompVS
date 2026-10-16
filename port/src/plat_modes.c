@@ -66,7 +66,7 @@ static int online(void) {
 }
 
 const char *Port_ModesName(int mode) {
-    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Entrenamiento"};
+    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Modo Raid Boss", "Entrenamiento"};
     return mode > PORT_MODE_NONE && mode < PORT_MODE_COUNT ? kNames[mode] : "";
 }
 

@@ -101,7 +101,7 @@ static int fight_mode(int *forced);
 int Port_LocalQuadFight(int mode, int members0, int members1, int replay, int script) {
     int forced = 0, page = fight_mode(&forced);
 
-    return !Port_NetActive() && Port_LocalPlayers() >= 3 && (page == PORT_MODE_TEAM || page == PORT_MODE_FFA) &&
+    return !Port_NetActive() && Port_LocalPlayers() >= 3 && (page == PORT_MODE_TEAM || page == PORT_MODE_FFA || page == PORT_MODE_RAID) &&
            members0 + members1 > 2 && (forced || mode == 0) && !replay && !script;
 }
 void Port_LocalPlayersSet(int n) {
@@ -256,7 +256,7 @@ int Port_ExtraSetup(int mode, int members0, int members1, int split, int replay,
     const char *list = getenv("BT3_EXTRA_FIGHTERS"), *env = getenv("BT3_THIRD_FIGHTER"), *e;
     int asked = 0, last = EXTRA_NONE, forced = 0, i;
     int page = fight_mode(&forced); /* the mode asked on the page of extra modes or by the menu flow, 0: none */
-    int roster = page == PORT_MODE_TEAM || page == PORT_MODE_FFA;
+    int roster = page == PORT_MODE_TEAM || page == PORT_MODE_FFA || page == PORT_MODE_RAID;
 
     sFightCount = 0;
     sFightRoster = 0;
@@ -355,7 +355,18 @@ int Port_ExtraAdd(int side, int index, int chara, int costume, int level) {
     if (sFightRoster == 0) {
         return 0;
     }
-    return fight_add(chara, costume, sFightRoster == PORT_MODE_FFA ? 2 + sFightCount : side != 0, level < 0 ? -1 : level,
+    int team;
+    if (sFightRoster == PORT_MODE_FFA) {
+        team = 2 + sFightCount;
+    } else if (sFightRoster == PORT_MODE_RAID) {
+        team = side != 0 ? 1 : 0;
+        if (side != 0) {
+            level = 29;
+        }
+    } else {
+        team = side != 0;
+    }
+    return fight_add(chara, costume, team, level < 0 ? -1 : level,
                      side * 8 + index);
 }
 void Port_ExtraDone(void) {
