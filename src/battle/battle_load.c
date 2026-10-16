@@ -441,9 +441,9 @@ s32 BtlLoad_StepChara(BtlJob *job) {
     switch (job->state) {
     case 0:
         if (job->variant != 0) {
-            model = CHARA_FILE10(job->chara) + job->costume + (BTL_FILE_CHARA + 4);
+            model = CHARA_DMG_FILE(job->chara, job->costume);
         } else {
-            model = CHARA_FILE10(job->chara) + job->costume + BTL_FILE_CHARA;
+            model = CHARA_MODEL_FILE(job->chara, job->costume);
         }
 #ifdef PORT
         if (job->side >= 2) {
@@ -453,8 +453,8 @@ s32 BtlLoad_StepChara(BtlJob *job) {
                member (the picture of the face on the screen; such a fighter has none there). */
             s32 largest = 0;
             s32 all;
-            file8 = job->modelOnly == 0 ? job->animChara * 10 + (BTL_FILE_CHARA + 8) : -1;
-            file9 = job->modelOnly == 0 ? job->unk1C * 10 + (BTL_FILE_CHARA + 9) : -1;
+            file8 = job->modelOnly == 0 ? CHARA_ANM_FILE(job->animChara, job->costume) : -1;
+            file9 = job->modelOnly == 0 ? CHARA_EFF_FILE(job->unk1C, job->costume) : -1;
             sPortFighter[job->side].whole = Port_ResReload(Port_FighterSlot(job->side), model, file8, file9);
             all = Port_HeapFree(&largest);
             Port_Dbg3("fighter change, files asked: fighter / model / animations / given the memory", job->side, model, file8, sPortFighter[job->side].whole);
@@ -462,8 +462,8 @@ s32 BtlLoad_StepChara(BtlJob *job) {
         } else
 #endif
         if (job->modelOnly == 0) {
-            file8 = CHARA_FILE10(job->animChara) + (BTL_FILE_CHARA + 8);
-            file9 = CHARA_FILE10(job->unk1C) + (BTL_FILE_CHARA + 9);
+            file8 = CHARA_ANM_FILE(job->animChara, job->costume);
+            file9 = CHARA_EFF_FILE(job->unk1C, job->costume);
             voice = CHARA_VOICE_FILE(job->voiceChara, ((gSaveData->flags & SAVE_FLAG_VOICE) ? BTL_FILE_VOICE_ALT : BTL_FILE_VOICE), gSaveData->flags & SAVE_FLAG_VOICE);
             BtlRes_Reload(BattleSide_GetModelSlot(job->side), model, file8, file9);
             res->bank = File_Request3(voice, res->bank, res->bankSize);
@@ -475,7 +475,7 @@ s32 BtlLoad_StepChara(BtlJob *job) {
                     member = BtlSide_GetActiveMember(job->side);
                 }
                 next = BattleSide_GetMember(job->side, member);
-                next->buf[1] = File_Request3(CHARA_MEMBER_FILE(job->chara, job->side), next->buf[1], BTL_MEMBER_BUF_SIZE);
+                next->buf[1] = File_Request3(CHARA_MEMBER_FILE_COSTUME(job->chara, job->costume, job->side), next->buf[1], BTL_MEMBER_BUF_SIZE);
             }
         } else {
             BtlRes_Reload(BattleSide_GetModelSlot(job->side), model, -1, -1);
@@ -1360,7 +1360,9 @@ static s32 Port_LoadExtraFiles(void) {
         s32 k = sPortExtraAsked;
         s32 c = Port_FightChara(k);
 
-        gPortExtraSlot[k] = Port_ResRequest(c * 10 + Port_FightCostume(k) + 0x590, c * 10 + 0x598, c * 10 + 0x599);
+        gPortExtraSlot[k] = Port_ResRequest(CHARA_MODEL_FILE(c, Port_FightCostume(k)),
+                                            CHARA_ANM_FILE(c, Port_FightCostume(k)),
+                                            CHARA_EFF_FILE(c, Port_FightCostume(k)));
         memset(&sPortFighter[2 + k], 0, sizeof(PortFighterForm)); /* (what a restart brings it back to) */
         sPortFighter[2 + k].chara = sPortFighter[2 + k].startChara = c;
         sPortFighter[2 + k].costume = sPortFighter[2 + k].startCostume = Port_FightCostume(k);

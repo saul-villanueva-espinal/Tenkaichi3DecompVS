@@ -604,13 +604,17 @@ BtlResWork *BtlRes_GetWork(void) {
 /* Requests a character's model and its two animation files; returns the resource slot number. */
 s32 BtlObj_RequestCharaModel(s32 side, s32 chara, s32 costume, s32 variant) {
     s32 model;
+    s32 anm;
+    s32 eff;
 
     if (variant != 0) {
-        model = CHARA_FILE10(chara) + costume + 0x594;
+        model = CHARA_DMG_FILE(chara, costume);
     } else {
-        model = CHARA_FILE10(chara) + costume + 0x590;
+        model = CHARA_MODEL_FILE(chara, costume);
     }
-    return BtlRes_Request(1, model, CHARA_FILE10(chara) + 0x598, CHARA_FILE10(chara) + 0x599);
+    anm = CHARA_ANM_FILE(chara, costume);
+    eff = CHARA_EFF_FILE(chara, costume);
+    return BtlRes_Request(1, model, anm, eff);
 }
 
 /* Returns the work block. */

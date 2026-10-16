@@ -43,7 +43,16 @@ extern int PortExtras_Dir(const char *kind, const char *env, char *out, unsigned
    ("_voice_us"), which the game takes when SAVE_FLAG_VOICE is set, as it is in a new save. (The names are the
    community's: its file lists call the disc's file 0xBDA + id "<Name>_Voice_JP.pak" and 0xC7B + id
    "<Name>_Voice_US.pak"; until 2026-10-13 this file had them the other way round.) */
-enum { F_ANM = 8, F_EFF = 9, F_VOICE = 10, F_COUNT = 12 };
+enum {
+    F_M0 = 0, F_M1 = 1, F_M2 = 2, F_M3 = 3, F_M4 = 4, F_M5 = 5, F_M6 = 6, F_M7 = 7,
+    F_D0 = 8, F_D1 = 9, F_D2 = 10, F_D3 = 11, F_D4 = 12, F_D5 = 13, F_D6 = 14, F_D7 = 15,
+    F_A0 = 16, F_A1 = 17, F_A2 = 18, F_A3 = 19, F_A4 = 20, F_A5 = 21, F_A6 = 22, F_A7 = 23,
+    F_E0 = 24, F_E1 = 25, F_E2 = 26, F_E3 = 27, F_E4 = 28, F_E5 = 29, F_E6 = 30, F_E7 = 31,
+    F_VOICE = 32, F_VOICE_US = 33,
+    F_COUNT = 34,
+    F_ANM_SHARED = 100,
+    F_EFF_SHARED = 101
+};
 enum { SLOTS = 19 };
 enum { DISC_CHARAS = 161 };
 
@@ -51,12 +60,15 @@ typedef struct {
     char name[64];             /* the folder's name */
     char owner[64];            /* "" or, for a folder inside a character's folder, that folder's name */
     int ownerId;               /* ... and its character id (an added one's, or the disc id it replaces); -1 */
-    char file[F_COUNT][400];   /* "" where the folder has none */
+    char file[F_COUNT][400];   /* 34 files */
+    char anm_shared[400];      /* shared _anm.pak / _fa.pak fallback */
+    char eff_shared[400];      /* shared _eff.pak / _kze.pak fallback */
     int base;
     int costumes;
     int replaces;              /* -1: an added character; 0..160: the disc character whose place it takes */
-    char chip[400], portrait[400]; /* "" where the folder has none */
-    char member[2][400];
+    char chip[400];            /* "" where the folder has none */
+    char portrait[8][400];     /* portrait per costume (portrait_1p.bin .. portrait_8p.bin or portrait.bin) */
+    char member[8][2][400];    /* member block per costume and side */
     char lines[2][400];        /* the folders of spoken lines: [0] voice_jp, [1] voice_us */
     char dir[400];             /* the folder */
     char form[SLOTS][64];      /* the links: the folder (or "disc:<id>") of each slot; "" = not said. 0..3 the
@@ -133,12 +145,52 @@ static int same_nocase(const char *a, const char *b) {
     return *a == '\0' && *b == '\0';
 }
 
-/* which of the twelve files a name is, by its ending; -1 if none */
+/* which of the files a name is, by its ending; -1 if none */
 static int kind_of(const char *name) {
     static const struct { const char *end; int kind; } kEnds[] = {
+        /* Models 1p..8p */
         {"_1p.pak", 0}, {"_2p.pak", 1}, {"_3p.pak", 2}, {"_4p.pak", 3},
-        {"_1p_dmg.pak", 4}, {"_2p_dmg.pak", 5}, {"_3p_dmg.pak", 6}, {"_4p_dmg.pak", 7},
-        {"_anm.pak", F_ANM}, {"_eff.pak", F_EFF}, {"_voice_jp.pak", F_VOICE}, {"_voice_us.pak", F_VOICE + 1},
+        {"_5p.pak", 4}, {"_6p.pak", 5}, {"_7p.pak", 6}, {"_8p.pak", 7},
+        {"_p1.pak", 0}, {"_p2.pak", 1}, {"_p3.pak", 2}, {"_p4.pak", 3},
+        {"_p5.pak", 4}, {"_p6.pak", 5}, {"_p7.pak", 6}, {"_p8.pak", 7},
+        /* Damaged models 1p..8p */
+        {"_1p_dmg.pak", 8}, {"_2p_dmg.pak", 9}, {"_3p_dmg.pak", 10}, {"_4p_dmg.pak", 11},
+        {"_5p_dmg.pak", 12}, {"_6p_dmg.pak", 13}, {"_7p_dmg.pak", 14}, {"_8p_dmg.pak", 15},
+        {"_dmg_1p.pak", 8}, {"_dmg_2p.pak", 9}, {"_dmg_3p.pak", 10}, {"_dmg_4p.pak", 11},
+        {"_dmg_5p.pak", 12}, {"_dmg_6p.pak", 13}, {"_dmg_7p.pak", 14}, {"_dmg_8p.pak", 15},
+        {"_p1_dmg.pak", 8}, {"_p2_dmg.pak", 9}, {"_p3_dmg.pak", 10}, {"_p4_dmg.pak", 11},
+        {"_p5_dmg.pak", 12}, {"_p6_dmg.pak", 13}, {"_p7_dmg.pak", 14}, {"_p8_dmg.pak", 15},
+        /* Animations (fa) 1p..8p */
+        {"_1p_anm.pak", 16}, {"_2p_anm.pak", 17}, {"_3p_anm.pak", 18}, {"_4p_anm.pak", 19},
+        {"_5p_anm.pak", 20}, {"_6p_anm.pak", 21}, {"_7p_anm.pak", 22}, {"_8p_anm.pak", 23},
+        {"_anm_1p.pak", 16}, {"_anm_2p.pak", 17}, {"_anm_3p.pak", 18}, {"_anm_4p.pak", 19},
+        {"_anm_5p.pak", 20}, {"_anm_6p.pak", 21}, {"_anm_7p.pak", 22}, {"_anm_8p.pak", 23},
+        {"_1p_fa.pak", 16}, {"_2p_fa.pak", 17}, {"_3p_fa.pak", 18}, {"_4p_fa.pak", 19},
+        {"_5p_fa.pak", 20}, {"_6p_fa.pak", 21}, {"_7p_fa.pak", 22}, {"_8p_fa.pak", 23},
+        {"_fa_1p.pak", 16}, {"_fa_2p.pak", 17}, {"_fa_3p.pak", 18}, {"_fa_4p.pak", 19},
+        {"_fa_5p.pak", 20}, {"_fa_6p.pak", 21}, {"_fa_7p.pak", 22}, {"_fa_8p.pak", 23},
+        {"_p1_anm.pak", 16}, {"_p2_anm.pak", 17}, {"_p3_anm.pak", 18}, {"_p4_anm.pak", 19},
+        {"_p5_anm.pak", 20}, {"_p6_anm.pak", 21}, {"_p7_anm.pak", 22}, {"_p8_anm.pak", 23},
+        {"_p1_fa.pak", 16}, {"_p2_fa.pak", 17}, {"_p3_fa.pak", 18}, {"_p4_fa.pak", 19},
+        {"_p5_fa.pak", 20}, {"_p6_fa.pak", 21}, {"_p7_fa.pak", 22}, {"_p8_fa.pak", 23},
+        /* Effects / techniques (kze) 1p..8p */
+        {"_1p_eff.pak", 24}, {"_2p_eff.pak", 25}, {"_3p_eff.pak", 26}, {"_4p_eff.pak", 27},
+        {"_5p_eff.pak", 28}, {"_6p_eff.pak", 29}, {"_7p_eff.pak", 30}, {"_8p_eff.pak", 31},
+        {"_eff_1p.pak", 24}, {"_eff_2p.pak", 25}, {"_eff_3p.pak", 26}, {"_eff_4p.pak", 27},
+        {"_eff_5p.pak", 28}, {"_eff_6p.pak", 29}, {"_eff_7p.pak", 30}, {"_eff_8p.pak", 31},
+        {"_1p_kze.pak", 24}, {"_2p_kze.pak", 25}, {"_3p_kze.pak", 26}, {"_4p_kze.pak", 27},
+        {"_5p_kze.pak", 28}, {"_6p_kze.pak", 29}, {"_7p_kze.pak", 30}, {"_8p_kze.pak", 31},
+        {"_kze_1p.pak", 24}, {"_kze_2p.pak", 25}, {"_kze_3p.pak", 26}, {"_kze_4p.pak", 27},
+        {"_kze_5p.pak", 28}, {"_kze_6p.pak", 29}, {"_kze_7p.pak", 30}, {"_kze_8p.pak", 31},
+        {"_p1_eff.pak", 24}, {"_p2_eff.pak", 25}, {"_p3_eff.pak", 26}, {"_p4_eff.pak", 27},
+        {"_p5_eff.pak", 28}, {"_p6_eff.pak", 29}, {"_p7_eff.pak", 30}, {"_p8_eff.pak", 31},
+        {"_p1_kze.pak", 24}, {"_p2_kze.pak", 25}, {"_p3_kze.pak", 26}, {"_p4_kze.pak", 27},
+        {"_p5_kze.pak", 28}, {"_p6_kze.pak", 29}, {"_p7_kze.pak", 30}, {"_p8_kze.pak", 31},
+        /* Fallbacks: shared animations and effects */
+        {"_anm.pak", F_ANM_SHARED}, {"_fa.pak", F_ANM_SHARED},
+        {"_eff.pak", F_EFF_SHARED}, {"_kze.pak", F_EFF_SHARED},
+        /* Voice banks */
+        {"_voice_jp.pak", F_VOICE}, {"_voice_us.pak", F_VOICE + 1},
     };
     size_t l = strlen(name), i, k;
     for (i = 0; i < sizeof(kEnds) / sizeof(kEnds[0]); i++) {
@@ -400,7 +452,16 @@ int PortCharas_ParseTest(const char *bytes, unsigned long len, char *out, unsign
    bank: BTL_BANK_BUF_SIZE (the reload buffer of battle_load.c). Portrait: 0x16800 in every screen. Member block:
    BTL_MEMBER_BUF_SIZE. The spoken lines are streamed and have no buffer. */
 static long limit_of(int kind) {
-    return kind < 8 ? PORT_MODEL_MAX : kind == F_ANM ? 0x160800 : kind == F_EFF ? 0xCE800 : 0x90800;
+    if (kind < 16) {
+        return PORT_MODEL_MAX; /* models 0..7 and damaged models 8..15 */
+    }
+    if (kind < 24) {
+        return 0x160800;       /* animations 16..23 */
+    }
+    if (kind < 32) {
+        return 0xCE800;        /* effects 24..31 */
+    }
+    return 0x90800;           /* voice banks 32..33 */
 }
 enum { PORTRAIT_MAX = 0x16800, MEMBER_MAX = 0x1000 };
 
@@ -510,23 +571,56 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
         const char *n = de->d_name;
         k = kind_of(n);
         if (k >= 0) {
-            slot = c->file[k];
+            if (k == F_ANM_SHARED) {
+                slot = c->anm_shared;
+            } else if (k == F_EFF_SHARED) {
+                slot = c->eff_shared;
+            } else {
+                slot = c->file[k];
+            }
         } else if (same_nocase(n, "chip.bin")) {
             slot = c->chip;
         } else if (same_nocase(n, "portrait.bin")) {
-            slot = c->portrait;
+            slot = c->portrait[0];
         } else if (same_nocase(n, "member_1p.bin")) {
-            slot = c->member[0];
+            slot = c->member[0][0];
         } else if (same_nocase(n, "member_2p.bin")) {
-            slot = c->member[1];
+            slot = c->member[0][1];
         } else if (same_nocase(n, "voice_jp")) {
             slot = c->lines[0];
         } else if (same_nocase(n, "voice_us")) {
             slot = c->lines[1];
+        } else if (same_nocase(n, "portrait_1p.bin") || same_nocase(n, "portrait_1.bin")) {
+            slot = c->portrait[0];
+        } else if (same_nocase(n, "portrait_2p.bin") || same_nocase(n, "portrait_2.bin")) {
+            slot = c->portrait[1];
+        } else if (same_nocase(n, "portrait_3p.bin") || same_nocase(n, "portrait_3.bin")) {
+            slot = c->portrait[2];
+        } else if (same_nocase(n, "portrait_4p.bin") || same_nocase(n, "portrait_4.bin")) {
+            slot = c->portrait[3];
+        } else if (same_nocase(n, "portrait_5p.bin") || same_nocase(n, "portrait_5.bin")) {
+            slot = c->portrait[4];
+        } else if (same_nocase(n, "portrait_6p.bin") || same_nocase(n, "portrait_6.bin")) {
+            slot = c->portrait[5];
+        } else if (same_nocase(n, "portrait_7p.bin") || same_nocase(n, "portrait_7.bin")) {
+            slot = c->portrait[6];
+        } else if (same_nocase(n, "portrait_8p.bin") || same_nocase(n, "portrait_8.bin")) {
+            slot = c->portrait[7];
         } else {
-            for (k = 0; k < 5; k++) {
-                if (same_nocase(n, kSide[k])) {
-                    slot = side[k];
+            /* Check costume member blocks */
+            int cst = -1, sideIdx = -1;
+            if (strncasecmp(n, "member_1p_", 10) == 0 && n[10] >= '1' && n[10] <= '8' && same_nocase(n + 11, "p.bin")) {
+                sideIdx = 0; cst = n[10] - '1';
+            } else if (strncasecmp(n, "member_2p_", 10) == 0 && n[10] >= '1' && n[10] <= '8' && same_nocase(n + 11, "p.bin")) {
+                sideIdx = 1; cst = n[10] - '1';
+            }
+            if (cst >= 0 && sideIdx >= 0) {
+                slot = c->member[cst][sideIdx];
+            } else {
+                for (k = 0; k < 5; k++) {
+                    if (same_nocase(n, kSide[k])) {
+                        slot = side[k];
+                    }
                 }
             }
         }
@@ -535,10 +629,37 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
         }
     }
     closedir(d);
+    /* Fallbacks: if costume 1 portrait is set, copy as fallback to unset costume portraits */
+    for (k = 1; k < 8; k++) {
+        if (c->portrait[k][0] == '\0' && c->portrait[0][0] != '\0') {
+            snprintf(c->portrait[k], sizeof(c->portrait[k]), "%s", c->portrait[0]);
+        }
+        if (c->member[k][0][0] == '\0' && c->member[0][0][0] != '\0') {
+            snprintf(c->member[k][0], sizeof(c->member[k][0]), "%s", c->member[0][0]);
+        }
+        if (c->member[k][1][0] == '\0' && c->member[0][1][0] != '\0') {
+            snprintf(c->member[k][1], sizeof(c->member[k][1]), "%s", c->member[0][1]);
+        }
+    }
+    /* Fallback: shared animation and effects */
+    if (c->anm_shared[0] != '\0') {
+        for (k = 0; k < 8; k++) {
+            if (c->file[16 + k][0] == '\0') {
+                snprintf(c->file[16 + k], sizeof(c->file[16 + k]), "%s", c->anm_shared);
+            }
+        }
+    }
+    if (c->eff_shared[0] != '\0') {
+        for (k = 0; k < 8; k++) {
+            if (c->file[24 + k][0] == '\0') {
+                snprintf(c->file[24 + k], sizeof(c->file[24 + k]), "%s", c->eff_shared);
+            }
+        }
+    }
     for (k = 0; k < F_COUNT; k++) {
         files += c->file[k][0] != '\0';
     }
-    files += (c->chip[0] != '\0') + (c->portrait[0] != '\0') + (c->member[0][0] != '\0') + (c->member[1][0] != '\0') + (c->lines[0][0] != '\0') +
+    files += (c->chip[0] != '\0') + (c->portrait[0][0] != '\0') + (c->member[0][0][0] != '\0') + (c->member[0][1][0] != '\0') + (c->lines[0][0] != '\0') +
              (c->lines[1][0] != '\0');
     if (files == 0 && side[4][0] == '\0') {
         return NULL; /* nothing of a package in it: some other folder */
@@ -586,7 +707,7 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
 
     /* files the game has no room for are not taken */
     for (k = 0; k < F_COUNT; k++) {
-        if (c->replaces == -1 && k < 4 && c->file[k][0] != '\0') {
+        if (c->replaces == -1 && k < 8 && c->file[k][0] != '\0') {
             struct stat st; /* (an added character's costume: without it the character is left out, as before) */
             if (stat(c->file[k], &st) == 0 && st.st_size > PORT_MODEL_MAX) {
                 note(c, "%s is %ld bytes, more than the 1.5 MB a model may have; the character is left out", strrchr(c->file[k], '/') + 1,
@@ -594,11 +715,13 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
                 return NULL;
             }
         }
-        fits(c, c->file[k], limit_of(k), k < 8 ? "a model" : k == F_ANM ? "the animations" : k == F_EFF ? "the effects" : "a voice bank");
+        fits(c, c->file[k], limit_of(k), k < 16 ? "a model" : k < 24 ? "the animations" : k < 32 ? "the effects" : "a voice bank");
     }
-    fits(c, c->portrait, PORTRAIT_MAX, "the large picture");
-    fits(c, c->member[0], MEMBER_MAX, "the member block");
-    fits(c, c->member[1], MEMBER_MAX, "the member block");
+    for (k = 0; k < 8; k++) {
+        fits(c, c->portrait[k], PORTRAIT_MAX, "the large picture");
+        fits(c, c->member[k][0], MEMBER_MAX, "the member block");
+        fits(c, c->member[k][1], MEMBER_MAX, "the member block");
+    }
     if (c->chip[0] != '\0' && !chip_read(c->chip, chip)) {
         note(c, "chip.bin is not a chip of the game (one entry of the select's chip pack, 5504 bytes); the chip is left out");
         c->chip[0] = '\0';
@@ -608,7 +731,7 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
         return NULL; /* (said above) */
     }
     if (c->replaces >= 0) {
-        int has = c->nameSet || c->labelSet || c->chip[0] != '\0' || c->portrait[0] != '\0' || c->member[0][0] != '\0' || c->member[1][0] != '\0' ||
+        int has = c->nameSet || c->labelSet || c->chip[0] != '\0' || c->portrait[0][0] != '\0' || c->member[0][0][0] != '\0' || c->member[0][1][0] != '\0' ||
                   c->lines[0][0] != '\0' || c->lines[1][0] != '\0';
         for (k = 0; k < F_COUNT; k++) {
             has |= c->file[k][0] != '\0';
@@ -654,7 +777,7 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
         note(c, "there are already %d added characters, the most the game takes", PORT_CHARA_MAX);
         return NULL;
     }
-    for (c->costumes = 1; c->costumes < 4 && c->file[c->costumes][0] != '\0'; c->costumes++) {
+    for (c->costumes = 1; c->costumes < 8 && c->file[c->costumes][0] != '\0'; c->costumes++) {
     }
     kept = &sChara[sCount++];
     *kept = *c;
@@ -796,8 +919,8 @@ void PortCharas_Init(void) {
                 files += c->file[k][0] != '\0';
             }
             if (c != NULL) {
-                fprintf(stderr, "bt3: characters:   %s%s%s: replaces character %d (%d of its twelve files%s%s%s%s%s)\n", c->owner, c->owner[0] != '\0' ? "/" : "",
-                        c->name, i, files, c->portrait[0] != '\0' ? ", portrait" : "", c->chip[0] != '\0' ? ", chip" : "", c->nameSet ? ", name" : "",
+                fprintf(stderr, "bt3: characters:   %s%s%s: replaces character %d (%d files%s%s%s%s%s)\n", c->owner, c->owner[0] != '\0' ? "/" : "",
+                        c->name, i, files, c->portrait[0][0] != '\0' ? ", portrait" : "", c->chip[0] != '\0' ? ", chip" : "", c->nameSet ? ", name" : "",
                         c->lines[0][0] != '\0' || c->lines[1][0] != '\0' ? ", spoken lines" : "",
                         c->stat[0] >= 0 || c->stat[1] >= 0 || c->stat[2] >= 0 ? ", numbers" : "");
             }
@@ -820,7 +943,7 @@ int Port_ModelSize(void) {
         struct stat st;
         PortCharas_Init();
         for (i = 0; i < sCount + sReplCount; i++) {
-            for (k = 0; k < 8; k++) {
+            for (k = 0; k < 16; k++) {
                 if (entry(i)->file[k][0] != '\0' && stat(entry(i)->file[k], &st) == 0 && st.st_size > most) {
                     most = (long)st.st_size;
                 }
@@ -884,10 +1007,23 @@ int Port_CharaBase(int chara) {
     return chara >= PORT_CHARA_FIRST && chara < PORT_CHARA_FIRST + PORT_CHARA_MAX ? 0 : chara; /* (an id nothing is behind) */
 }
 
-/* An added character: the costumes its folder has; any other id: 0. */
+/* Number of costumes for character `chara`: up to 8 costumes for added and disc characters */
 int Port_CharaCostumes(int chara) {
     PortCharas_Init();
-    return chara >= PORT_CHARA_FIRST && chara < PORT_CHARA_FIRST + live() ? sChara[chara - PORT_CHARA_FIRST].costumes : 0;
+    if (chara >= PORT_CHARA_FIRST && chara < PORT_CHARA_FIRST + live()) {
+        int n = sChara[chara - PORT_CHARA_FIRST].costumes;
+        return (n > 0 && n <= 8) ? n : 8;
+    }
+    if (chara >= 0 && chara < PORT_CHARA_FIRST) {
+        if (sReplOf[chara] != 0) {
+            int n = sRepl[sReplOf[chara] - 1].costumes;
+            if (n > 0 && n <= 8) {
+                return n;
+            }
+        }
+        return 8; /* Original characters allow cycling up to 8 costumes */
+    }
+    return 8;
 }
 
 /* A number of a package's manifest (health, ki, blast) for character `chara`, an added one or a replaced one of
@@ -942,10 +1078,10 @@ static int alias_replaced(int arc, int index, char *out, unsigned n) {
         int id = index + 1; /* (the first archive's file id N is its file N - 1) */
         if (id >= 8 && id < 8 + DISC_CHARAS * 2) {
             c = repl_of((id - 8) / 2);
-            path = c != NULL ? c->member[(id - 8) % 2] : NULL;
+            path = c != NULL ? c->member[0][(id - 8) % 2] : NULL;
         } else if (id >= 0x2F9 && id < 0x2F9 + DISC_CHARAS) {
             c = repl_of(id - 0x2F9);
-            path = c != NULL ? c->portrait : NULL;
+            path = c != NULL ? c->portrait[0] : NULL;
         } else if (id >= 0x590 && id < 0x590 + DISC_CHARAS * 10) {
             int k = (id - 0x590) % 10;
             c = repl_of((id - 0x590) / 10);
@@ -953,14 +1089,16 @@ static int alias_replaced(int arc, int index, char *out, unsigned n) {
                 if (c->file[k][0] == '\0' && k >= 4 && k < 8 && c->file[k - 4][0] != '\0') {
                     k -= 4; /* its costume without a damaged model of its own: the costume as it is */
                 }
-                if (c->file[k][0] == '\0' && k < 8 && c->file[0][0] != '\0' && (c->file[F_ANM][0] != '\0' || c->file[F_EFF][0] != '\0')) {
-                    /* A folder with animations or effects of its own is a whole character, and a model must fit
-                       those (its table names them by number: the disc character's other costume on this folder's
-                       effects is a crash of the game's). A costume it does not have is its first. A folder
-                       without them, a skin, leaves the disc's other costumes alone. */
+                if (c->file[k][0] == '\0' && k < 8 && c->file[0][0] != '\0' && (c->file[16][0] != '\0' || c->file[24][0] != '\0' || c->anm_shared[0] != '\0' || c->eff_shared[0] != '\0')) {
                     k = 0;
                 }
-                path = c->file[k];
+                if (k == 8) {
+                    path = c->file[16][0] != '\0' ? c->file[16] : c->anm_shared;
+                } else if (k == 9) {
+                    path = c->file[24][0] != '\0' ? c->file[24] : c->eff_shared;
+                } else {
+                    path = c->file[k];
+                }
             }
         } else if (id >= 0xBDA && id < 0xBDA + DISC_CHARAS) {
             c = repl_of(id - 0xBDA);
@@ -1018,54 +1156,231 @@ static int alias(const char *rel, char *out, unsigned n) {
         snprintf(out, n, "pzs3us2/%05d.bin", (alt ? 0xCC32 : 0x8D4E) - 0xD48 + (who < live() ? sChara[who].base : 0) * 100 + line);
         return 1;
     }
-    if (index >= PORT_CHARA_MEMBER_INDEX && index < PORT_CHARA_MEMBER_INDEX + PORT_CHARA_MAX * 2) {
-        /* the fight's member block (the team mate's small picture): the folder's member_1p.bin / member_2p.bin, or
-           the base character's (the disc's 8 + id * 2 + side) */
-        int side = (index - PORT_CHARA_MEMBER_INDEX) % 2;
-        who = (index - PORT_CHARA_MEMBER_INDEX) / 2;
-        if (who < live() && sChara[who].member[side][0] != '\0') {
-            snprintf(out, n, "%s", sChara[who].member[side]);
-        } else {
-            snprintf(out, n, "pzs3us1/%05d.bin", 7 + (who < live() ? sChara[who].base : 0) * 2 + side);
+    if (index >= PORT_CHARA_MEMBER_INDEX && index < PORT_CHARA_MEMBER_INDEX + PORT_TOTAL_CHARAS * 16) {
+        /* the fight's member block (the team mate's small picture): 2 sides * 8 costumes */
+        int rem = (index - PORT_CHARA_MEMBER_INDEX) % 16;
+        int side = rem % 2;
+        int costume = rem / 2;
+        who = (index - PORT_CHARA_MEMBER_INDEX) / 16;
+        if (who < DISC_CHARAS) {
+            if (sReplOf[who] != 0) {
+                const Chara *rc = &sRepl[sReplOf[who] - 1];
+                const char *path = rc->member[costume][side];
+                if (path[0] == '\0') {
+                    path = rc->member[0][side];
+                }
+                if (path[0] != '\0') {
+                    snprintf(out, n, "%s", path);
+                    return 1;
+                }
+            }
+            snprintf(out, n, "pzs3us1/%05d.bin", 7 + who * 2 + side);
+            return 1;
         }
+        if (who >= PORT_CHARA_FIRST && who < PORT_CHARA_FIRST + live()) {
+            int idx = who - PORT_CHARA_FIRST;
+            const char *path = sChara[idx].member[costume][side];
+            if (path[0] == '\0') {
+                path = sChara[idx].member[0][side];
+            }
+            if (path[0] != '\0') {
+                snprintf(out, n, "%s", path);
+                return 1;
+            }
+            snprintf(out, n, "pzs3us1/%05d.bin", 7 + sChara[idx].base * 2 + side);
+            return 1;
+        }
+        snprintf(out, n, "pzs3us1/%05d.bin", 7 + (who < live() ? sChara[who].base : 0) * 2 + side);
         return 1;
     }
-    if (index >= PORT_CHARA_FACE_INDEX && index < PORT_CHARA_FACE_INDEX + PORT_CHARA_MAX) {
-        /* the large picture: the folder's, or the base character's (the disc's 0x2F9 + id) */
-        who = index - PORT_CHARA_FACE_INDEX;
-        if (who < live() && sChara[who].portrait[0] != '\0') {
-            snprintf(out, n, "%s", sChara[who].portrait);
-        } else {
-            snprintf(out, n, "pzs3us1/%05d.bin", 0x2F8 + (who < live() ? sChara[who].base : 0));
+    if (index >= PORT_CHARA_FACE_INDEX && index < PORT_CHARA_FACE_INDEX + PORT_TOTAL_CHARAS * 8) {
+        /* the large picture: 8 costumes per character */
+        who = (index - PORT_CHARA_FACE_INDEX) / 8;
+        int costume = (index - PORT_CHARA_FACE_INDEX) % 8;
+        if (who < DISC_CHARAS) {
+            if (sReplOf[who] != 0) {
+                const Chara *rc = &sRepl[sReplOf[who] - 1];
+                const char *path = rc->portrait[costume];
+                if (path[0] == '\0') {
+                    path = rc->portrait[0];
+                }
+                if (path[0] != '\0') {
+                    snprintf(out, n, "%s", path);
+                    return 1;
+                }
+            }
+            snprintf(out, n, "pzs3us1/%05d.bin", 0x2F8 + who);
+            return 1;
         }
+        if (who >= PORT_CHARA_FIRST && who < PORT_CHARA_FIRST + live()) {
+            int idx = who - PORT_CHARA_FIRST;
+            const char *path = sChara[idx].portrait[costume];
+            if (path[0] == '\0') {
+                path = sChara[idx].portrait[0];
+            }
+            if (path[0] != '\0') {
+                snprintf(out, n, "%s", path);
+                return 1;
+            }
+            snprintf(out, n, "pzs3us1/%05d.bin", 0x2F8 + sChara[idx].base);
+            return 1;
+        }
+        snprintf(out, n, "pzs3us1/%05d.bin", 0x2F8 + (who < live() ? sChara[who].base : 0));
         return 1;
     }
-    if (index < PORT_CHARA_FILE_INDEX + PORT_CHARA_MAX * 10) {
-        who = (index - PORT_CHARA_FILE_INDEX) / 10;
-        k = (index - PORT_CHARA_FILE_INDEX) % 10;
-    } else if (index >= PORT_CHARA_VOICE_INDEX && index < PORT_CHARA_VOICE_INDEX + PORT_CHARA_MAX * 2) {
-        who = (index - PORT_CHARA_VOICE_INDEX) / 2;
-        k = F_VOICE + (index - PORT_CHARA_VOICE_INDEX) % 2;
+    if (index >= PORT_CHARA_FILE_INDEX && index < PORT_CHARA_FILE_INDEX + PORT_TOTAL_CHARAS * PORT_FILES_PER_CHARA) {
+        who = (index - PORT_CHARA_FILE_INDEX) / PORT_FILES_PER_CHARA;
+        k = (index - PORT_CHARA_FILE_INDEX) % PORT_FILES_PER_CHARA;
     } else {
         return 0;
     }
-    c = &sChara[who < live() ? who : 0];
-    if (who >= live()) { /* an id nothing is behind (a save or a replay of another set-up): the first character of the disc */
-        snprintf(out, n, "pzs3us1/%05d.bin", k >= F_VOICE ? (k == F_VOICE ? 3033 : 3194) : 1423 + k);
+    if (who < DISC_CHARAS) {
+        c = (sReplOf[who] != 0) ? &sRepl[sReplOf[who] - 1] : NULL;
+        if (c != NULL) {
+            if (k < 8) {
+                if (c->file[k][0] != '\0') {
+                    snprintf(out, n, "%s", c->file[k]);
+                    return 1;
+                } else if (c->file[k % 4][0] != '\0') {
+                    snprintf(out, n, "%s", c->file[k % 4]);
+                    return 1;
+                } else if (c->file[0][0] != '\0') {
+                    snprintf(out, n, "%s", c->file[0]);
+                    return 1;
+                }
+            } else if (k < 16) {
+                int cst = k - 8;
+                if (c->file[k][0] != '\0') {
+                    snprintf(out, n, "%s", c->file[k]);
+                    return 1;
+                } else if (c->file[cst][0] != '\0') {
+                    snprintf(out, n, "%s", c->file[cst]);
+                    return 1;
+                }
+            } else if (k < 24) {
+                if (c->file[k][0] != '\0') {
+                    snprintf(out, n, "%s", c->file[k]);
+                    return 1;
+                } else if (c->anm_shared[0] != '\0') {
+                    snprintf(out, n, "%s", c->anm_shared);
+                    return 1;
+                }
+            } else if (k < 32) {
+                if (c->file[k][0] != '\0') {
+                    snprintf(out, n, "%s", c->file[k]);
+                    return 1;
+                } else if (c->eff_shared[0] != '\0') {
+                    snprintf(out, n, "%s", c->eff_shared);
+                    return 1;
+                }
+            } else if (k >= 32) {
+                if (c->file[k][0] != '\0') {
+                    snprintf(out, n, "%s", c->file[k]);
+                    return 1;
+                }
+            }
+        }
+        /* Fallback to disc files for disc character who */
+        if (k < 8) {
+            snprintf(out, n, "pzs3us1/%05d.bin", 1423 + who * 10 + (k % 4));
+        } else if (k < 16) {
+            snprintf(out, n, "pzs3us1/%05d.bin", 1423 + who * 10 + 4 + ((k - 8) % 4));
+        } else if (k < 24) {
+            snprintf(out, n, "pzs3us1/%05d.bin", 1423 + who * 10 + 8);
+        } else if (k < 32) {
+            snprintf(out, n, "pzs3us1/%05d.bin", 1423 + who * 10 + 9);
+        } else {
+            snprintf(out, n, "pzs3us1/%05d.bin", (k == 32 ? 3033 : 3194) + who);
+        }
         return 1;
     }
-    if (c->file[k][0] == '\0' && k >= 4 && k < 8 && c->file[k - 4][0] != '\0') {
-        k -= 4; /* no damaged model: the costume as it is */
+    {
+        int idx = who - PORT_CHARA_FIRST;
+        if (idx < 0 || idx >= live()) {
+            if (k >= 32) {
+                snprintf(out, n, "pzs3us1/%05d.bin", (k == 32 ? 3033 : 3194));
+            } else if (k >= 24) {
+                snprintf(out, n, "pzs3us1/%05d.bin", 1423 + 9);
+            } else if (k >= 16) {
+                snprintf(out, n, "pzs3us1/%05d.bin", 1423 + 8);
+            } else if (k >= 8) {
+                snprintf(out, n, "pzs3us1/%05d.bin", 1423 + 4 + ((k - 8) % 4));
+            } else {
+                snprintf(out, n, "pzs3us1/%05d.bin", 1423 + (k % 4));
+            }
+            return 1;
+        }
+        c = &sChara[idx];
     }
-    if (c->file[k][0] == '\0' && k >= F_VOICE && c->file[F_VOICE + (F_VOICE + 1 - k)][0] != '\0') {
-        k = F_VOICE + (F_VOICE + 1 - k); /* one language only: that one for both */
+    if (k < 8) {
+        /* model: costume k, fallback to costume 0 */
+        if (c->file[k][0] != '\0') {
+            snprintf(out, n, "%s", c->file[k]);
+            return 1;
+        } else if (c->file[0][0] != '\0') {
+            snprintf(out, n, "%s", c->file[0]);
+            return 1;
+        } else {
+            snprintf(out, n, "pzs3us1/%05d.bin", 1423 + c->base * 10 + (k % 4));
+            return 1;
+        }
     }
-    if (c->file[k][0] != '\0') {
-        snprintf(out, n, "%s", c->file[k]);
-    } else if (k >= F_VOICE) { /* the base character's: the disc's 0xBDA + id and 0xC7B + id */
-        snprintf(out, n, "pzs3us1/%05d.bin", (k == F_VOICE ? 3033 : 3194) + c->base);
-    } else {                   /* the disc's 0x590 + id * 10 + k */
-        snprintf(out, n, "pzs3us1/%05d.bin", 1423 + c->base * 10 + k);
+    if (k >= 8 && k < 16) {
+        /* damaged model: costume k - 8, fallback to undamaged costume k - 8, then costume 0 */
+        int cst = k - 8;
+        if (c->file[k][0] != '\0') {
+            snprintf(out, n, "%s", c->file[k]);
+            return 1;
+        } else if (c->file[cst][0] != '\0') {
+            snprintf(out, n, "%s", c->file[cst]);
+            return 1;
+        } else if (c->file[0][0] != '\0') {
+            snprintf(out, n, "%s", c->file[0]);
+            return 1;
+        } else {
+            snprintf(out, n, "pzs3us1/%05d.bin", 1423 + c->base * 10 + 4 + (cst % 4));
+            return 1;
+        }
+    }
+    if (k >= 16 && k < 24) {
+        /* animations (fa): costume k - 16, fallback to anm_shared, then base */
+        if (c->file[k][0] != '\0') {
+            snprintf(out, n, "%s", c->file[k]);
+            return 1;
+        } else if (c->anm_shared[0] != '\0') {
+            snprintf(out, n, "%s", c->anm_shared);
+            return 1;
+        } else {
+            snprintf(out, n, "pzs3us1/%05d.bin", 1423 + c->base * 10 + 8);
+            return 1;
+        }
+    }
+    if (k >= 24 && k < 32) {
+        /* effects/techniques (kze): costume k - 24, fallback to eff_shared, then base */
+        if (c->file[k][0] != '\0') {
+            snprintf(out, n, "%s", c->file[k]);
+            return 1;
+        } else if (c->eff_shared[0] != '\0') {
+            snprintf(out, n, "%s", c->eff_shared);
+            return 1;
+        } else {
+            snprintf(out, n, "pzs3us1/%05d.bin", 1423 + c->base * 10 + 9);
+            return 1;
+        }
+    }
+    if (k >= 32) {
+        /* voice bank: 32 JP, 33 US */
+        if (c->file[k][0] != '\0') {
+            snprintf(out, n, "%s", c->file[k]);
+            return 1;
+        }
+        int other = (k == 32) ? 33 : 32;
+        if (c->file[other][0] != '\0') {
+            snprintf(out, n, "%s", c->file[other]);
+            return 1;
+        }
+        snprintf(out, n, "pzs3us1/%05d.bin", (k == 32 ? 3033 : 3194) + c->base);
+        return 1;
     }
     return 1;
 }

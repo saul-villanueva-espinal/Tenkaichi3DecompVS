@@ -225,7 +225,7 @@ void CharSel_UpdateFaceLoad(void) {
         break;
     case CHARSEL_LOAD_REQUEST:
         File_CancelRequests();
-        File_Request(CHARA_FACE_FILE(gCharSel->side[gCharSel->faceSide]->chara),
+        File_Request(CHARA_FACE_FILE_COSTUME(gCharSel->side[gCharSel->faceSide]->chara, gCharSel->side[gCharSel->faceSide]->colorPlate),
                      gCharSel->faceFile[gCharSel->faceSide], 0x16800);
         gCharSel->faceState = CHARSEL_LOAD_READ;
         break;
@@ -351,7 +351,7 @@ void CharSel_ClipGoto(s32 flash, s32 side, s32 kind, char *label) {
         sprintf(name, "mc_custom_plate_%d", gCharSel->side[side]->customPlate + 1);
         break;
     case CHARSEL_CLIP_COLOR_PLATE:
-        sprintf(name, "mc_color_plate_%d", gCharSel->side[side]->colorPlate + 1);
+        sprintf(name, "mc_color_plate_%d", (gCharSel->side[side]->colorPlate % 4) + 1);
         break;
     case CHARSEL_CLIP_CUSTOM_CHIP:
         sprintf(name, "mc_chara_chip_%03d", gCharSel->side[side]->customCol);
@@ -768,7 +768,7 @@ void CharSel_Init(s32 section) {
     gCharSel->stage->bgmPlaying = gCharSel->stage->bgm;
 
     for (i = 0; i < CHARSEL_SIDES; i++) {
-        File_LoadSync(CHARA_FACE_FILE(gCharSel->side[i]->chara), gCharSel->faceFile[i], 0x16800);
+        File_LoadSync(CHARA_FACE_FILE_COSTUME(gCharSel->side[i]->chara, gCharSel->side[i]->colorPlate), gCharSel->faceFile[i], 0x16800);
         Sprite_Unpack(gCharSel->faceFile[i], gCharSel->faceRes[i], NULL);
         res = gCharSel->faceRes[i];
         Res_RelocateOffsets(&res, res, res);
@@ -1736,6 +1736,7 @@ void CharSel_Input(s32 *running) {
                     CS_SIDE->colorPlate = gCharSel->colorCount[CS_N] - 1;
                 }
                 CharSel_ClipGoto(CS_N + 3, CS_N, CHARSEL_CLIP_COLOR_PLATE, "fl_on_start");
+                CharSel_RequestFace(CS_N);
                 Snd_PlaySe(1, 0);
             } else if (gPad[i].gameRepeat & 2) {
                 CharSel_ClipGoto(CS_N + 3, CS_N, CHARSEL_CLIP_COLOR_PLATE, "fl_off_start");
@@ -1744,6 +1745,7 @@ void CharSel_Input(s32 *running) {
                     CS_SIDE->colorPlate = 0;
                 }
                 CharSel_ClipGoto(CS_N + 3, CS_N, CHARSEL_CLIP_COLOR_PLATE, "fl_on_start");
+                CharSel_RequestFace(CS_N);
                 Snd_PlaySe(1, 0);
             } else if (gPad[i].gamePressed & 0x200) {
                 CS_SIDE->mask = 0;

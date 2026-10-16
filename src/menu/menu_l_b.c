@@ -71,7 +71,7 @@ void SoloSel_UpdateImage(void) {
         break;
     case SOLOSEL_LOAD_REQUEST:
         File_CancelRequests();
-        File_Request(CHARA_FACE_FILE(gSoloSel->sel->image), gSoloSel->imageFile, 0x16800);
+        File_Request(CHARA_FACE_FILE_COSTUME(gSoloSel->sel->image, SS_CUR.costume), gSoloSel->imageFile, 0x16800);
         gSoloSel->loadState = SOLOSEL_LOAD_READ;
         break;
     case SOLOSEL_LOAD_READ:
@@ -260,7 +260,7 @@ void SoloSel_Init(s32 section) {
         gSoloSel->blink[i] = Rand_Range(0x20);
     }
     gSoloSel->voiceLine = -1;
-    File_LoadSync(CHARA_FACE_FILE(gSoloSel->sel->image), gSoloSel->imageFile, 0x16800);
+    File_LoadSync(CHARA_FACE_FILE_COSTUME(gSoloSel->sel->image, SS_CUR.costume), gSoloSel->imageFile, 0x16800);
     Sprite_Unpack(gSoloSel->imageFile, gSoloSel->imageRes, NULL);
     res = gSoloSel->imageRes;
     Res_RelocateOffsets(&res, res, res);
@@ -657,6 +657,7 @@ void SoloSel_Input(s32 *result) {
                 SS_CUR.costume = gSoloSel->colorCount - 1;
             }
             SoloSel_ClipGoto(2, 5, "fl_on_start");
+            gSoloSel->sel->flags |= SOLOSEL_SEL_IMAGE_CHANGE;
             Snd_PlaySe(1, 0);
         } else if (gPad[0].gameRepeat & 2) {
             SoloSel_ClipGoto(2, 5, "fl_off_start");
@@ -665,6 +666,7 @@ void SoloSel_Input(s32 *result) {
                 SS_CUR.costume = 0;
             }
             SoloSel_ClipGoto(2, 5, "fl_on_start");
+            gSoloSel->sel->flags |= SOLOSEL_SEL_IMAGE_CHANGE;
             Snd_PlaySe(1, 0);
         } else if (gPad[0].gamePressed & 0x200) {
             /* the character is decided: fix it and take the item set along */

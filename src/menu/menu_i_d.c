@@ -86,7 +86,7 @@ void EntrySel_UpdateImage(void) {
         break;
     case ESEL_LOAD_REQUEST:
         File_CancelRequests();
-        File_Request(CHARA_FACE_FILE(gEntrySel->sel->image), gEntrySel->imageFile, 0x16800);
+        File_Request(CHARA_FACE_FILE_COSTUME(gEntrySel->sel->image, ES_CUR.costume), gEntrySel->imageFile, 0x16800);
         gEntrySel->loadState = ESEL_LOAD_READ;
         break;
     case ESEL_LOAD_READ:
@@ -340,7 +340,7 @@ void EntrySel_Init(s32 section) {
     for (i = 0; i < 2; i++) {
         gEntrySel->blink[i] = Rand_Range(0x20);
     }
-    File_LoadSync(CHARA_FACE_FILE(gEntrySel->sel->image), gEntrySel->imageFile, 0x16800);
+    File_LoadSync(CHARA_FACE_FILE_COSTUME(gEntrySel->sel->image, ES_CUR.costume), gEntrySel->imageFile, 0x16800);
     Sprite_Unpack(gEntrySel->imageFile, gEntrySel->imageRes, NULL);
     res = gEntrySel->imageRes;
     Res_RelocateOffsets(&res, res, res);
@@ -840,6 +840,7 @@ void EntrySel_Input(s32 *result) {
                 ES_CUR.costume = gEntrySel->colorCount - 1;
             }
             EntrySel_ClipGoto(2, 5, "fl_on_start");
+            gEntrySel->sel->flags |= ESEL_SEL_IMAGE_CHANGE;
             Snd_PlaySe(1, 0);
         } else if ((gPad[0].gameRepeat & 2) && TOUR_PROG->t.tour != TOUR_YAMCHA) {
             EntrySel_ClipGoto(2, 5, "fl_off_start");
@@ -848,6 +849,7 @@ void EntrySel_Input(s32 *result) {
                 ES_CUR.costume = 0;
             }
             EntrySel_ClipGoto(2, 5, "fl_on_start");
+            gEntrySel->sel->flags |= ESEL_SEL_IMAGE_CHANGE;
             Snd_PlaySe(1, 0);
         } else if (gPad[0].gamePressed & 0x200) {
             /* the entrant is decided: fix the character and take the item set along */

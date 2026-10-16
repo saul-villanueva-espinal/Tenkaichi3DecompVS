@@ -293,7 +293,7 @@ void TeamSel_UpdateFaceLoad(void) {
                 gTeamSel->faceState = TEAMSEL_LOAD_IDLE;
             }
         } else {
-            File_Request(CHARA_FACE_FILE(gTeamSel->side[gTeamSel->faceSide]->chara),
+            File_Request(CHARA_FACE_FILE_COSTUME(gTeamSel->side[gTeamSel->faceSide]->chara, gTeamSel->side[gTeamSel->faceSide]->member[gTeamSel->side[gTeamSel->faceSide]->cur].color),
                          gTeamSel->faceFile[gTeamSel->faceSide], 0x16800);
             gTeamSel->faceState = TEAMSEL_LOAD_READ;
         }
@@ -427,7 +427,7 @@ void TeamSel_ClipGoto(s32 flash, s32 side, s32 kind, char *label) {
         sprintf(name, "mc_custom_plate_%d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur].plate + 1);
         break;
     case TEAMSEL_CLIP_COLOR_PLATE:
-        sprintf(name, "mc_color_plate_%d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur].color + 1);
+        sprintf(name, "mc_color_plate_%d", (gTeamSel->side[side]->member[gTeamSel->side[side]->cur].color % 4) + 1);
         break;
     case TEAMSEL_CLIP_TEAM:
         switch (gTeamSel->side[side]->cur) {
@@ -1917,6 +1917,7 @@ f32 TeamSel_Input(s32 *result) {
                         CUR_MEMBER.color = gTeamSel->colorCount[CUR_N] - 1;
                     }
                     TeamSel_ClipGoto(CUR_N + 5, CUR_N, TEAMSEL_CLIP_COLOR_PLATE, "fl_on_start");
+                    TeamSel_RequestFace(CUR_N);
                     Snd_PlaySe(1, 0);
                 } else if (gPad[i].gameRepeat & 2) {
                     TeamSel_ClipGoto(CUR_N + 5, CUR_N, TEAMSEL_CLIP_COLOR_PLATE, "fl_off_start");
@@ -1925,6 +1926,7 @@ f32 TeamSel_Input(s32 *result) {
                         CUR_MEMBER.color = 0;
                     }
                     TeamSel_ClipGoto(CUR_N + 5, CUR_N, TEAMSEL_CLIP_COLOR_PLATE, "fl_on_start");
+                    TeamSel_RequestFace(CUR_N);
                     Snd_PlaySe(1, 0);
                 } else if (gPad[i].gamePressed & 0x200) {
                     /* the member is complete: fix the character and its item set */
