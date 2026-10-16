@@ -1648,16 +1648,16 @@ static void chara_label(char *out, size_t size, int chara) {
 }
 
 static void experiments_tab(void) {
-    static const char *const kTeams[] = {"Team 1 (player 1's)", "Team 2 (player 2's)", "On its own"}; // (more teams: more rows here)
+    static const char *const kTeams[] = {"Equipo 1 (Jugador 1)", "Equipo 2 (Jugador 2)", "Por su cuenta (Contra todos)"};
     static const char *const kLast[] = {NULL,
-                                        "The last fight had it.",
-                                        "The last fight was left as the game's own: only Duel and training fights get one.",
-                                        "The last fight was left as the game's own: a side had more than one member.",
-                                        "The last fight was left as the game's own: the picture was split for two players.",
-                                        "The last fight was left as the game's own: it was a replay.",
-                                        "The last fight was left as the game's own: it had a script.",
-                                        "The last fight was left as the game's own: an online match never has one.",
-                                        "The last fight was left as the game's own: the character's files were not found."};
+                                        "El último combate tuvo el tercer luchador activo.",
+                                        "El último combate fue original: solo Duelo y Entrenamiento pueden tener tercer luchador.",
+                                        "El último combate fue original: un bando tenía más de un integrante.",
+                                        "El último combate fue original: la pantalla ya estaba dividida para dos jugadores.",
+                                        "El último combate fue original: era una repetición.",
+                                        "El último combate fue original: combate de historia con guión.",
+                                        "El último combate fue original: las partidas online no permiten luchador extra.",
+                                        "El último combate fue original: no se encontraron los archivos del personaje."};
     static int checked = -1, ok, age; // the character whose files were looked for, what came of it, frames since
     static char why[160], refused[320];
     int count = Port_ExtraCount(), chara = Port_ExtraChara(0), team = Port_ExtraTeam(0), level = Port_ExtraLevel(0);
@@ -1665,38 +1665,37 @@ static void experiments_tab(void) {
     bool on = count > 0;
     char label[96];
 
-    ImGui::TextWrapped("Unfinished things to try. They change how the game plays, so none of them is ever used in an online match.");
+    ImGui::TextWrapped("Funciones experimentales (Modo Tag Team, Multijugador hasta 4 y Tercer Luchador).");
     ImGui::Spacing();
-    ImGui::SeparatorText("Local players");
+    ImGui::SeparatorText("Jugadores Locales (Multijugador en esta PC)");
     {
-        static const char *const kLocal[] = {"2 (the game's own)", "3", "4"};
+        static const char *const kLocal[] = {"2 Jugadores (Original del juego)", "3 Jugadores", "4 Jugadores"};
         int local = Port_LocalPlayers() - 2;
-        ImGui::SetNextItemWidth(220.0f);
-        if (ImGui::Combo("Players on this computer", &local, kLocal, 3)) {
+        ImGui::SetNextItemWidth(260.0f);
+        if (ImGui::Combo("Jugadores en esta PC", &local, kLocal, 3)) {
             Port_LocalPlayersSet(local + 2);
         }
-        ImGui::TextWrapped("For a two-player Team Battle or Free-for-All of the modes page (SELECT on the main menu), with "
-                           "two members or more a team: controller 3 plays team 1's second member, controller 4 team 2's. "
-                           "The screen is split in four, one quarter a player.");
+        ImGui::TextWrapped("Para Batalla por Equipos o Todos Contra Todos (pulsa SELECT en el Menú Principal), con "
+                           "dos o más luchadores por equipo: el mando 3 controla al 2º luchador del Equipo 1, y el mando 4 al 2º del Equipo 2. "
+                           "La pantalla se divide en 4 cuadrantes (uno para cada jugador).");
     }
     ImGui::Spacing();
-    ImGui::SeparatorText("Extra fighters");
-    if (ImGui::Checkbox("Third fighter (experimental)", &on)) {
+    ImGui::SeparatorText("Luchador Extra en Combate (Tercer Luchador CPU)");
+    if (ImGui::Checkbox("Activar tercer luchador en Duelo / Entrenamiento", &on)) {
         count = on ? 1 : 0;
     }
-    ImGui::SetItemTooltip("A third fighter, played by the computer, joins the next fight that starts.\n"
-                          "Only in a one against one fight of Duel (against the computer) or of training;\n"
-                          "story, tournaments, team battles, two-player split screen and replays stay as they are.\n"
-                          "It has no health bar yet, and a replay saved from such a fight will not play back right.");
+    ImGui::SetItemTooltip("Un tercer luchador, controlado por la CPU, se une a la siguiente pelea que inicies.\n"
+                          "Funciona en combates 1 contra 1 de Duelo (contra la máquina) o de Entrenamiento.\n"
+                          "Historia, torneos, batallas por equipo originales y repeticiones se mantienen sin cambios.");
     if (Port_NetActive()) {
-        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Off while you are in an online match.");
+        ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Desactivado durante partidas online.");
     }
     ImGui::BeginDisabled(!on);
     if (ImGui::BeginTable("extra", 4, ImGuiTableFlags_BordersInnerH | ImGuiTableFlags_SizingStretchProp)) {
         ImGui::TableSetupColumn("#", ImGuiTableColumnFlags_WidthFixed, 20.0f);
-        ImGui::TableSetupColumn("Character", ImGuiTableColumnFlags_WidthStretch, 2.6f);
-        ImGui::TableSetupColumn("Team", ImGuiTableColumnFlags_WidthStretch, 2.3f);
-        ImGui::TableSetupColumn("Computer level", ImGuiTableColumnFlags_WidthStretch, 1.5f);
+        ImGui::TableSetupColumn("Personaje", ImGuiTableColumnFlags_WidthStretch, 2.6f);
+        ImGui::TableSetupColumn("Equipo", ImGuiTableColumnFlags_WidthStretch, 2.3f);
+        ImGui::TableSetupColumn("Nivel CPU", ImGuiTableColumnFlags_WidthStretch, 1.5f);
         ImGui::TableHeadersRow();
         ImGui::TableNextRow();
         ImGui::PushID(0);
@@ -1707,7 +1706,11 @@ static void experiments_tab(void) {
         ImGui::SetNextItemWidth(-FLT_MIN);
         chara_label(label, sizeof(label), chara);
         if (ImGui::BeginCombo("##chara", label, ImGuiComboFlags_HeightLarge)) {
-            for (int c = 0; c <= 160; c++) {
+            extern int Port_CharaCount(void);
+            for (int c = 0; c < 0xC6 + Port_CharaCount(); c++) {
+                if (c > 160 && c < 0xC6) {
+                    continue;
+                }
                 chara_label(label, sizeof(label), c);
                 if (ImGui::Selectable(label, c == chara)) {
                     // a character whose files the game data does not have is not taken: the fight could not load it
@@ -1715,7 +1718,7 @@ static void experiments_tab(void) {
                         chara = c;
                         refused[0] = '\0';
                     } else {
-                        snprintf(refused, sizeof(refused), "%s was not taken: %s.", label, why);
+                        snprintf(refused, sizeof(refused), "%s no se pudo usar: %s.", label, why);
                     }
                 }
                 if (c == chara) {
@@ -1732,13 +1735,13 @@ static void experiments_tab(void) {
                 team = at == 2 ? -1 : at;
             }
         }
-        ImGui::SetItemTooltip("Whose side it fights on. Fighters of one team do not hit each other.\n"
-                              "On its own: against both players.");
+        ImGui::SetItemTooltip("De qué bando pelea. Los luchadores del mismo equipo no se golpean entre sí.\n"
+                              "Por su cuenta: pelea contra ambos jugadores (todos contra todos).");
         ImGui::TableNextColumn();
         ImGui::SetNextItemWidth(-FLT_MIN);
         ImGui::SliderInt("##level", &level, 0, 29, "%d", ImGuiSliderFlags_AlwaysClamp);
-        ImGui::SetItemTooltip("How well the computer plays it, 0 to 29.\n"
-                              "The game's own five levels are 0, 6, 13, 21 and 29.");
+        ImGui::SetItemTooltip("Dificultad de la CPU de 0 a 29.\n"
+                              "Los cinco niveles estándar del juego son: 0, 6, 13 (Normal), 21 y 29 (Muy difícil).");
         ImGui::PopID();
         ImGui::EndTable();
     }
@@ -1758,22 +1761,25 @@ static void experiments_tab(void) {
     }
     if (on && !ok) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.4f, 1.0f));
-        ImGui::TextWrapped("This character cannot be used: %s. Fights stay as the game's own until another is chosen.", why);
+        ImGui::TextWrapped("Este personaje no se puede usar: %s. Los combates siguen normales hasta que elijas otro.", why);
         ImGui::PopStyleColor();
     }
     ImGui::Spacing();
-    ImGui::TextWrapped("A change here is used by the next fight that starts; a fight that is on keeps what it started with.");
-    // the main menu's extra modes: Training takes its extra fighter from the row above whatever the switch says
-    ImGui::TextWrapped("SELECT on the game's main menu shows the extra modes. Team Battle and Free-for-All take their fighters "
-                       "from the game's team select; Training adds the fighter set up here. This switch is for every Duel "
-                       "and training fight.");
+    ImGui::Separator();
+    ImGui::Spacing();
+    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f), "INSTRUCCIONES PARA ACTIVAR MODOS EXTRA (TAG TEAM / EXTRA FIGHTERS):");
+    ImGui::TextWrapped("1. En la pantalla del MENÚ PRINCIPAL del juego, pulsa la tecla o botón asignado a SELECT.\n"
+                       "2. El menú cambiará y mostrará: 'Team Battle' (Batalla por Equipos simultánea), 'Free-for-All' (Todos contra todos) y 'Training'.\n"
+                       "3. Elige el número de jugadores (1 a 4) y selecciona tus luchadores en la pantalla de equipos.\n"
+                       "4. ¡En el combate lucharán todos los personajes simultáneamente en la misma arena!");
     if (Port_ModesFight() != PORT_MODE_NONE) {
-        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.85f, 0.3f, 1.0f));
-        ImGui::TextWrapped("%s from the main menu's extra modes is on, until you are back at the main menu.",
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.3f, 1.0f));
+        ImGui::TextWrapped("Modo actual activo: %s (se mantendrá hasta que vuelvas al Menú Principal).",
                            Port_ModesName(Port_ModesFight()));
         ImGui::PopStyleColor();
     }
     if (last > 0 && last < (int)(sizeof(kLast) / sizeof(kLast[0])) && (on || last == 1)) {
+        ImGui::Spacing();
         ImGui::TextDisabled("%s", kLast[last]);
     }
 }
@@ -2078,7 +2084,7 @@ static void build(void) {
             }
             if (tab("Cheats", 5)) { cheats_tab(); ImGui::EndTabItem(); }
             if (tab("Mods", 7)) { mods_tab(); ImGui::EndTabItem(); }
-            if (tab("Experiments", 8)) { experiments_tab(); ImGui::EndTabItem(); }
+            if (tab("Tag Team / Modos Extra", 8)) { experiments_tab(); ImGui::EndTabItem(); }
             ImGui::EndTabBar();
         }
         ImGui::EndChild();
@@ -2090,7 +2096,7 @@ static void build(void) {
             sForceTab = -1;
         }
         ImGui::Separator();
-        if (ImGui::Button("Exit game")) {
+        if (ImGui::Button("Salir del juego")) {
             Ui_QuitAsk();
         }
         if ((io.BackendFlags & ImGuiBackendFlags_HasGamepad) != 0) {

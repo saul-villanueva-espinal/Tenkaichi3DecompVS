@@ -1170,6 +1170,29 @@ void CharSel_Draw(void) {
                 Flash_ClipSetFlags(f, &ref, 2, 0);
             }
         }
+#ifdef PORT
+        if (gCharSel->side[i]->state == CHARSEL_ST_COLOR) {
+            extern void Flash_ClipGetPos(MFlash *flash, MFlashRef *ref, s32 *x, s32 *y);
+            extern void Font_PrintAsciiAt(s32 x, s32 y, char *str);
+            extern FontStyle gFontStyle;
+            char costumeStr[32];
+            s32 px = 0, py = 0;
+            Flash_FindLabel(f, NULL, "mc_color_plate_1", &ref);
+            if (ref.id >= 0) {
+                Flash_ClipGetPos(f, &ref, &px, &py);
+                snprintf(costumeStr, sizeof(costumeStr), "TRAJE %d / %d", gCharSel->side[i]->colorPlate + 1, gCharSel->colorCount[i]);
+                FontStyle saved = gFontStyle;
+                gFontStyle.align = FONT_ALIGN_CENTER;
+                gFontStyle.color = 0xFFFFCC00; // Bright Gold
+                gFontStyle.shadowMode = FONT_SHADOW_DROP;
+                gFontStyle.shadowColor = 0xC0000000;
+                gFontStyle.shadowDx = 2;
+                gFontStyle.shadowDy = 2;
+                Font_PrintAsciiAt(px + 0x64, py - 0x18, costumeStr);
+                gFontStyle = saved;
+            }
+        }
+#endif
     }
 
     for (i = 0; i < CHARSEL_SIDES; i++) {

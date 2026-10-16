@@ -1213,6 +1213,30 @@ void TeamSel_Draw(void) {
                 Flash_ClipSetFlags(flash, &ref, 2, 0);
             }
         }
+#ifdef PORT
+        if (gTeamSel->side[i]->state == TEAMSEL_ST_COLOR) {
+            extern void Flash_ClipGetPos(MFlash *flash, MFlashRef *ref, s32 *x, s32 *y);
+            extern void Font_PrintAsciiAt(s32 x, s32 y, char *str);
+            extern FontStyle gFontStyle;
+            char costumeStr[32];
+            s32 px = 0, py = 0;
+            Flash_FindLabel(flash, NULL, "mc_color_plate_1", &ref);
+            if (ref.id >= 0) {
+                s32 curColor = gTeamSel->side[i]->member[gTeamSel->side[i]->memberCursor].color;
+                Flash_ClipGetPos(flash, &ref, &px, &py);
+                snprintf(costumeStr, sizeof(costumeStr), "TRAJE %d / %d", curColor + 1, gTeamSel->colorCount[i]);
+                FontStyle saved = gFontStyle;
+                gFontStyle.align = FONT_ALIGN_CENTER;
+                gFontStyle.color = 0xFFFFCC00; // Bright Gold
+                gFontStyle.shadowMode = FONT_SHADOW_DROP;
+                gFontStyle.shadowColor = 0xC0000000;
+                gFontStyle.shadowDx = 2;
+                gFontStyle.shadowDy = 2;
+                Font_PrintAsciiAt(px + 0x64, py - 0x18, costumeStr);
+                gFontStyle = saved;
+            }
+        }
+#endif
     }
     for (i = 0; i < TEAMSEL_SIDES; i++) {
         u32 n;
