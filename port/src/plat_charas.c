@@ -753,7 +753,11 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
             return NULL;
         }
         c->base = c->replaces;
-        c->costumes = 0; /* (counted from the disc's own number when asked: Port_CharaCostumes) */
+        for (c->costumes = 0; c->costumes < 8 && c->file[c->costumes][0] != '\0'; c->costumes++) {
+        }
+        if (c->costumes == 0) {
+            c->costumes = 8;
+        }
         kept = &sRepl[sReplCount];
         *kept = *c;
         sReplOf[c->replaces] = (short)(++sReplCount);
