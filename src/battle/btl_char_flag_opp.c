@@ -373,12 +373,14 @@ static void Port_UpdateSpectate(void) {
                        If spectating an alive allied CPU, press Cross (0x4000) or L3 (0x0002) to take control! */
                     s32 curAlly = sPortWatch[p];
                     BtlFlagChr *allyChr = BtlChar_Get(curAlly);
-                    if (allyChr->injectOn && (pressed & (0x4000 | 0x0002))) {
+                    s32 *allyInject = (s32 *)((u8 *)allyChr + 0x1278);
+                    if (*allyInject && (pressed & (0x4000 | 0x0002))) {
                         BtlFlagChr *deadChr = BtlChar_Get(p);
+                        s32 *deadInject = (s32 *)((u8 *)deadChr + 0x1278);
                         extern void Port_SetFightPad(int k, int pad);
-                        deadChr->injectOn = 1;
+                        *deadInject = 1;
                         deadChr->pad = -1;
-                        allyChr->injectOn = 0;
+                        *allyInject = 0;
                         allyChr->pad = pad;
                         if (curAlly >= 2) {
                             Port_SetFightPad(curAlly - 2, pad);
