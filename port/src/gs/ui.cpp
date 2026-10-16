@@ -1639,7 +1639,7 @@ static void cheats_tab(void) {
 // The Experiments tab: things that are not finished, each off until switched on, none of them in online play.
 // Extra fighters: a table with a row for each (one today; the settings carry an index, plat_fighters.c).
 static void chara_label(char *out, size_t size, int chara) {
-    const char *name = Port_CharaName(chara);
+    const char *name = Port_FighterName(chara);
     if (name[0] != '\0') {
         snprintf(out, size, "%s  (%d)", name, chara);
     } else {

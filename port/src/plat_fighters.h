@@ -25,7 +25,7 @@ int Port_ExtraSetup(int mode, int members0, int members1, int split, int replay,
 int Port_ExtraAdd(int side, int index, int chara, int costume, int level);
 void Port_ExtraDone(void);
 int Port_TestRoster(int side, int index);
-const char *Port_CharaName(int chara); /* a character's name from the game data ("" if it gave none); the window's thread only */
+const char *Port_FighterName(int chara); /* a character's name from the game data ("" if it gave none); the window's thread only */
 
 /* plat_modes.c: the extra modes, the main menu's second set of entries (SELECT there) */
 enum { PORT_MODE_NONE, PORT_MODE_TEAM, PORT_MODE_FFA, PORT_MODE_TRAINING, PORT_MODE_COUNT };

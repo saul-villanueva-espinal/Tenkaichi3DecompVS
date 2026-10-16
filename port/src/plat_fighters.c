@@ -614,7 +614,7 @@ static void names_read(void) {
 
 /* The name of a character as the versus select shows it, or "" when the data did not give one. For the settings
    window (its thread only). */
-const char *Port_CharaName(int chara) {
+const char *Port_FighterName(int chara) {
     static int tries;
 
     if (sNamesState == 0 && tries++ % 60 == 0) {
