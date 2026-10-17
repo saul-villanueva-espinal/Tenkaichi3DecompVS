@@ -279,13 +279,13 @@ extern void Port_SettingsWrite(void);
 
 /* the hub's modes, in the order of the list */
 #define HUB_QUICK 0
-#define HUB_RANKED 1
-#define HUB_CREATE 2
-#define HUB_JOIN 3
-#define HUB_FRIENDS 4
-#define HUB_TOURNAMENT 5
-#define HUB_REPLAYS 6
-#define HUB_LEADERBOARD 7
+#define HUB_RAID 1
+#define HUB_TOURNAMENT 2
+#define HUB_CREATE 3
+#define HUB_JOIN 4
+#define HUB_RANKED 5
+#define HUB_FRIENDS 6
+#define HUB_REPLAYS 7
 #define HUB_PROFILE 8
 #define HUB_COUNT 9
 
@@ -359,18 +359,18 @@ s32 gPortTboSpar;       /* the battle that runs is Train While Waiting's sparrin
 static char sTbBgCode[CODE_LEN + 1];
 static f32 Tb_Beat(s32 period);
 
-static char *sTbHubName[HUB_COUNT] = {"Quick Match", "Ranked Match", "Create Room", "Join Room", "Friends", "Tournament", "Replays", "Leaderboard", "Profile"};
-static const s32 sTbHubReady[HUB_COUNT] = {1, 0, 1, 1, 0, 0, 0, 0, 1};
+static char *sTbHubName[HUB_COUNT] = {"Quick Match", "Raid Boss Online", "Torneo Online", "Create Room", "Join Room", "Ranked Match", "Friends", "Replays", "Profile"};
+static const s32 sTbHubReady[HUB_COUNT] = {1, 1, 1, 1, 1, 0, 0, 0, 1};
 static char *sTbHubSay[HUB_COUNT] = {
-    "Fight whoever is searching right now! No time limit, and you can train while you wait.",
-    "Fights that move your rank, season by season. That one is coming soon!",
-    "Open a room with your own rules, then give your rival its code. No port forwarding needed!",
-    "Got a room code from your rival? Type it in and jump right into their room!",
-    "Your rivals, who is online, and invites. That one is coming soon!",
-    "The Tenkaichi Budokai itself: brackets of 4 to 16 players. That one is coming soon!",
-    "Your last matches, saved to watch again. That one is coming soon!",
-    "The strongest in the world, among your friends, and with each fighter. Coming soon!",
-    "The name your rivals see.",
+    "Pelea contra quien este buscando ahora mismo. Sin limites y entrenando mientras esperas.",
+    "Raid Boss Cooperativo (4v1): 4 guerreros en tiempo real contra un jefe colosal titanico.",
+    "Torneo Budokai con Cuadro en Vivo: Llaves de eliminatoria, simulacion y modo espectador.",
+    "Abre una sala con tus propias reglas y comparte el codigo con tu rival.",
+    "Tienes el codigo de sala de tu rival? Ingresalo aqui y unete a su sala directamente.",
+    "Combates clasificatorios de temporada con rangos y ELO. Muy pronto!",
+    "Tus rivales, amigos en linea e invitaciones directas. Muy pronto!",
+    "Tus ultimos combates guardados para revivirlos y analizarlos. Muy pronto!",
+    "El nombre y perfil que veran tus rivales en linea.",
 };
 static char *sTbTime[5] = {"60 SECONDS", "90 SECONDS", "180 SECONDS", "240 SECONDS", "NO LIMIT"};
 static char sTbKeys[KEY_ROWS][KEY_COLS + 1] = {"ABCDEFGHI", "JKLMNOPQR", "STUVWXYZ0", "123456789"};
@@ -739,6 +739,24 @@ static void Tb_HubUpdate(s32 live) {
             sTb->asked = sTb->frames - 100000;
             Tb_SetMode(TB_QUICK);
             break;
+        case HUB_RAID: {
+            extern s32 PortRaid_Run(void);
+            Snd_PlaySe(1, 1);
+            if (PortRaid_Run()) {
+                sTb->leaving = 1;
+                ColorFade_StartOut(0, 0, 0, 0x14);
+            }
+            break;
+        }
+        case HUB_TOURNAMENT: {
+            extern s32 PortTournament_Run(void);
+            Snd_PlaySe(1, 1);
+            if (PortTournament_Run()) {
+                sTb->leaving = 1;
+                ColorFade_StartOut(0, 0, 0, 0x14);
+            }
+            break;
+        }
         case HUB_CREATE:
             Snd_PlaySe(1, 1);
             sTb->crCur = CR_OPEN;
@@ -759,7 +777,7 @@ static void Tb_HubUpdate(s32 live) {
             break;
         default:
             Snd_PlaySe(1, 2);
-            Tb_Note("NOT OPEN YET: IT NEEDS MORE FROM THE MATCHMAKING SERVICE THAN ROOM CODES");
+            Tb_Note("PROXIMAMENTE: EN DESARROLLO PARA LAS PROXIMAS ACTUALIZACIONES");
             break;
         }
     } else if (pad->gamePressed & PADG_TRIANGLE) {

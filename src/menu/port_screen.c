@@ -614,6 +614,30 @@ s32 PortScreen_Main(void) {
         }
         break;
     }
+    case PORT_SCREEN_RAID: {
+        extern s32 PortRaid_Run(void);
+        result = PortRaid_Run();
+        Adx_StopAll();
+        if (result) {
+            extern int Port_PcBattleBuild(void);
+            result = Port_PcBattleBuild();
+        } else {
+            gProgress->mode = 4;
+        }
+        break;
+    }
+    case PORT_SCREEN_TOURNAMENT: {
+        extern s32 PortTournament_Run(void);
+        result = PortTournament_Run();
+        Adx_StopAll();
+        if (result) {
+            extern int Port_PcBattleBuild(void);
+            result = Port_PcBattleBuild();
+        } else {
+            gProgress->mode = 4;
+        }
+        break;
+    }
     default:
         gProgress->mode = 4;
         break;
