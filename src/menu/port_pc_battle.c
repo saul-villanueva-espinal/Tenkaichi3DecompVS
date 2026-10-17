@@ -59,6 +59,15 @@ void Port_PcApplyTeams(void) {
 void Port_PcRelayStop(void) { sRelay = 0; sRemaining[0] = sRemaining[1] = 0; }
 int Port_PcRelayRemaining(int side) { return side >= 0 && side < 2 ? sRemaining[side] : 0; }
 
+/* Slots own both loader buffers until Battle_Unload. A fresh member setup has
+   no buffers: replacing the whole slot would leak them and later free NULL. */
+static void PcRelay_StoreMember(BattleMember *slot, BattleMember *fresh) {
+    fresh->data = slot->data;
+    fresh->buf[0] = slot->buf[0];
+    fresh->buf[1] = slot->buf[1];
+    *slot = *fresh;
+}
+
 void Port_PcRelayRewind(void) {
     s32 s, i;
     if (!sRelay) return;
@@ -69,11 +78,14 @@ void Port_PcRelayRewind(void) {
         side->lead = 0;
         for (i = 0; i < side->memberCount; i++) {
             PcFighter *f = &sBattle.fighter[s][i];
-            BtlMember_Init(&side->members[i], f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
+            BattleMember fresh;
+            BtlMember_Init(&fresh, f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
+            PcRelay_StoreMember(&side->members[i], &fresh);
         }
-        side->form.chara = side->startForm.chara = sBattle.fighter[s][0].chara;
-        side->form.costume = side->startForm.costume = sBattle.fighter[s][0].costume;
-        side->form.variant = side->startForm.variant = 0;
+        /* Keep the loaded form: BtlLoad_Reload must detect and reload it. */
+        side->startForm.chara = sBattle.fighter[s][0].chara;
+        side->startForm.costume = sBattle.fighter[s][0].costume;
+        side->startForm.variant = 0;
         sNext[s] = side->memberCount; sRemaining[s] = sBattle.count[s];
     }
 }
@@ -93,7 +105,7 @@ void Port_PcRelayTick(void) {
             BtlMember_Init(&m, f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
             slot = BtlMember_Replace(chr, (BtlMemberSetup *)&m);
             if (slot < 0) break;
-            *BattleSide_GetMember(s, slot) = m;
+            PcRelay_StoreMember(BattleSide_GetMember(s, slot), &m);
             sNext[s]++;
             { extern void Port_PcRelayLog(int, int, int); Port_PcRelayLog(s, sNext[s], f->chara); }
         }

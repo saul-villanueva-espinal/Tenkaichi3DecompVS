@@ -126,7 +126,7 @@ int __wrap_Progress_Main(int arg) {
     port_stage_replace_init();
     {
         extern int Port_CoopEnabled(void), Port_PcBattleBuild(void);
-        if (Port_CoopEnabled() || getenv("BT3_PC_CONFIG") != NULL) {
+        if ((Port_CoopEnabled() || getenv("BT3_PC_CONFIG") != NULL) && !(sFromMenu && getenv("BT3_TEST_RESULT") != NULL)) {
             /* Fresh process, fixed rules, fresh RNG on every peer. */
             extern void Port_Srand(unsigned);
             extern void Rand_Seed(unsigned);
@@ -192,6 +192,9 @@ int __wrap_Progress_Main(int arg) {
                 }
             }
             gPortMenuMode = 1; /* the renderer treats all 2D as one centred 4:3 page while the menus run */
+            if (sFromMenu && getenv("BT3_TEST_RESULT") != NULL) {
+                fprintf(stderr, "bt3: lifecycle: battle unloaded; entering real menu, mode %d\n", gProgress->mode);
+            }
             r = __real_Progress_Main(arg);
             gPortMenuMode = 0;
             sFromMenu = 1; /* a battle set up by the real menus follows: the traces apply to it too */
@@ -314,6 +317,32 @@ void Port_Trace(unsigned vblanks) {
     unsigned u[2][3];
     int *clock;
     int i;
+
+    /* Opt-in regression harness: use the result menu's own action after a full
+       ten-member battle, then let normal fade, teardown and menu loading run.
+       "retry" first asks for one rematch; no effect in an ordinary game. */
+    if (getenv("BT3_TEST_RESULT") != NULL && sFromMenu) {
+        static unsigned endSince, menuSince;
+        static int resultCount;
+        if (gPortMenuMode && gProgress != NULL && gProgress->mode == 4) {
+            if (!menuSince) menuSince = vblanks;
+            if (vblanks - menuSince >= 240) {
+                fprintf(stderr, "bt3: lifecycle: PASS main menu responsive after %d result actions\n", resultCount);
+                exit(0);
+            }
+        } else menuSince = 0;
+        if (!gPortMenuMode && gBtlSeq != NULL && gBtlSeq->state == 6) {
+            if (!endSince) endSince = vblanks;
+            if (vblanks - endSince == 240) {
+                extern void BattleResult_Set(int, int);
+                int retry = resultCount == 0 && strcmp(getenv("BT3_TEST_RESULT"), "retry") == 0;
+                fprintf(stderr, "bt3: lifecycle: result action %s\n", retry ? "rematch" : "main menu");
+                /* BTL_RESULT_ABORT, BTL_REASON_RESTART / result-menu id 0x0F. */
+                BattleResult_Set(8, retry ? 0x8000 : 8);
+                resultCount++;
+            }
+        } else endSince = 0;
+    }
 
     {
         /* gs/state.c: BT3_HASH. With it, during a fight, the fight's own values: both fighters' health and

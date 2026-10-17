@@ -43,6 +43,7 @@ typedef int socklen_t;
 
 extern int Port_PadRead(int socket, unsigned char *data); /* gs_input.c: the keyboard and the controllers */
 void Port_NetLeave(void);
+void Port_LobbyCancel(void);
 
 enum { PAD = 18, RING = 4096, REDUNDANT = 16, MAGIC = 0x4E335442 /* "BT3N" */ };
 enum { T_HELLO = 1, T_HELLO_ACK = 2, T_INPUT = 3, T_BYE = 4, T_PING = 5, T_PONG = 6, T_CONFIG = 7, T_CONFIG_ACK = 8,
@@ -1543,10 +1544,24 @@ int Port_LobbyStart(int host, const char *address, int port) {
 
 static int sQuickQueue = -1; /* Port_LobbyStartQuick: the search that Port_LobbyStartCode starts is a quick match in this queue */
 
+/* Official matchmaking requires an authorized build. A separately operated
+   service can explicitly be selected without disabling direct-IP play. */
+int Port_LobbyServiceAvailable(void) {
+    extern int Sign_HasKey(void);
+    const char *custom = getenv("BT3_MATCH_URL");
+    return Sign_HasKey() || (custom != NULL && custom[0] != '\0');
+}
+
 int Port_LobbyStartCode(int host, const char *code) {
     struct sockaddr_in local;
     socklen_t len = sizeof(local);
 
+    if (!Port_LobbyServiceAvailable()) {
+        Port_LobbyCancel();
+        snprintf(sCodeError, sizeof(sCodeError), "Esta edici\303\263n modificada usa conexi\303\263n directa por IP. Los c\303\263digos oficiales requieren una compilaci\303\263n autorizada.");
+        sLobby = -3;
+        return sLobby;
+    }
     Port_LobbyStart(1, "", 0); /* a socket on a port of the system's choosing */
     if (sLobby < 0) {
         return sLobby;
@@ -1582,8 +1597,8 @@ int Port_LobbyStartQuick(int queue) {
     return sLobby;
 }
 
-void Port_LobbyQueuesAsk(void) { Match_QueuesAsk(NET_VERSION); }
-void Port_LobbyHelloAsk(void) { Match_HelloAsk(); }
+void Port_LobbyQueuesAsk(void) { if (Port_LobbyServiceAvailable()) Match_QueuesAsk(NET_VERSION); }
+void Port_LobbyHelloAsk(void) { if (Port_LobbyServiceAvailable()) Match_HelloAsk(); }
 int Port_LobbyRelease(int *min, int *latest) { return Match_Release(min, latest); }
 int Port_LobbyQueueWaiting(int queue) { return Match_QueueWaiting(queue); }
 

@@ -9,6 +9,8 @@ def function(path, declaration):
 actual = '\n'.join([
     function('src/battle/btl_char_member.c', 's32 BtlMember_Replace('),
     function('src/battle/btl_char_member.c', 's32 BtlMember_CountAlive('),
+    function('src/menu/port_pc_battle.c', 'static void PcRelay_StoreMember('),
+    function('src/menu/port_pc_battle.c', 'void Port_PcRelayRewind('),
     function('src/menu/port_pc_battle.c', 'void Port_PcRelayTick('),
 ])
 with tempfile.TemporaryDirectory() as tmp:

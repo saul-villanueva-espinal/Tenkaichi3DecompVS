@@ -75,6 +75,7 @@ extern int gsInterp;                           // gs_draw.c: in-between pictures
 void Port_SettingsWrite(void);
 int Port_LobbyStart(int host, const char *address, int port); // gs/net.c
 int Port_LobbyStartCode(int host, const char *code);         // the same with a room code (the matchmaking service)
+int Port_LobbyServiceAvailable(void);
 int Port_LobbyStartQuick(int queue);                         // a quick match: 0 single, 1 team, 2..4 DP battle of 10 / 15 / 20
 void Port_LobbyQueuesAsk(void);                              // asks the service how many wait in each queue
 void Port_LobbyHelloAsk(void);                               // asks it whether this release is new enough
@@ -702,11 +703,12 @@ static void quick_status(int state, int &lastState, const char *name) {
 static void build_net(void) {
     static char name[17] = "Jugador", address[64] = "", port[8] = "7000";
     static int tab, roll = -1, delay = 1, battle = -1, timeLimit = 3, speed = -1;
-    static bool useCode = true;       // host with a room code (no port forwarding) or on a port
+    static bool useCode = Port_LobbyServiceAvailable() != 0;
     static char roomCode[8] = "";     // the code to join with
     static int lastState = 0;         // what the lobby said last (for its messages after a failure)
     ImGuiIO &io = ImGui::GetIO();
     bool open = true;
+    bool service = Port_LobbyServiceAvailable() != 0;
 
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(560.0f, 0.0f), ImGuiCond_Appearing);
@@ -716,7 +718,12 @@ static void build_net(void) {
     if (ImGui::Begin("Batalla Dragón en línea", &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         {
             int min = 0, latest = 0, mine = Port_LobbyRelease(&min, &latest);
-            if (min > mine) {
+            if (!service) {
+                ImGui::TextWrapped("Edición modificada: juega por IP directa con otra PC que tenga esta misma edición y los mismos personajes.");
+                ImGui::TextWrapped("Los códigos de sala y la partida rápida del servicio oficial requieren una compilación autorizada. Cambiar el número de versión no habilita ese acceso.");
+                ImGui::TextDisabled("Duelo: 2 jugadores, puerto UDP 7000. Cooperativo contra jefe: usa la sala del modo Raid, hasta 4 jugadores, UDP 29740.");
+                ImGui::Separator();
+            } else if (min > mine) {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.55f, 0.35f, 1.0f));
                 ImGui::TextWrapped("Actualización disponible. Actualiza para acceder a los servidores en línea.");
                 ImGui::PopStyleColor();
@@ -748,10 +755,12 @@ static void build_net(void) {
             if (ImGui::BeginTabItem("Crear partida")) {
                 static const char *const kRoll[] = {"Desactivado (esperar al otro jugador)", "Hasta 2 cuadros", "Hasta 4 cuadros", "Hasta 6 cuadros", "Hasta 8 cuadros"};
                 tab = 0;
+                ImGui::BeginDisabled(!service);
                 ImGui::Checkbox("Usar código de sala (sin abrir puertos)", &useCode);
                 ImGui::SetItemTooltip("Obtienes un código corto para compartir con el otro jugador. Ambos juegos se encuentran mediante un\n"
                                       "servicio de búsqueda de partidas. Funciona con la mayoría de routers domésticos. Sin él, usas un puerto\n"
                                       "que debe ser accesible para el otro jugador (apertura de puertos o una red virtual).");
+                ImGui::EndDisabled();
                 ImGui::BeginDisabled(useCode);
                 ImGui::SetNextItemWidth(120.0f);
                 ImGui::InputText("Puerto", port, sizeof(port), ImGuiInputTextFlags_CharsDecimal);
@@ -816,7 +825,7 @@ static void build_net(void) {
             if (ImGui::BeginTabItem("Partida rápida")) {
                 static const char *const kQueue[] = {"Combate individual", "Combate por equipos", "Combate PD (10 PD)", "Combate PD (15 PD)", "Combate PD (20 PD)"};
                 static Uint64 asked;
-                bool busy = sNetBusy; // (a search is under way: the queue is not changed under it)
+                bool busy = sNetBusy || !service;
                 tab = 2;
                 if (sQueue < 0) {
                     sQueue = Port_Setting("net_queue", 0);
@@ -834,7 +843,7 @@ static void build_net(void) {
                     if (moved || active == 0) {
                         active = SDL_GetTicks() + 1;
                     }
-                    if (!sNetBusy && (asked == 0 || (SDL_GetTicks() - asked > 30000 && SDL_GetTicks() - active < 120000))) {
+                    if (service && !sNetBusy && (asked == 0 || (SDL_GetTicks() - asked > 30000 && SDL_GetTicks() - active < 120000))) {
                         asked = SDL_GetTicks() + 1;
                         Port_LobbyQueuesAsk();
                     }
@@ -860,6 +869,7 @@ static void build_net(void) {
             }
             if (ImGui::BeginTabItem("Unirse")) {
                 tab = 1;
+                ImGui::BeginDisabled(!service);
                 ImGui::SetNextItemWidth(120.0f);
                 ImGui::InputText("Código de sala", roomCode, sizeof(roomCode), ImGuiInputTextFlags_CharsUppercase | ImGuiInputTextFlags_CharsNoBlank);
                 ImGui::SameLine();
@@ -874,6 +884,7 @@ static void build_net(void) {
                     roomCode[n] = '\0';
                     SDL_free(clip);
                 }
+                ImGui::EndDisabled();
                 ImGui::TextDisabled("O, sin código, la dirección y el puerto del anfitrión:");
                 ImGui::BeginDisabled(roomCode[0] != '\0');
                 ImGui::SetNextItemWidth(260.0f);
@@ -899,7 +910,9 @@ static void build_net(void) {
                 lastState = state;
             }
             if (tab == 2) {
+                ImGui::BeginDisabled(!service);
                 quick_status(state, lastState, name);
+                ImGui::EndDisabled();
             } else if (state == 3 || (state == 1 && byCode)) { // a room code: asking the service, then reaching the other player
                 if (tab == 0 && Port_LobbyCode()[0] != '\0') {
                     ImGui::TextUnformatted("Código de sala:");
@@ -947,7 +960,7 @@ static void build_net(void) {
                                        "Puedes crear la partida abriendo un puerto o usando una red virtual como Tailscale.");
                 }
                 bool can = byCode ? (tab == 0 || strlen(roomCode) == 6) : atoi(port) > 0 && (tab == 0 || address[0] != '\0');
-                ImGui::BeginDisabled(!can);
+                ImGui::BeginDisabled(!can || (byCode && !service));
                 if (ImGui::Button(tab == 0 ? "Crear partida" : "Unirse a la partida", ImVec2(200.0f, 0.0f))) {
                     if (tab == 0 && roll >= 0) {
                         Port_NetOptions(roll * 2, delay == 0 ? -2 : delay - 1);
