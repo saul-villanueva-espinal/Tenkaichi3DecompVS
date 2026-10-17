@@ -18,8 +18,9 @@
 static struct { char name[24]; int value; } sSet[MAX_SETTINGS];
 /* The few settings that are text (the player's online name): `name="text"` in the file, after the numbers. A
    release from before these reads past such a line. */
-#define MAX_TEXTS 8
-static struct { char name[24]; char value[64]; } sText[MAX_TEXTS];
+#define MAX_TEXTS 24
+#define TEXT_CAP 8192 /* complete ten-member rosters and a growing favorites list */
+static struct { char name[24]; char value[TEXT_CAP]; } sText[MAX_TEXTS];
 static int sTextCount;
 static int sDirty;
 static int sCount;
@@ -32,13 +33,13 @@ static const char *path(void) {
 }
 
 static void load(void) {
-    char line[128], name[24];
+    char line[TEXT_CAP+64], name[24];
     int value;
     FILE *fp = path() != NULL ? fopen(path(), "r") : NULL;
 
     while (fp != NULL && fgets(line, sizeof(line), fp) != NULL && sCount < MAX_SETTINGS) {
-        char text[64];
-        if (sscanf(line, " %23[a-z0-9_]=\"%63[^\"\n]", name, text) == 2) {
+        char text[TEXT_CAP];
+        if (sscanf(line, " %23[a-z0-9_]=\"%8191[^\"\n]", name, text) == 2) {
             if (sTextCount < MAX_TEXTS) {
                 strcpy(sText[sTextCount].name, name);
                 strcpy(sText[sTextCount++].value, text);
@@ -106,7 +107,7 @@ void Port_SettingText(const char *name, const char *def, char *out, int size) {
 
 /* Stores a text setting (a double quote or a line break in it becomes an apostrophe or a space: the file's form). */
 void Port_SettingTextSave(const char *name, const char *value) {
-    char clean[64];
+    char clean[TEXT_CAP];
     int i;
 
     snprintf(clean, sizeof(clean), "%s", value);

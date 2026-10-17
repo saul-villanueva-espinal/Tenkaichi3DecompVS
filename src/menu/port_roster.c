@@ -75,10 +75,12 @@ static void Nr_Face(void) {
     s32 s,id=Nr_Id();
     for(s=0;s<2;s++) {
         s32 target=s==sNrSide?id:sNr.fighter[s][sNrSlot[s]].chara;
+        s32 color=s==sNrSide?sNrCostume[s]:sNr.fighter[s][sNrSlot[s]].costume;
+        s32 changed=target!=gTeamSel->side[s]->chara || color!=gTeamSel->side[s]->member[0].color;
         if(sNrKind==3 && s==1) target=-1;
         gTeamSel->side[s]->cur=0;
-        gTeamSel->side[s]->member[0].color=s==sNrSide?sNrCostume[s]:sNr.fighter[s][sNrSlot[s]].costume;
-        if(target!=gTeamSel->side[s]->chara) {gTeamSel->side[s]->chara=target;TeamSel_RequestFace(s);}
+        gTeamSel->side[s]->member[0].color=color;
+        if(changed) {gTeamSel->side[s]->chara=target;TeamSel_RequestFace(s);}
     }
 }
 static s32 Nr_Cost(s32 s) {
@@ -238,13 +240,14 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
         u32 p,r; s32 x,y,click;
         Gfx_BeginFrame();Pad_Update();Snd_Update();ColorFade_Update();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();
         p=gPad[0].gamePressed|Port_RosterTestInput((unsigned)++sNrAge);r=gPad[0].gameRepeat|p;
+        if(sNrSide==1 && sNr.players==2) {p|=gPad[1].gamePressed;r|=gPad[1].gameRepeat|p;}
         if(gProgress->flags&MPROG_FREEZE) p=r=0;
         Ps_PageSet();click=Port_RosterPointerRead(&x,&y);
         if(click) {
             if(sNrPhase==0) {
                 s32 page=sNrCursor[sNrSide]/NR_PAGE;
                 for(i=0;i<NR_PAGE;i++) {f32 xx=NR_CX+(i%NR_COLS)*NR_DX,yy=NR_CY+(i/NR_COLS)*NR_DY;
-                    if(x>=Ps_X(xx)&&x<Ps_X(xx+37)&&y>=Ps_Y(yy)&&y<Ps_Y(yy+34)&&page*NR_PAGE+i<sNrCount){sNrCursor[sNrSide]=page*NR_PAGE+i;p|=PADG_CROSS;}}
+                    if(x>=Ps_X(xx)&&x<Ps_X(xx+37)&&y>=Ps_Y(yy)&&y<Ps_Y(yy+34)&&page*NR_PAGE+i<sNrCount){if(sNrCursor[sNrSide]!=page*NR_PAGE+i)sNrCostume[sNrSide]=0;sNrCursor[sNrSide]=page*NR_PAGE+i;p|=PADG_CROSS;}}
                 for(s=0;s<(kind==3?1:2);s++) for(i=0;i<sNr.count[s];i++) {f32 xx=(s?266:16)+i*23.0f;if(x>=Ps_X(xx)&&x<Ps_X(xx+21)&&y>=Ps_Y(207)&&y<Ps_Y(229)){sNrSide=s;sNrSlot[s]=i;Nr_List();}}
                 if(y>=Ps_Y(403)&&y<Ps_Y(427)) {if(x<Ps_X(230)) p|=PADG_CROSS;else p|=PADG_START;}
             } else if(sNrPhase==1) {
@@ -260,6 +263,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             if(p&PADG_TRIANGLE && kind!=3) {sNrSide^=1;Nr_List();Snd_PlaySe(1,0);}
             if(p&PADG_L2)sNrSlot[sNrSide]=Ps_Wrap(sNrSlot[sNrSide]-1,0,sNr.count[sNrSide]-1);
             if(p&PADG_R2)sNrSlot[sNrSide]=Ps_Wrap(sNrSlot[sNrSide]+1,0,sNr.count[sNrSide]-1);
+            if(p&(PADG_L2|PADG_R2)) {sNrCostume[sNrSide]=sNr.fighter[sNrSide][sNrSlot[sNrSide]].chara==Nr_Id()?sNr.fighter[sNrSide][sNrSlot[sNrSide]].costume:0;gTeamSel->side[sNrSide]->chara=-1;}
             id=Nr_Id();
             if((p&PADG_SQUARE)&&id>=0) {s32 c=sNrCostume[sNrSide],n;for(n=0;n<8;n++){c=(c+1)%8;if(Port_ExtraCostumeOk(id,c,why,sizeof(why)))break;}sNrCostume[sNrSide]=c;gTeamSel->side[sNrSide]->chara=-1;Snd_PlaySe(1,0);}
             if((p&PADG_L3)&&id>=0) {sNrFavorite[id]=Port_RosterFavorite(id,1);Snd_PlaySe(1,1);}

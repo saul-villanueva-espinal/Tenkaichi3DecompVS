@@ -2,6 +2,7 @@
 #define SYS_LOADING_H
 
 #include "types.h"
+#include "sys/load_sprite.h"
 
 /* Which of the three button-mashing loading screens is shown (LoadScreen.type; file id 0x3C1 + type). */
 #define LOAD_TYPE_0 0 /* two-frame animation; a 0..100 counter shown as rows of pips */
@@ -15,11 +16,6 @@
 #define LOAD_ITEM_COUNT 30
 #define LOAD_SPRITE_COUNT 16
 
-/* LoadSprite.flags */
-#define LOAD_SPR_DRAW 1   /* textured quad; 0 = skip this entry */
-#define LOAD_SPR_END 2    /* end of a sprite run */
-#define LOAD_SPR_CLEAR 5  /* full-screen quad in a flat colour (drawn with a NULL resource) */
-
 /* LoadScreen.flags */
 #define LOAD_FLAG_TAKEN 1   /* type 2: the current item was just collected */
 #define LOAD_FLAG_PRESSED 2 /* the button was pressed this frame */
@@ -27,24 +23,6 @@
 #define LOAD_BUTTON 0x200 /* bit of Pad.gamePressed that drives the animation */
 
 #define PROGRESS_FLAG_LOADING 0x4000 /* set in Progress.flags while Load_RunBlocking runs */
-
-/* One entry of the list drawn by Sprite_DrawList (0x38 bytes). */
-typedef struct LoadSprite {
-    /* 0x00 */ s32 flags; /* LOAD_SPR_* */
-    /* 0x04 */ s32 x0;
-    /* 0x08 */ s32 y0;
-    /* 0x0C */ s32 x1;
-    /* 0x10 */ s32 y1;
-    /* 0x14 */ s32 u0;
-    /* 0x18 */ s32 v0;
-    /* 0x1C */ s32 u1;
-    /* 0x20 */ s32 v1;
-    /* 0x24 */ s32 tex;   /* index of the 0x40-byte texture entry in the resource */
-    /* 0x28 */ s32 r;
-    /* 0x2C */ s32 g;
-    /* 0x30 */ s32 b;
-    /* 0x34 */ s32 a;
-} LoadSprite;
 
 /* Type 2: the words of one scattered item (LoadScreen.items[i]). */
 #define LOAD_ITEM_FLAGS 0 /* bit 0: already collected */

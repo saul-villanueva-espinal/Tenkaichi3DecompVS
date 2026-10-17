@@ -66,6 +66,13 @@ s32 Progress_Main(s32 arg) {
 
     Pad_SetRepeat(0x28, 3);
     if (gProgress->flags & MPROG_FIRST_RUN) {
+#ifdef PORT
+        extern int Port_RosterTestMode(void);
+        if(Port_RosterTestMode()) {
+            extern void FirstRun_WaitPartition(s32);
+            File_LoadPartitionNw(2);FirstRun_WaitPartition(2);
+        } else
+#endif
         FirstRun_Main();
         gProgress->flags &= ~MPROG_FIRST_RUN;
     }
