@@ -193,8 +193,6 @@ int Port_ModesChoose(int entry) {
         return 0;
     }
     if (mode == PORT_MODE_CHALLENGE) {
-        extern s32 gPortScreen;
-        gPortScreen = 3; /* PORT_SCREEN_CHALLENGE */
         sEntered = 80;   /* MPROG_MODE_PORT_SCREEN */
         return sEntered;
     }

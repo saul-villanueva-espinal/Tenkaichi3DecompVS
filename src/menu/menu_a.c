@@ -842,6 +842,8 @@ static s32 MainMenu_PortModes(void) {
             /* the training menu's note that it was left for the character select (MPTRAIN_SELECT,
                include/menu/menu_i.h): going back from the select, that menu opens as it does after its own entry */
             *(s32 *)((u8 *)gProgress + 0x7D4) |= 0x10;
+        } else if (next == 80) {
+            gPortScreen = PORT_SCREEN_CHALLENGE;
         }
         if (next > 0) {
             MAINMENU_CHOOSE(next);

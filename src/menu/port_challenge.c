@@ -30,6 +30,11 @@ extern int Port_RosterPointerRead(int *x, int *y);
 extern s32 Snd_PlaySe(s32 bank, s32 se);
 extern f32 cosf(f32 x);
 extern f32 sinf(f32 x);
+extern s32 ColorFade_IsOutDone(void);
+extern s32 ColorFade_IsInDone(void);
+extern s32 Port_NativeRosterPick(PcBattle *out, s32 kind, s32 dp);
+extern int Port_PcRosterQueue(const PcBattle *b);
+extern const char *Port_PcRosterName(int chara);
 
 #define CHALLENGE_TABS 3
 #define CHALLENGE_FLOORS 5
