@@ -2616,6 +2616,8 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
         }
     }
     SDL_UnlockSpinlock(&sFeatureLock);
+}
+
 // A line in the middle of the screen, the picture behind it dimmed, while the game's thread waits inside a blank
 // (the start of an online match, gs/net.c): drawn by the frames it shows meanwhile (Gs_HoldFrame). `ms` > 0: the
 // wait is over; the line stays that long more, over the game's own pictures and without the dimming. NULL: gone.
