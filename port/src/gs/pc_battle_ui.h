@@ -1,0 +1,86 @@
+/* Included by ui.cpp, on the render thread. Engine work is queued to the game
+   thread; the modern roster does not write into legacy menu/save structures. */
+#include "../../include/port_pc_battle.h"
+#include "../../include/port_coop.h"
+extern "C" volatile int gPortPcHubReady;
+static void pc_battle_ui(void) {
+    static PcBattle b;
+    static bool ready;
+    static int side, slot, port = 29740;
+    static char address[200] = "127.0.0.1", message[200];
+    static ImGuiTextFilter search;
+    const char *const modes[] = {"Duelo", "Entrenamiento", "Tag Team simultaneo", "Raid cooperativo", "Relevos 10 vs 10"};
+    const char *const costumes[] = {"Traje 1","Traje 2","Traje 3","Traje 4","Traje 5","Traje 6","Traje 7","Traje 8"};
+    if (!ready) { Port_PcBattleDefault(&b); ready = true; }
+    ImGui::SeparatorText("Plantilla y combates PC");
+    ImGui::Text("%d personajes/formas instalados / %d casillas", Port_PcRosterCount(), PORT_TOTAL_CHARAS);
+    ImGui::TextDisabled("Las casillas restantes se habilitan al instalar paquetes.");
+    if (ImGui::Combo("Modo", &b.mode, modes, PC_MODE_COUNT)) {
+        b.players = 1;
+        b.count[0] = b.mode == PC_RELAY ? 10 : 1;
+        b.count[1] = b.mode == PC_RELAY ? 10 : 1;
+        side = slot = 0;
+    }
+    int maxPlayers = b.mode == PC_TRAINING ? 1 : b.mode == PC_TAG || b.mode == PC_RAID ? 4 : 2;
+    ImGui::SliderInt("Jugadores", &b.players, 1, maxPlayers);
+    if (b.mode == PC_RAID && b.count[0] < b.players) b.count[0] = b.players;
+    ImGui::SliderInt("Escenario (ID)", &b.stage, 0, 34);
+    if (b.mode == PC_RELAY) ImGui::TextWrapped("Diez por equipo, por relevos. Puedes repetir personajes y elegir un traje por integrante.");
+    if (ImGui::BeginTable("pc_teams", 2, ImGuiTableFlags_Borders | ImGuiTableFlags_SizingStretchSame)) {
+        for (int s = 0; s < 2; s++) {
+            ImGui::TableNextColumn(); ImGui::PushID(s);
+            ImGui::TextUnformatted(b.mode == PC_RAID ? s ? "JEFE CPU" : "ALIADOS" : s ? "EQUIPO 2" : "EQUIPO 1");
+            int max = b.mode == PC_RELAY ? 10 : b.mode == PC_TAG ? 5 : b.mode == PC_RAID && !s ? 4 : 1;
+            if (max > 1) ImGui::SliderInt("Integrantes", &b.count[s], b.mode == PC_RAID && !s ? b.players : 1, max);
+            for (int i = 0; i < b.count[s]; i++) {
+                ImGui::PushID(i);
+                const char *name = Port_PcRosterName(b.fighter[s][i].chara);
+                char label[140]; snprintf(label, sizeof(label), "%02d  %s  [T%d]", i + 1, name && *name ? name : "Personaje", b.fighter[s][i].costume + 1);
+                if (ImGui::Selectable(label, side == s && slot == i)) { side = s; slot = i; }
+                ImGui::PopID();
+            }
+            ImGui::PopID();
+        }
+        ImGui::EndTable();
+    }
+    if (slot >= b.count[side]) slot = b.count[side] - 1;
+    ImGui::Text("Editando %s, integrante %d", side ? "equipo 2" : "equipo 1", slot + 1);
+    ImGui::Combo("Traje", &b.fighter[side][slot].costume, costumes, 8);
+    ImGui::TextDisabled("Cada traje necesita sus archivos; se comprueban antes de iniciar.");
+    search.Draw("Buscar personaje o forma");
+    ImGui::BeginChild("pc_roster", ImVec2(0, 190), ImGuiChildFlags_Borders);
+    for (int i = 0; i < Port_PcRosterCount(); i++) {
+        int c = Port_PcRosterId(i); const char *name = Port_PcRosterName(c);
+        char label[160]; snprintf(label, sizeof(label), "%03d  %s", c, name && *name ? name : "Personaje");
+        if (!search.PassFilter(label)) continue;
+        ImGui::PushID(c);
+        if (ImGui::Selectable(label, b.fighter[side][slot].chara == c)) {
+            b.fighter[side][slot].chara = c; b.fighter[side][slot].costume = 0;
+        }
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+    ImGui::BeginDisabled(!gPortPcHubReady || Port_NetActive() || Port_CoopEnabled());
+    if (ImGui::Button("Iniciar combate local")) {
+        if (!Port_PcBattleValidate(&b, message, sizeof(message))) {}
+        else if (Port_PcBattleRequest(&b)) snprintf(message, sizeof(message), "Combate preparado. Cierra F1 para jugar.");
+        else snprintf(message, sizeof(message), "Vuelve al menu principal para iniciar.");
+    }
+    if (b.mode == PC_RAID && b.players >= 2) {
+        ImGui::SeparatorText("Sala Raid online (UDP directo / LAN)");
+        ImGui::InputText("Direccion del anfitrion", address, sizeof(address));
+        ImGui::InputInt("Puerto", &port);
+        ImGui::TextWrapped("Cada jugador abre su juego. El anfitrion elige los aliados y el jefe; todos necesitan los mismos datos y paquetes. La sala inicia cuando se conectan los jugadores elegidos.");
+        if (ImGui::Button("Crear sala Raid")) {
+            if (!Port_CoopLaunch(1, address, port, &b)) snprintf(message, sizeof(message), "No se pudo crear la sala: revisa personajes, trajes y puerto.");
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Unirse a sala Raid")) {
+            if (!Port_CoopLaunch(0, address, port, &b)) snprintf(message, sizeof(message), "No se pudo iniciar la conexion.");
+        }
+    }
+    ImGui::EndDisabled();
+    if (!gPortPcHubReady) ImGui::TextDisabled("Abre este panel desde el menu principal para iniciar un combate.");
+    if (message[0]) ImGui::TextWrapped("%s", message);
+    ImGui::Spacing();
+}

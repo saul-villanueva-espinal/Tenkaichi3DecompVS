@@ -2,6 +2,10 @@
 #include "menu/menu_k.h"
 #include "sys/pad.h"
 #include "sys/save.h"
+#ifdef PORT
+static BrkCell sPortRosterGrid[PORT_CHARA_GRID_CAPACITY];
+extern void ChrGrid_BuildPort(s32 *, BrkCell *, s32 *, BrkCell *, s32 *, BrkCell *);
+#endif
 
 /*
  * Bracket, 0x364DA8..0x3660A0: the tournament bracket screen (progress mode 35), first source file: the screen's
@@ -32,9 +36,17 @@ void Bracket_Init(void) {
     McFlow_Init(1);
     McFlow_SetDoneCb(0, Bracket_OnSaveDone, 0);
     McFlow_SetDoneCb(1, Bracket_OnSaveDone, 0);
+#ifdef PORT
+    ChrGrid_BuildPort(&gBracket->gridOutCount, sPortRosterGrid, &gBracket->gridCount, gBracket->grid, NULL, NULL);
+#else
     ChrGrid_Build(&gBracket->gridOutCount, gBracket->gridBuf, &gBracket->gridCount, gBracket->grid, NULL, NULL);
+#endif
     gBracket->gridCount = gBracket->gridOutCount;
+#ifdef PORT
+    gBracket->grid = sPortRosterGrid;
+#else
     gBracket->grid = gBracket->gridBuf;
+#endif
     gBracket->imageFile[0] = Heap_Alloc(0x16800, 0x40, 0, 2);
     gBracket->imageFile[1] = Heap_Alloc(0x16800, 0x40, 0, 2);
     gBracket->imageRes[0] = Heap_Alloc(0x20800, 0x20, 0, 2);

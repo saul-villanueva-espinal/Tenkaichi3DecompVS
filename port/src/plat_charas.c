@@ -1717,3 +1717,38 @@ int Port_TestCellIs(int id) {
     }
     return id >= PORT_CHARA_FIRST && id < PORT_CHARA_FIRST + PORT_CHARA_MAX;
 }
+
+/* Co-op verifies the installed additions AND replacements. Paths and timestamps
+   are intentionally excluded; contents and resolved gameplay links are included. */
+static unsigned long long coop_bytes(unsigned long long h, const void *data, size_t n) {
+    const unsigned char *p = data;
+    while (n--) { h ^= *p++; h *= 1099511628211ull; }
+    return h;
+}
+static unsigned long long coop_file(unsigned long long h, const char *path) {
+    unsigned char buf[16384]; size_t n; FILE *f = path[0] ? fopen(path, "rb") : NULL;
+    unsigned char present = f != NULL;
+    h = coop_bytes(h, &present, 1);
+    if (!f) return h;
+    while ((n = fread(buf, 1, sizeof(buf), f)) != 0) h = coop_bytes(h, buf, n);
+    fclose(f); return h;
+}
+unsigned long long Port_CharacterFingerprint(void) {
+    unsigned long long h = 1469598103934665603ull;
+    int k, i, cst, side;
+    PortCharas_Init();
+    h = coop_bytes(h, &sCount, sizeof(sCount));
+    h = coop_bytes(h, &sReplCount, sizeof(sReplCount));
+    for (k = 0; k < sCount + sReplCount; k++) {
+        const Chara *c = k < sCount ? &sChara[k] : &sRepl[k - sCount];
+        h = coop_bytes(h, &c->base, sizeof(c->base));
+        h = coop_bytes(h, &c->costumes, sizeof(c->costumes));
+        h = coop_bytes(h, &c->replaces, sizeof(c->replaces));
+        h = coop_bytes(h, c->target, sizeof(c->target));
+        h = coop_bytes(h, c->stat, sizeof(c->stat));
+        for (i = 0; i < F_COUNT; i++) h = coop_file(h, c->file[i]);
+        h = coop_file(h, c->anm_shared); h = coop_file(h, c->eff_shared);
+        for (cst = 0; cst < 8; cst++) for (side = 0; side < 2; side++) h = coop_file(h, c->member[cst][side]);
+    }
+    return h;
+}

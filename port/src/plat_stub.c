@@ -348,6 +348,7 @@ void Port_VBlank(void) {
     {
         extern void Port_NetBeginTick(unsigned tick); /* gs/net.c: online play */
         Port_NetBeginTick(gPortVBlanks);
+        { extern void Port_CoopBeginTick(unsigned tick); Port_CoopBeginTick(gPortVBlanks); }
     }
     {
         extern void Port_SyncTest(unsigned vblank); /* gs/state.c: BT3_SYNCTEST */
@@ -406,6 +407,15 @@ int scePad2Read(int socket, unsigned char *data) {
     if (socket == 0) {
         late_wait();
         Port_LagMark('R');
+    }
+    {
+        extern int Port_CoopEnabled(void);
+        extern void Port_CoopInput(int, unsigned char *);
+        if (Port_CoopEnabled()) {
+            Port_CoopInput(socket, data);
+            if (socket >= 0 && socket < 4) memcpy(sPadLast[socket], data, 18);
+            return 18;
+        }
     }
     if (Port_NetActive()) {
         Port_NetInput(socket, data); /* both pads come from the exchange with the other player */

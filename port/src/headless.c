@@ -124,6 +124,20 @@ int __wrap_Progress_Main(int arg) {
         Port_VerifyStart();
     }
     port_stage_replace_init();
+    {
+        extern int Port_CoopEnabled(void), Port_PcBattleBuild(void);
+        if (Port_CoopEnabled()) {
+            /* Fresh process, fixed rules, fresh RNG on every peer. */
+            extern void Port_Srand(unsigned);
+            extern void Rand_Seed(unsigned);
+            extern void Save_UnlockAll(void *);
+            Port_Srand(0x42543343u); Rand_Seed(0x42543343u);
+            Save_UnlockAll(gSaveData);
+            if (!Port_PcBattleBuild()) exit(2);
+            sFromMenu = 1;
+            return 0;
+        }
+    }
     path = getenv("BT3_REPLAY");
 
     if (path == NULL && getenv("BT3_DEMO") == NULL) {

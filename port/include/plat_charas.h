@@ -3,17 +3,10 @@
 #ifndef PORT_PLAT_CHARAS_H
 #define PORT_PLAT_CHARAS_H
 
-#define PORT_CHARA_FIRST 0xC6 /* the same numbers as include/port_chara.h */
-#define PORT_CHARA_MAX 129
-#define PORT_TOTAL_CHARAS 290
-#define PORT_CHARA_ID_LIMIT (PORT_CHARA_FIRST + PORT_CHARA_MAX)
-#define PORT_CHARA_GRID_CAPACITY (((PORT_TOTAL_CHARAS + 2 + 6) / 7) * 7)
+#include "port_limits.h"
+
 #define PORT_FILES_PER_CHARA 34
 
-#define PORT_CHARA_FILE_INDEX 80000
-#define PORT_CHARA_LINE_INDEX 95000
-#define PORT_CHARA_FACE_INDEX 155000
-#define PORT_CHARA_MEMBER_INDEX 160000
 
 #define PORT_MODEL_MAX 0x180000 /* the largest model file taken (the original's buffer is 0xCE000) */
 

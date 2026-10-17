@@ -1,6 +1,10 @@
 #include "common.h"
 #include "menu/menu_l.h"
 #include "sys/pad.h"
+#ifdef PORT
+static LChrCell sPortRosterGrid[PORT_CHARA_GRID_CAPACITY];
+extern void ChrGrid_BuildPort(s32 *, LChrCell *, s32 *, LChrCell *, s32 *, LChrCell *);
+#endif
 
 /*
  * SoloSel, 0x36B3E0..0x36E028: the one-character select of the modes 13..30 group (archive gMenuArc3; run for
@@ -231,9 +235,17 @@ void SoloSel_Init(s32 section) {
 #endif
     gSoloSel->grid = ((LChrGridList *)MPACK_AT(gSoloSel->res, 30))->cell;
     gSoloSel->gridCount = gSoloSel->res[gSoloSel->res[30] >> 2];
+#ifdef PORT
+    ChrGrid_BuildPort(&gSoloSel->gridOutCount, sPortRosterGrid, &gSoloSel->gridCount, gSoloSel->grid, NULL, NULL);
+#else
     ChrGrid_Build(&gSoloSel->gridOutCount, gSoloSel->gridBuf, &gSoloSel->gridCount, gSoloSel->grid, NULL, NULL);
+#endif
     gSoloSel->gridCount = gSoloSel->gridOutCount;
+#ifdef PORT
+    gSoloSel->grid = sPortRosterGrid;
+#else
     gSoloSel->grid = gSoloSel->gridBuf;
+#endif
     {
         s32 cols = SOLOSEL_COLS;
         s32 cols2 = SOLOSEL_COLS;
@@ -600,9 +612,9 @@ void SoloSel_Input(s32 *result) {
             }
         } else if (gPad[0].gamePressed & 2) {
             /* look at the items of the set */
-            if (SS_CUR.custom > 0) {
+            if (SS_CUR.custom > 0 && PORT_SAVE_CELL(PORT_GRID_SAVE_INDEX(gSoloSel->sel->image, SS_CUR.col + SS_CUR.row * SOLOSEL_COLS))) {
                 SoloSel_ClipGoto(2, 2, "fl_ok");
-                ItemPanel_SetChara(0, gSoloSel->sel->image, SS_CUR.col + SS_CUR.row * SOLOSEL_COLS, SS_CUR.custom - 1,
+                ItemPanel_SetChara(0, gSoloSel->sel->image, PORT_GRID_SAVE_INDEX(gSoloSel->sel->image, SS_CUR.col + SS_CUR.row * SOLOSEL_COLS), SS_CUR.custom - 1,
                                    0);
                 ItemPanel_Show(0);
                 gSoloSel->sel->flags |= SOLOSEL_SEL_PANEL;
@@ -677,16 +689,16 @@ void SoloSel_Input(s32 *result) {
             SoloSel_ClipGoto(2, 2, "fl_off_start");
             if (gSoloSel->sel->flags & SOLOSEL_SEL_FORM) {
                 SS_CUR.chara = gSoloSel->sel->rowChara[SS_CUR.form];
-                if (SS_CUR.custom != 0) {
-                    SS_CUR.items = LSAVE->custom[SS_CUR.col + SS_CUR.row * SOLOSEL_COLS].set[SS_CUR.custom - 1];
+                if (SS_CUR.custom != 0 && PORT_SAVE_CELL(PORT_GRID_SAVE_INDEX(SS_CUR.chara, SS_CUR.col + SS_CUR.row * SOLOSEL_COLS))) {
+                    SS_CUR.items = LSAVE->custom[PORT_GRID_SAVE_INDEX(SS_CUR.chara, SS_CUR.col + SS_CUR.row * SOLOSEL_COLS)].set[SS_CUR.custom - 1];
                 } else {
                     memset(&SS_CUR.items, 0, sizeof(LItemSet));
                 }
                 SoloSel_ClipGoto(1, 1, "fl_off_start");
             } else {
                 SS_CUR.chara = gSoloSel->sel->rowChara[SS_CUR.col];
-                if (SS_CUR.custom != 0) {
-                    SS_CUR.items = LSAVE->custom[SS_CUR.col + SS_CUR.row * SOLOSEL_COLS].set[SS_CUR.custom - 1];
+                if (SS_CUR.custom != 0 && PORT_SAVE_CELL(PORT_GRID_SAVE_INDEX(SS_CUR.chara, SS_CUR.col + SS_CUR.row * SOLOSEL_COLS))) {
+                    SS_CUR.items = LSAVE->custom[PORT_GRID_SAVE_INDEX(SS_CUR.chara, SS_CUR.col + SS_CUR.row * SOLOSEL_COLS)].set[SS_CUR.custom - 1];
                 } else {
                     memset(&SS_CUR.items, 0, sizeof(LItemSet));
                 }

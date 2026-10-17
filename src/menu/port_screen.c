@@ -591,6 +591,11 @@ s32 PortScreen_Main(void) {
         gMenuArc5 = File_LoadSync(gProgress->baseFile, NULL, 0);
     }
     switch (screen) {
+    case PORT_SCREEN_PC_BATTLE: {
+        extern int Port_PcBattleBuild(void);
+        result = Port_PcBattleBuild();
+        break;
+    }
     case PORT_SCREEN_TBO:
         Bgm_Play(0x10B16 + 2);
         result = PortTbo_Run();

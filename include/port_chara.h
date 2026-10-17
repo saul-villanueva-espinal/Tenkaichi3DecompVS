@@ -1,6 +1,8 @@
 #ifndef PORT_CHARA_H
 #define PORT_CHARA_H
 
+#include "../port/include/port_limits.h"
+
 /* PC build: characters added from outside the disc (port/src/plat_charas.c).
  *
  * The disc has 161 characters, ids 0x00..0xA0, and the menus use 0xA1..0xA4 as markers (random, locked, custom,
@@ -21,18 +23,9 @@
 /* The range: 0xC6..0x146, 129 added characters (total 290 playable characters).
    Supports 8 costumes per character, each with its own independent animations (fa),
    effects/techniques (kze), portrait, and member HUD blocks. */
-#define PORT_CHARA_FIRST 0xC6
-#define PORT_CHARA_MAX 129
-#define PORT_TOTAL_CHARAS 290
-#define PORT_CHARA_ID_LIMIT (PORT_CHARA_FIRST + PORT_CHARA_MAX)
 /* 290 character cells plus Random/Custom, rounded to complete rows of seven. */
-#define PORT_CHARA_GRID_CAPACITY (((PORT_TOTAL_CHARAS + 2 + 6) / 7) * 7)
 #define PORT_FILES_PER_CHARA 34
 
-#define PORT_CHARA_FILE_INDEX 80000
-#define PORT_CHARA_LINE_INDEX 95000
-#define PORT_CHARA_FACE_INDEX 155000
-#define PORT_CHARA_MEMBER_INDEX 160000
 
 #define PORT_CHARA_FILE0 (0xD48 + PORT_CHARA_FILE_INDEX)
 #define PORT_CHARA_LINE0 (0xD48 + PORT_CHARA_LINE_INDEX)

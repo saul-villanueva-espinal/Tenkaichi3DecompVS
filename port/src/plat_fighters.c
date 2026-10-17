@@ -175,6 +175,10 @@ static int chara_files_ok(int chara, int costume, char *why, int size) {
     return 1;
 }
 
+int Port_ExtraCostumeOk(int chara, int costume, char *why, int size) {
+    return chara_files_ok(chara, costume, why, size);
+}
+
 int Port_ExtraCharaOk(int chara, char *why, int size) {
     return chara_files_ok(chara, 0, why, size);
 }

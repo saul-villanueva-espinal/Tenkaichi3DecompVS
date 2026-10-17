@@ -1557,6 +1557,9 @@ s32 BtlChars_CheckStart(void) {
 
 /* Phase 3: frame counter, round reset, hit-stop, then input and per-frame clears for every fighter. */
 void BtlChars_UpdateInput(void) {
+#ifdef PORT
+    { extern void Port_PcRelayTick(void); Port_PcRelayTick(); }
+#endif
     s32 i;
 
     if (Battle_GetWork()->flags & BATTLE_FLAG_PAUSE) {

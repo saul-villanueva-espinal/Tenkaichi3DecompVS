@@ -3,6 +3,10 @@
 #include "menu/menu_j.h"
 #include "sys/pad.h"
 #include "sys/save.h"
+#ifdef PORT
+static ESelCell sPortRosterGrid[PORT_CHARA_GRID_CAPACITY];
+extern void ChrGrid_BuildPort(s32 *, ESelCell *, s32 *, ESelCell *, s32 *, ESelCell *);
+#endif
 
 ESel *gEntrySel = NULL; /* 0x3B5910 */
 
@@ -283,9 +287,17 @@ void EntrySel_Init(s32 section) {
 #endif
     gEntrySel->grid = ((ESelGridList *)MPACK_AT(gEntrySel->res, 29))->cell;
     gEntrySel->gridCount = gEntrySel->res[gEntrySel->res[29] >> 2];
+#ifdef PORT
+    ChrGrid_BuildPort(&gEntrySel->gridOutCount, sPortRosterGrid, &gEntrySel->gridCount, gEntrySel->grid, NULL, NULL);
+#else
     ChrGrid_Build(&gEntrySel->gridOutCount, gEntrySel->gridBuf, &gEntrySel->gridCount, gEntrySel->grid, NULL, NULL);
+#endif
     gEntrySel->gridCount = gEntrySel->gridOutCount;
+#ifdef PORT
+    gEntrySel->grid = sPortRosterGrid;
+#else
     gEntrySel->grid = gEntrySel->gridBuf;
+#endif
     {
         s32 cols = ESEL_COLS;
         s32 cols2 = ESEL_COLS;

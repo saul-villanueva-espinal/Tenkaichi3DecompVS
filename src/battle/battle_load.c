@@ -1823,6 +1823,9 @@ void BattleSetup_DefaultOptions(void) {
 
 /* Zeroes the setup and writes its magic "btls" and version 7. */
 void BattleSetup_Clear(void) {
+#ifdef PORT
+    { extern void Port_PcRelayStop(void); Port_PcRelayStop(); }
+#endif
     memset(SETUP(), 0, sizeof(BattleSetup));
     SETUP()->magic[0] = 'b';
     SETUP()->magic[1] = 't';

@@ -1648,7 +1648,10 @@ static void chara_label(char *out, size_t size, int chara) {
     }
 }
 
+#include "pc_battle_ui.h"
+
 static void experiments_tab(void) {
+    pc_battle_ui();
     static const char *const kTeams[] = {"Equipo 1 (Jugador 1)", "Equipo 2 (Jugador 2)", "Por su cuenta (Contra todos)"};
     static const char *const kLast[] = {NULL,
                                         "El Ãºltimo combate tuvo el tercer luchador activo.",
@@ -2023,7 +2026,7 @@ static void build(void) {
         open = false;
     }
     if (sForceTab < 0 && (pad_pressed(ImGuiKey_GamepadL1) || pad_pressed(ImGuiKey_GamepadR1))) {
-        sForceTab = (sTab + (ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false) ? 7 : 1)) % 8;
+        sForceTab = (sTab + (ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false) ? 8 : 1)) % 9;
         sPadTab = true;
     }
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
@@ -2407,7 +2410,7 @@ static const char *sPhotoToast = "";
 
 extern "C" void Port_TogglePhotoMode(void) {
     SDL_LockSpinlock(&sFeatureLock);
-    if (!sBattleActive || Port_NetSession() || Port_NetActive()) {
+    if (!sBattleActive || Port_NetSession() || Port_NetActive() || Port_CoopEnabled()) {
         SDL_UnlockSpinlock(&sFeatureLock);
         return;
     }

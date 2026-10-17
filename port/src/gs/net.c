@@ -1318,7 +1318,10 @@ static void relaunch(int role, const char *join, int port) {
         remove("net_session/card1/BASLUS-21678DBZT3/icon.sys");
         remove("net_session/card1/BASLUS-21678DBZT3/dbzsm.ico");
     } else {
-        SETENV("BT3_SAVES", NULL); /* (a save folder named on the command line is not carried over a session: known) */
+        extern int Port_CoopEnabled(void);
+        SETENV("BT3_SETTINGS", Port_CoopEnabled() ? "coop_session/settings.txt" : NULL);
+        SETENV("BT3_VERIFY", Port_CoopEnabled() ? "0" : NULL);
+        SETENV("BT3_SAVES", Port_CoopEnabled() ? "coop_session" : NULL); /* (a save folder named on the command line is not carried over a session: known) */
         SETENV("BT3_NOMOVIE", "1");
     }
     fflush(NULL);
@@ -1349,6 +1352,8 @@ static void relaunch(int role, const char *join, int port) {
 }
 
 /* 1 in a session started from Dragon Net Battle. */
+void Port_CoopRelaunch(void) { relaunch(0, NULL, 0); }
+
 int Port_NetSession(void) {
     return Port_NetActive() && sSession;
 }

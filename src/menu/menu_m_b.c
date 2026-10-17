@@ -2,6 +2,10 @@
 #include "menu/menu_m.h"
 #include "sys/pad.h"
 #include "sys/save.h"
+#ifdef PORT
+static UbCell sPortRosterGrid[PORT_CHARA_GRID_CAPACITY];
+extern void ChrGrid_BuildPort(s32 *, UbCell *, s32 *, UbCell *, s32 *, UbCell *);
+#endif
 
 /*
  * UbTeamSel, 0x36E028..0x372148: the team select of the mode group 13..30 (run for mode 15 when
@@ -391,9 +395,17 @@ void UbTeamSel_Init(s32 section) {
 #endif
     gUbTeamSel->grid = (UbCell *)(MPACK_AT(gUbTeamSel->res, 30) + 0x10);
     gUbTeamSel->gridCount = gUbTeamSel->res[gUbTeamSel->res[30] >> 2];
+#ifdef PORT
+    ChrGrid_BuildPort(&gUbTeamSel->gridOutCount, sPortRosterGrid, &gUbTeamSel->gridCount, gUbTeamSel->grid, NULL, NULL);
+#else
     ChrGrid_Build(&gUbTeamSel->gridOutCount, gUbTeamSel->gridBuf, &gUbTeamSel->gridCount, gUbTeamSel->grid, NULL, NULL);
+#endif
     gUbTeamSel->gridCount = gUbTeamSel->gridOutCount;
+#ifdef PORT
+    gUbTeamSel->grid = sPortRosterGrid;
+#else
     gUbTeamSel->grid = gUbTeamSel->gridBuf;
+#endif
     {
         s32 cols = UB_COLS;
         s32 cols2 = UB_COLS;
@@ -878,9 +890,9 @@ void UbTeamSel_Input(s32 *result) {
             }
         } else if (gPad[0].gamePressed & 2) {
             /* look at the items of the set */
-            if (UT_CUR.plate > 0) {
+            if (UT_CUR.plate > 0 && PORT_SAVE_CELL(PORT_GRID_SAVE_INDEX(gUbTeamSel->sel->chara, UT_CUR.col + UT_CUR.row * UB_COLS))) {
                 UbTeamSel_ClipGoto(3, UBTEAM_CLIP_PLATE, "fl_ok");
-                ItemPanel_SetChara(0, gUbTeamSel->sel->chara, UT_CUR.col + UT_CUR.row * UB_COLS, UT_CUR.plate - 1, 0);
+                ItemPanel_SetChara(0, gUbTeamSel->sel->chara, PORT_GRID_SAVE_INDEX(gUbTeamSel->sel->chara, UT_CUR.col + UT_CUR.row * UB_COLS), UT_CUR.plate - 1, 0);
                 ItemPanel_Show(0);
                 gUbTeamSel->sel->flags |= UBTEAM_SEL_PANEL;
                 gUbTeamSel->sel->step = UBTEAM_STEP_PANEL;
@@ -953,16 +965,16 @@ void UbTeamSel_Input(s32 *result) {
             UbTeamSel_ClipGoto(3, UBTEAM_CLIP_PLATE, "fl_off_start");
             if (gUbTeamSel->sel->flags & UBTEAM_SEL_FORM) {
                 UT_CUR.chara = gUbTeamSel->sel->chip[0][UT_CUR.form];
-                if (UT_CUR.plate != 0) {
-                    UT_CUR.items = UB_SAVE->custom[UT_CUR.col + UT_CUR.row * UB_COLS].set[UT_CUR.plate - 1];
+                if (UT_CUR.plate != 0 && PORT_SAVE_CELL(PORT_GRID_SAVE_INDEX(UT_CUR.chara, UT_CUR.col + UT_CUR.row * UB_COLS))) {
+                    UT_CUR.items = UB_SAVE->custom[PORT_GRID_SAVE_INDEX(UT_CUR.chara, UT_CUR.col + UT_CUR.row * UB_COLS)].set[UT_CUR.plate - 1];
                 } else {
                     memset(&UT_CUR.items, 0, sizeof(UbItemSet));
                 }
                 UbTeamSel_ClipGoto(2, UBTEAM_CLIP_FORM_CHIP, "fl_off_start");
             } else {
                 UT_CUR.chara = gUbTeamSel->sel->chip[0][UT_CUR.col];
-                if (UT_CUR.plate != 0) {
-                    UT_CUR.items = UB_SAVE->custom[UT_CUR.col + UT_CUR.row * UB_COLS].set[UT_CUR.plate - 1];
+                if (UT_CUR.plate != 0 && PORT_SAVE_CELL(PORT_GRID_SAVE_INDEX(UT_CUR.chara, UT_CUR.col + UT_CUR.row * UB_COLS))) {
+                    UT_CUR.items = UB_SAVE->custom[PORT_GRID_SAVE_INDEX(UT_CUR.chara, UT_CUR.col + UT_CUR.row * UB_COLS)].set[UT_CUR.plate - 1];
                 } else {
                     memset(&UT_CUR.items, 0, sizeof(UbItemSet));
                 }

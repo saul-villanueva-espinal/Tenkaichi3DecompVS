@@ -859,6 +859,9 @@ s32 MainMenu_Run(s32 section) {
     }
 #endif
     MainMenu_Init(section);
+#ifdef PORT
+    { extern volatile int gPortPcHubReady; gPortPcHubReady = 1; }
+#endif
     ColorFade_StartIn(0, 0, 0, 0x14);
     while (1) {
         Gfx_BeginFrame();
@@ -873,6 +876,17 @@ s32 MainMenu_Run(s32 section) {
         Gfx_EndFrame(1);
         Dma_Flush();
         File_Stub264D90();
+#ifdef PORT
+        {
+            extern int Port_PcBattlePending(void);
+            if (Port_PcBattlePending()) {
+                gPortScreen = PORT_SCREEN_PC_BATTLE;
+                gProgress->mode = MPROG_MODE_PORT_SCREEN;
+                result = 1;
+                break;
+            }
+        }
+#endif
         if (gProgress->flags & MPROG_FREEZE) {
             continue;
         }
@@ -920,6 +934,9 @@ s32 MainMenu_Run(s32 section) {
     sPortModes = 0;
 #endif
     MainMenu_Term();
+#ifdef PORT
+    { extern volatile int gPortPcHubReady; gPortPcHubReady = 0; }
+#endif
     Dma_ResetBuffers();
     return result;
 }

@@ -9,6 +9,7 @@
 
 enum {
     PORT_SCREEN_NONE,
+    PORT_SCREEN_PC_BATTLE,
     PORT_SCREEN_TBO, /* Tenkaichi Budokai Online (menu/port_tbo.c) */
 };
 
