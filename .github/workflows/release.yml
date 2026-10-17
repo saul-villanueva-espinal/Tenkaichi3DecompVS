@@ -72,3 +72,15 @@ jobs:
         run: |
           gh release create "${GITHUB_REF_NAME}" --draft --title "${GITHUB_REF_NAME}" --generate-notes \
             port/build/Tenkaichi3Decomp-linux-x64.zip port/build/Tenkaichi3Decomp-windows-x64.zip
+
+  test-windows-coop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: msys2/setup-msys2@v2
+        with:
+          msystem: UCRT64
+          install: mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-python
+      - name: Test four native Windows UDP peers
+        shell: msys2 {0}
+        run: python port/tests/run_coop_test.py

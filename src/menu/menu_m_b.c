@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include "port_pc_battle.h"
+#endif
 #include "menu/menu_m.h"
 #include "sys/pad.h"
 #include "sys/save.h"
@@ -48,6 +51,9 @@ s32 UbTeamSel_IsCharaFree(s32 chara) {
     s32 ok = 1;
     s32 i;
 
+#ifdef PORT
+    { extern int Port_TeamDuplicatesAllowed(void); if (Port_TeamDuplicatesAllowed()) return 1; }
+#endif
     for (i = 0; i < gUbTeamSel->sel->memberCount; i++) {
         if (i != gUbTeamSel->sel->cur) {
             if (ChrTbl_IsRelated(chara, gUbTeamSel->sel->team.member[i].chara)) {
@@ -261,7 +267,9 @@ void UbTeamSel_ClipGoto(s32 movie, s32 kind, char *label) {
 /* Loads and unpacks the screen (section `section` of archive 3), builds its four movies and the grid. */
 void UbTeamSel_Init(s32 section) {
 #ifdef PORT
-    { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 1; }
+    { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 0; }
+    { extern volatile int gPortPcTeamDp; gPortPcTeamDp = 0; }
+    { PcBattle discard; Port_PcTeamsTake(&discard); }
 #endif
     MTexRes *res = NULL;
     s32 i;
@@ -453,12 +461,17 @@ void UbTeamSel_Init(s32 section) {
     TextBox_SetUnk80(&gUbTeamSel->box[0], 1);
     TextBox_Init(&gUbTeamSel->box[1], gUbTeamSel->formText, 3);
     TextBox_SetUnk80(&gUbTeamSel->box[1], 1);
+#ifdef PORT
+    { extern volatile int gPortPcTeamDp; gPortPcTeamDp = gUbTeamSel->flags & UBSEL_DP ? gUbTeamSel->dpMax : 0; }
+    { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 1; }
+#endif
 }
 
 /* Frees the screen: the windows, the movies, the portrait buffers and the work area. */
 void UbTeamSel_Term(void) {
 #ifdef PORT
     { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 0; }
+    { extern volatile int gPortPcTeamDp; gPortPcTeamDp = 0; }
 #endif
     s32 i;
 

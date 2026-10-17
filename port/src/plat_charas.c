@@ -82,7 +82,7 @@ typedef struct {
     int pkg;                   /* its entry in sPkg, or -1 */
 } Chara;
 
-enum { CHIP_SIZE = 5504, NAME_ENTRY = 128, NAME_LINES_MAX = 256, PKG_MAX = 320, TEXT_MAX = 16384 };
+enum { CHIP_SIZE = 5504, NAME_ENTRY = 128, NAME_LINES_MAX = 256, PKG_MAX = PORT_TOTAL_CHARAS * 2 + 32, TEXT_MAX = 16384 };
 /* (static: the program lies below 4 GB, where the game's 32-bit pointers reach) */
 static unsigned char sChip[PORT_CHARA_MAX][CHIP_SIZE] __attribute__((aligned(64)));
 static unsigned char sChipHave[PORT_CHARA_MAX];

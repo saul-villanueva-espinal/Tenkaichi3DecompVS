@@ -19,6 +19,9 @@ with tempfile.TemporaryDirectory() as tmp:
     c.write_text(fixture.replace('/* IMPLEMENTATION */', implementation))
     subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-Iinclude', str(c), '-o', str(exe)], cwd=root, check=True)
     subprocess.run([str(exe)], cwd=root, check=True)
+    # The roster can be increased at one build setting without overlapping file namespaces.
+    subprocess.run(['cc', '-std=c11', '-Wall', '-Wextra', '-DPORT_TOTAL_CHARAS=512', '-Iinclude', str(c), '-o', str(exe)], cwd=root, check=True)
+    subprocess.run([str(exe)], cwd=root, check=True)
     selection = (root / 'src/menu/menu_e_b.c').read_text()
     start = selection.index('s32 TeamSel_IsCharaFree(')
     end = selection.index('\n}', start) + 2

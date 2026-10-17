@@ -40,6 +40,9 @@ int main(void) {
     ChrGridCell input[97], custom[14];
     int customCount;
     int count, n, i, k;
+    assert(PORT_CHARA_FILE_INDEX + PORT_CHARA_ID_LIMIT * PORT_FILES_PER_CHARA <= PORT_CHARA_LINE_INDEX);
+    assert(PORT_CHARA_LINE_INDEX + PORT_CHARA_MAX * 200 <= PORT_CHARA_FACE_INDEX);
+    assert(PORT_CHARA_FACE_INDEX + PORT_CHARA_ID_LIMIT * 8 <= PORT_CHARA_MEMBER_INDEX);
     progress.mode = 40;
     for (i = 0; i < SAVE_REC_COUNT; i++) save.rec[i].chara = -1;
     memset(input, 0, sizeof(input));
@@ -56,7 +59,7 @@ int main(void) {
     n = 97;
     large.guard = 0x1234abcd;
     ChrGrid_BuildPort(&count, large.cells, &n, input, &customCount, custom);
-    assert(count == 294); /* 161 originals + 129 packages + two specials, padded */
+    assert(count == PORT_CHARA_GRID_CAPACITY); /* 161 originals + 129 packages + two specials, padded */
     assert(large.guard == 0x1234abcd);
     assert(customCount == 1 && custom[0].id == 2 && custom[0].formCount == 0);
     for (k = 0; k < 161; k++) {
@@ -95,6 +98,6 @@ int main(void) {
     installed = 8;
     ChrGrid_BuildPort(&count, large.cells, &n, input, NULL, NULL);
     assert(count == 175 && large.guard == 0x1234abcd);
-    puts("grid_test: 290 independent characters/forms fit; saved sets, grouped legacy/online, sparse packages and bounds pass");
+    printf("grid_test: %d independent characters/forms fit; saved sets, grouped legacy/online, sparse packages and bounds pass\n", PORT_TOTAL_CHARAS);
     return 0;
 }

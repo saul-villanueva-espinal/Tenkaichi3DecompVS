@@ -12,7 +12,7 @@ typedef struct { int active,memberCount; BtlMember members[5]; } BtlMemberChr;
 typedef struct { int chara,costume,variant,cpuLevel;float health;int bonus[8],ability[4],aiType; } BattleMember;
 typedef BattleMember BtlMemberSetup;
 static PcBattle sBattle;
-static int sRelay,sNext[2],sRemaining[2],loaded[2];
+static int sRelay,sNext[2],sRemaining[2],loaded[2],sLevel[2]={13,13};
 static BtlMemberChr fighters[2];
 static BattleMember setup[2][5];
 BtlMemberChr *BtlChar_FindByObjId(int s) { return &fighters[s]; }
@@ -23,6 +23,7 @@ void BtlMember_LoadParams(BtlMemberChr *c,int n,int init,float pct,int variant) 
 void BtlMember_Init(BattleMember *m,int chara,int costume,int variant,int level,float hp,void *items) {
     (void)items;memset(m,0,sizeof(*m));m->chara=chara;m->costume=costume;m->variant=variant;m->cpuLevel=level;m->health=hp;
 }
+int Port_PcTestHealth(void) { return 100; }
 void Port_PcRelayLog(int s,int entered,int chara) { (void)entered;(void)chara;loaded[s]++; }
 /* IMPLEMENTATION */
 int main(void) {

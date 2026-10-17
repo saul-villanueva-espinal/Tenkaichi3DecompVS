@@ -190,7 +190,7 @@ int Port_CoopConfig(PcBattle *out) {
     memset(sTag,255,sizeof(sTag));memset(sHashTick,255,sizeof(sHashTick));
     for(i=0;i<sPlayers;i++) { int t;for(t=0;t<CDELAY;t++) {memcpy(sInput[i][t],kIdle,CPAD);sTag[i][t]=(uint32_t)t;} }
     sStartTick=UINT32_MAX;sSampled=UINT32_MAX;sReady=1;*out=sBattle;
-    fprintf(stderr,"bt3: coop: conectado jugador %d/%d, cuatro entradas sincronizadas sin prediccion\n",sMe+1,sPlayers);
+    fprintf(stderr,"bt3: coop: conectado jugador %d/%d, entradas sincronizadas sin prediccion\n",sMe+1,sPlayers);
     return 1;
 }
 static uint64_t digest(void) {
@@ -205,7 +205,10 @@ static uint64_t digest(void) {
 static void inputs(int source,int dest) {
     unsigned char p[1400];unsigned n=0,k,t,last=sTick+CDELAY;
     header(p,C_INPUT,source);
-    if(sHashTick[sTick%CRING]==sTick) {put32(p+32,sTick);put64(p+36,sHashes[sTick%CRING]);}
+    {
+        unsigned checked = sTick / 60 * 60;
+        if(sHashTick[checked%CRING]==checked) {put32(p+32,checked);put64(p+36,sHashes[checked%CRING]);}
+    }
     for(k=0;k<CREDUNDANT && k<=last;k++) {
         t=last-k;if(sTag[source][t%CRING]!=t) continue;
         put32(p+CHEAD+n*22,t);memcpy(p+CHEAD+n*22+4,sInput[source][t%CRING],CPAD);n++;
@@ -258,7 +261,7 @@ void Port_CoopBeginTick(unsigned tick) {
         if(!all) pause_ms();
     } while(!all);
     if(sHost) for(i=1;i<sPlayers;i++) for(j=0;j<sPlayers;j++) if(i!=j) inputs(j,i);
-    if(sTick%120==0) fprintf(stderr,"bt3: coop: frame %u, %d/%d entradas confirmadas\n",sTick,sPlayers,sPlayers);
+    if(sTick%120==0) fprintf(stderr,"bt3: coop: frame %u, %d/%d entradas confirmadas, HP %d/%d\n",sTick,sPlayers,sPlayers,BtlCharApi_GetHp(0),BtlCharApi_GetHp(1));
 }
 void Port_CoopInput(int player,unsigned char *data) {
     memcpy(data,sReady&&player>=0&&player<sPlayers&&sTag[player][sTick%CRING]==sTick?sInput[player][sTick%CRING]:kIdle,CPAD);

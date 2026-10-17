@@ -70,7 +70,7 @@ static int by_ticks(void) {
     if (on < 0) {
         on = getenv("BT3_SYNCTEST") != NULL || getenv("BT3_SOUND_TICKS") != NULL;
     }
-    return on || Port_NetSession();
+    { extern int Port_CoopEnabled(void); return on || Port_NetSession() || Port_CoopEnabled(); }
 }
 
 /* The length of an ADX file in vertical blanks (59.94 a second), -1 if it loops, 0 if it cannot be read. */

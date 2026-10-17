@@ -20,6 +20,7 @@ int Port_ExtraCostumeOk(int c,int costume,char *why,int size) { (void)c;(void)co
 int Port_NetActive(void) { return 0; }
 int Port_NetSession(void) { return 0; }
 int Port_ModesFight(void) { return 0; }
+int ChrTbl_GetCost(int chara) { (void)chara;return 2; }
 void Port_CoopRelaunch(void) { abort(); }
 int main(void) {
     PcBattle b;unsigned char pad[18];int p;

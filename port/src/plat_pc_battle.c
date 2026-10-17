@@ -12,6 +12,8 @@ static PcBattle sPending;
 static int sRequested;
 volatile int gPortPcHubReady;
 volatile int gPortPcTeamReady;
+volatile int gPortPcTeamDp;
+extern int ChrTbl_GetCost(int chara);
 static PcBattle sTeams;
 static int sTeamsPending;
 void Port_PcBattleDefault(PcBattle *b) {
@@ -46,6 +48,7 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
             if (!Port_ExtraCostumeOk(f->chara, f->costume, why, size)) return 0;
         }
     }
+    if (!error && b->mode == PC_TAG && (b->count[0] < (b->players >= 3 ? 2 : 1) || b->count[1] < (b->players >= 4 ? 2 : 1))) error = "Selecciona un integrante para cada mando";
     if (!error && b->mode == PC_RAID && b->count[0] < b->players) error = "Selecciona un aliado por jugador";
     if (why && size > 0) snprintf(why, (size_t)size, "%s", error ? error : "");
     return error == NULL;
@@ -68,6 +71,14 @@ int Port_PcTeamsRequest(const PcBattle *b) {
     char why[160];
     if (!gPortPcTeamReady || Port_ModesFight() != 0 || (b->mode != PC_DUEL && b->mode != PC_RELAY) ||
         Port_NetActive() || Port_NetSession() || !Port_PcBattleValidate(b, why, sizeof(why))) return 0;
+    if (gPortPcTeamDp > 0) {
+        int s, i;
+        for (s = 0; s < 2; s++) {
+            int cost = 0;
+            for (i = 0; i < b->count[s]; i++) cost += ChrTbl_GetCost(b->fighter[s][i].chara);
+            if (cost > gPortPcTeamDp) return 0;
+        }
+    }
     pthread_mutex_lock(&sLock); sTeams = *b; sTeamsPending = 1; pthread_mutex_unlock(&sLock);
     return 1;
 }
@@ -102,4 +113,10 @@ int Port_PcBattleTake(PcBattle *b) {
 
 void Port_PcRelayLog(int side, int entered, int chara) {
     fprintf(stderr, "bt3: relevo: equipo %d, reserva %d/%d, personaje %d\n", side + 1, entered, PORT_RELAY_MAX, chara);
+}
+
+int Port_PcTestHealth(void) {
+    const char *e = getenv("BT3_PC_HEALTH_PERCENT");
+    int n = e ? atoi(e) : 100;
+    return n >= 1 && n <= 100 ? n : 100;
 }

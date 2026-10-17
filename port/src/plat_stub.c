@@ -126,6 +126,7 @@ void Port_GameSpeedSet(int percent) {
     }
 }
 int Port_SpeedMilli(void) {
+    { extern int Port_CoopEnabled(void); if (Port_CoopEnabled()) return 1000; }
     return Port_NetSession() || Port_NetActive() ? Port_NetSpeedMilli() : Port_GameSpeed() * 10;
 }
 /* BT3_LAG_LOG=1: when things happen in a tick, in microseconds since the start: V a vertical blank (after its wait),

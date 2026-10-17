@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include "port_pc_battle.h"
+#endif
 #include "menu/menu_e.h"
 #include "menu/menu_f.h"
 #include "sys/pad.h"
@@ -475,7 +478,8 @@ void TeamSel_ClipGoto(s32 flash, s32 side, s32 kind, char *label) {
 /* Loads and unpacks the screen (section `section` of archive 5), builds the grids and restores the last choices. */
 void TeamSel_Init(s32 section) {
 #ifdef PORT
-    { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 1; }
+    { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 0; }
+    { PcBattle discard; Port_PcTeamsTake(&discard); }
 #endif
     MTexRes *res = NULL;
     s32 i;
@@ -884,12 +888,17 @@ void TeamSel_Init(s32 section) {
         TextBox_Init(&gTeamSel->formBox[i], gTeamSel->formText, i + 3);
         TextBox_SetUnk80(&gTeamSel->formBox[i], 1);
     }
+#ifdef PORT
+    { extern volatile int gPortPcTeamDp; gPortPcTeamDp = gTeamSel->battleType == 2 ? gTeamSel->dpMax : 0; }
+    { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 1; }
+#endif
 }
 
 /* Frees the screen: the windows, the movies, the picture buffers and the work area. */
 void TeamSel_Term(void) {
 #ifdef PORT
     { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 0; }
+    { extern volatile int gPortPcTeamDp; gPortPcTeamDp = 0; }
 #endif
     s32 i;
 

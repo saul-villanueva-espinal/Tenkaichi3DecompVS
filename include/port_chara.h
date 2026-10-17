@@ -20,10 +20,10 @@
  *   added character stands as its BASE character, one of the disc's.
  */
 #ifdef PORT
-/* The range: 0xC6..0x146, 129 added characters (total 290 playable characters).
+/* Added IDs and grid capacity derive from port_limits.h (290 playable entries by default).
    Supports 8 costumes per character, each with its own independent animations (fa),
    effects/techniques (kze), portrait, and member HUD blocks. */
-/* 290 character cells plus Random/Custom, rounded to complete rows of seven. */
+/* Character cells plus Random/Custom, rounded to complete rows of seven. */
 #define PORT_FILES_PER_CHARA 34
 
 

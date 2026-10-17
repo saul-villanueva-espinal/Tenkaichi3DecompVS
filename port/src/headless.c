@@ -432,7 +432,7 @@ void Port_Trace(unsigned vblanks) {
             last = gBtlSeq->state;
         }
     }
-    if (every <= 0 || vblanks % (unsigned)every != 0 || sBattles == 0 || gBtlSeq == NULL || gBtlSeq->state < 2) {
+    if (every <= 0 || vblanks % (unsigned)every != 0 || (sBattles == 0 && !sFromMenu) || gBtlSeq == NULL || gBtlSeq->state < 2) {
         return;
     }
     clock = BtlSeq_GetClock();

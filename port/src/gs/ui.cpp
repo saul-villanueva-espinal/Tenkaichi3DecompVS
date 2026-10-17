@@ -513,6 +513,7 @@ int Ui_Init(SDL_Window *window, SDL_GPUDevice *device, void *gl_context, const c
             sQuit = true;
             PortQuit_Request();
         }
+        if (sForceTab == 10) sForceTab = 8; // test the PC roster panel
         sOpen = !sQuit;
         gPortOverlayOpen = 1;
     }
@@ -1652,6 +1653,8 @@ static void chara_label(char *out, size_t size, int chara) {
 
 static void experiments_tab(void) {
     pc_battle_ui();
+    if (Port_CoopEnabled()) { ImGui::TextWrapped("Sala Raid online activa: reglas compartidas y modo foto desactivado."); return; }
+    if (!ImGui::CollapsingHeader("Opciones avanzadas de Tag Team y Entrenamiento")) return;
     static const char *const kTeams[] = {"Equipo 1 (Jugador 1)", "Equipo 2 (Jugador 2)", "Por su cuenta (Contra todos)"};
     static const char *const kLast[] = {NULL,
                                         "El Ãºltimo combate tuvo el tercer luchador activo.",
@@ -2026,7 +2029,10 @@ static void build(void) {
         open = false;
     }
     if (sForceTab < 0 && (pad_pressed(ImGuiKey_GamepadL1) || pad_pressed(ImGuiKey_GamepadR1))) {
-        sForceTab = (sTab + (ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false) ? 8 : 1)) % 9;
+        static const int tabs[] = {0, 1, 2, 3, 4, 5, 7, 8};
+        int at = 0;
+        while (at < 7 && tabs[at] != sTab) at++;
+        sForceTab = tabs[(at + (ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false) ? 7 : 1)) % 8];
         sPadTab = true;
     }
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
@@ -2086,7 +2092,7 @@ static void build(void) {
                 controls_tab();
                 ImGui::EndTabItem();
             }
-            if (tab("Cheats", 5)) { cheats_tab(); ImGui::EndTabItem(); }
+            if (tab("Cheats", 5)) { ImGui::BeginDisabled(Port_CoopEnabled()); cheats_tab(); ImGui::EndDisabled(); ImGui::EndTabItem(); }
             if (tab("Mods", 7)) { mods_tab(); ImGui::EndTabItem(); }
             if (tab("Tag Team / Modos Extra", 8)) { experiments_tab(); ImGui::EndTabItem(); }
             ImGui::EndTabBar();

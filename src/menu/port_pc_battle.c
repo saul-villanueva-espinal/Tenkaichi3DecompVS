@@ -8,10 +8,11 @@
 #include "port_fighters.h"
 extern void Port_SettingSave(const char *, int);
 extern void Port_LocalPlayersSet(int);
+extern int Port_PcTestHealth(void);
 extern void *BtlChar_FindByObjId(s32);
 extern int Port_CoopEnabled(void), Port_CoopConfig(PcBattle *);
 static PcBattle sBattle;
-static s32 sRelay, sNext[2];
+static s32 sRelay, sNext[2], sLevel[2];
 static volatile s32 sRemaining[2];
 
 /* The same ten-member builder can supply any legacy team selector. Its five
@@ -26,11 +27,12 @@ void Port_PcApplyTeams(void) {
     for (s = 0; s < 2; s++) {
         BattleSide *side = &Battle_GetSetup()->sides[s];
         s32 level = side->members[0].cpuLevel;
+        sLevel[s] = level;
         side->memberCount = b.count[s] > 5 ? 5 : b.count[s]; side->lead = 0;
         sNext[s] = side->memberCount; sRemaining[s] = b.count[s];
         for (i = 0; i < side->memberCount; i++) {
             PcFighter *f = &b.fighter[s][i];
-            BattleSetup_SetMember(s, i, f->chara, f->costume, 0, level, 100.0f, NULL);
+            BattleSetup_SetMember(s, i, f->chara, f->costume, 0, level, (f32)Port_PcTestHealth(), NULL);
         }
     }
 }
@@ -47,7 +49,7 @@ void Port_PcRelayRewind(void) {
         side->lead = 0;
         for (i = 0; i < side->memberCount; i++) {
             PcFighter *f = &sBattle.fighter[s][i];
-            BtlMember_Init(&side->members[i], f->chara, f->costume, 0, 13, 100.0f, NULL);
+            BtlMember_Init(&side->members[i], f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
         }
         side->form.chara = side->startForm.chara = sBattle.fighter[s][0].chara;
         side->form.costume = side->startForm.costume = sBattle.fighter[s][0].costume;
@@ -68,7 +70,7 @@ void Port_PcRelayTick(void) {
             PcFighter *f = &sBattle.fighter[s][sNext[s]];
             BattleMember m;
             s32 slot;
-            BtlMember_Init(&m, f->chara, f->costume, 0, 13, 100.0f, NULL);
+            BtlMember_Init(&m, f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
             slot = BtlMember_Replace(chr, (BtlMemberSetup *)&m);
             if (slot < 0) break;
             *BattleSide_GetMember(s, slot) = m;
@@ -92,16 +94,17 @@ int Port_PcBattleBuild(void) {
     Port_SettingSave("modes_fight", mode);
     Port_SettingSave("modes_extras", 0);
     Port_LocalPlayersSet(b.players);
-    BattleSetup_SetRule(b.players > 1, b.mode == PC_TRAINING ? 6 : 0, 0, sRelay || b.mode == PC_RAID ? 4 : 2, 0, b.stage, 0);
+    BattleSetup_SetRule(b.players > 1, b.mode == PC_TRAINING ? 6 : 0, 0, sRelay || b.mode == PC_RAID || b.mode == PC_TRAINING ? 0 : 3, 0, b.stage, 0);
     for (s = 0; s < 2; s++) {
         s32 count = b.count[s] > 5 ? 5 : b.count[s];
         s32 cpu = s == 1 && (b.players == 1 || b.mode == PC_RAID || b.mode == PC_TRAINING);
+        sLevel[s] = b.mode == PC_TRAINING && s ? -1 : 13;
         sNext[s] = count;
         sRemaining[s] = b.count[s];
         BattleSetup_SetSide(s, cpu ? BTL_CONTROL_CPU : BTL_CONTROL_PAD, s, count, 1, 1, 0, NULL);
         for (i = 0; i < count; i++) {
             PcFighter *f = &b.fighter[s][i];
-            BattleSetup_SetMember(s, i, f->chara, f->costume, 0, b.mode == PC_TRAINING && s ? -1 : 13, 100.0f, NULL);
+            BattleSetup_SetMember(s, i, f->chara, f->costume, 0, b.mode == PC_TRAINING && s ? -1 : 13, (f32)Port_PcTestHealth(), NULL);
         }
     }
     BattleSetup_Finish();

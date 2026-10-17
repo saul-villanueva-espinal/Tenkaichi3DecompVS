@@ -2,7 +2,7 @@
    thread; the modern roster does not write into legacy menu/save structures. */
 #include "../../include/port_pc_battle.h"
 #include "../../include/port_coop.h"
-extern "C" volatile int gPortPcHubReady, gPortPcTeamReady;
+extern "C" volatile int gPortPcHubReady, gPortPcTeamReady, gPortPcTeamDp;
 static void pc_battle_ui(void) {
     static PcBattle b;
     static bool ready;
@@ -11,7 +11,11 @@ static void pc_battle_ui(void) {
     static ImGuiTextFilter search;
     const char *const modes[] = {"Duelo", "Entrenamiento", "Tag Team simultaneo", "Raid cooperativo", "Relevos 10 vs 10"};
     const char *const costumes[] = {"Traje 1","Traje 2","Traje 3","Traje 4","Traje 5","Traje 6","Traje 7","Traje 8"};
-    if (!ready) { Port_PcBattleDefault(&b); ready = true; }
+    if (!ready) {
+        Port_PcBattleDefault(&b);
+        if (getenv("BT3_UI_PC_TEAMS")) { b.mode = PC_RELAY; b.count[0] = b.count[1] = 10; }
+        ready = true;
+    }
     ImGui::SeparatorText("Plantilla y combates PC");
     ImGui::Text("%d personajes/formas instalados / %d casillas", Port_PcRosterCount(), PORT_TOTAL_CHARAS);
     ImGui::TextDisabled("Las casillas restantes se habilitan al instalar paquetes.");
@@ -23,6 +27,10 @@ static void pc_battle_ui(void) {
     }
     int maxPlayers = b.mode == PC_TRAINING ? 1 : b.mode == PC_TAG || b.mode == PC_RAID ? 4 : 2;
     ImGui::SliderInt("Jugadores", &b.players, 1, maxPlayers);
+    if (b.mode == PC_TAG) {
+        if (b.players >= 3 && b.count[0] < 2) b.count[0] = 2;
+        if (b.players >= 4 && b.count[1] < 2) b.count[1] = 2;
+    }
     if (b.mode == PC_RAID && b.count[0] < b.players) b.count[0] = b.players;
     ImGui::SliderInt("Escenario (ID)", &b.stage, 0, 34);
     if (b.mode == PC_RELAY) ImGui::TextWrapped("Diez por equipo, por relevos. Puedes repetir personajes y elegir un traje por integrante.");
@@ -60,10 +68,12 @@ static void pc_battle_ui(void) {
         ImGui::PopID();
     }
     ImGui::EndChild();
+    if (gPortPcTeamDp > 0) ImGui::Text("Limite DP del modo actual: %d por equipo", gPortPcTeamDp);
     ImGui::BeginDisabled(!gPortPcTeamReady || Port_ModesFight() != PORT_MODE_NONE || (b.mode != PC_RELAY && b.mode != PC_DUEL) || Port_NetActive() || Port_CoopEnabled());
     if (ImGui::Button("Usar estos equipos en el modo actual")) {
         if (!Port_PcBattleValidate(&b, message, sizeof(message))) {}
         else if (Port_PcTeamsRequest(&b)) snprintf(message, sizeof(message), "Equipos guardados para este selector. Confirma el combate para aplicarlos.");
+        else snprintf(message, sizeof(message), "El equipo supera el limite DP o el modo no admite relevos.");
     }
     ImGui::EndDisabled();
     if (gPortPcTeamReady) ImGui::TextWrapped("Puedes aplicar hasta diez integrantes por equipo en Duelo y Ultimate Battle. Entraran por relevos; se mantienen las reglas de este modo.");
