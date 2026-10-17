@@ -874,12 +874,13 @@ void BtlMembers_UpdateQueuedDamage(void) {
 void Port_BattleOverlayUpdate(s32 active) {
     extern BtlMemberChr *BtlChar_Get(s32 side);
     extern int Port_ModesFight(void);
-    extern void Port_SetBattleOverlay(int active, int health,int maxHealth);
+    extern void Port_SetBattleOverlay(int active, int health,int maxHealth,int enraged);
+    extern s32 Port_BattleRulesEnraged(void);
     s32 hp = -1,maxHp=0;
     if (active && Port_ModesFight() == 3) {
         BtlMemberChr *boss = BtlChar_Get(1);
         if (boss != NULL) {hp = BtlUtil_Max(BtlMember_GetActiveGauge(boss)->health, 0);maxHp=BtlMember_GetActiveGauge(boss)->healthMax;}
     }
-    Port_SetBattleOverlay(active, hp,maxHp);
+    Port_SetBattleOverlay(active, hp,maxHp,Port_BattleRulesEnraged());
 }
 #endif

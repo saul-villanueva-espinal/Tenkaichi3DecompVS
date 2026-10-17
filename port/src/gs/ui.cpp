@@ -2405,7 +2405,7 @@ extern "C" void Port_UiNotice(const char *text) {
 // ============================================================================
 // The battle and renderer run on different threads. Share only small locked snapshots.
 static SDL_SpinLock sFeatureLock;
-static int sBattleActive, sBossHealth = -1, sBossMaxHealth;
+static int sBattleActive, sBossHealth = -1, sBossMaxHealth,sBossEnraged;
 struct FormHint { int x, y, count; Uint64 until; };
 static FormHint sFormHints[2];
 extern "C" {
@@ -2425,10 +2425,10 @@ extern "C" void Port_PhotoCamera(float *yaw, float *pitch, float *distance) {
     *yaw = gPortPhotoYaw; *pitch = gPortPhotoPitch; *distance = gPortPhotoDist;
     SDL_UnlockSpinlock(&sFeatureLock);
 }
-extern "C" void Port_SetBattleOverlay(int active, int health,int maxHealth) {
+extern "C" void Port_SetBattleOverlay(int active, int health,int maxHealth,int enraged) {
     SDL_LockSpinlock(&sFeatureLock);
     sBattleActive = active;
-    sBossHealth = health;sBossMaxHealth=maxHealth;
+    sBossHealth = health;sBossMaxHealth=maxHealth;sBossEnraged=enraged;
     if (!active) {
         __atomic_store_n(&gPortPhotoMode, 0, __ATOMIC_RELEASE);
         __atomic_store_n(&gPortHideHud, 0, __ATOMIC_RELEASE);
@@ -2450,7 +2450,7 @@ static bool feature_overlay_on(void) {
 static void Port_DrawFeatureHints(ImDrawList *dl) {
     if (Port_HudHidden() || gUiPresentW <= 0 || gUiPresentH <= 0) return;
     SDL_LockSpinlock(&sFeatureLock);
-    int hp = sBossHealth,maxHp=sBossMaxHealth;
+    int hp = sBossHealth,maxHp=sBossMaxHealth,enraged=sBossEnraged;
     bool active = sBattleActive;
     FormHint hints[2] = {sFormHints[0], sFormHints[1]};
     SDL_UnlockSpinlock(&sFeatureLock);
@@ -2458,7 +2458,7 @@ static void Port_DrawFeatureHints(ImDrawList *dl) {
     ImFont *font = ImGui::GetFont();
     if (hp >= 0 && GsDraw_HudShown()) {
         char text[128];
-        snprintf(text, sizeof(text), "JEFE  %d / %d HP%s", hp,maxHp, hp>0 && hp*2<=maxHp?"  FURIA":"");
+        snprintf(text, sizeof(text), "JEFE  %d / %d HP%s", hp,maxHp, enraged?"  FURIA":"");
         float size = 11.0f * sy;
         ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
         float x = gUiPresentX + gUiPresentW - ts.x - 8.0f * sx;

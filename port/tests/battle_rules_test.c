@@ -58,6 +58,8 @@ int main(void){
     Port_BattleRulesGauge(fighters+1,BtlMember_GetActiveGauge(fighters+1),0);
     assert(fighters[1].members[0].gauge.healthMax==162500 && fighters[1].members[0].gauge.health==81250);
     Port_BattleRulesSet(NULL);assert(Port_BattleRulesDamage(fighters,1000)==1000 && !Port_BattleRulesArmor(1));
+    b.rules.damagePct=400;b.rules.bossDamagePct=400;Port_BattleRulesSet(&b);
+    assert(Port_BattleRulesDamage(fighters,1000000)==24000000);
     net=1;Port_BattleRulesSet(&b);assert(Port_BattleRulesDamage(fighters,1000)==1000);
     puts("battle_rules_test: damage, ki, regeneration, pause, KO, boss identity, fury, transformations and reset pass");
 }

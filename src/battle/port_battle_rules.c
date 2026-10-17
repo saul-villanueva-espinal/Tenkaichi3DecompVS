@@ -22,7 +22,7 @@ static s32 RulesSide(s32 objId,s32 side) {
     /* Extra raid allies can have the native side bit 1. Only object 1 is boss. */
     return sRaid ? objId==1 : side;
 }
-static s32 RulesEnraged(void) {
+s32 Port_BattleRulesEnraged(void) {
     BtlMemberChr *boss;
     BtlMemberGauge *g;
     if(!sRaid || !sRules.enragePct) return 0;
@@ -45,14 +45,14 @@ s32 Port_BattleRulesDamage(BtlMemberChr *victim,s32 amount) {
     if(amount<=0) return amount;
     if(sRaid && victim->objId!=1) {
         pct=pct*(sRules.bossDamagePct?sRules.bossDamagePct:100)/100;
-        if(RulesEnraged()) pct=pct*150/100;
+        if(Port_BattleRulesEnraged()) pct=pct*150/100;
     }
-    return amount>1000000 ? amount : amount*pct/100;
+    return amount>1000000 ? amount : (amount/100)*pct+(amount%100)*pct/100;
 }
 s32 Port_BattleRulesKi(BtlMemberChr *chr,s32 amount) {
     s32 pct=sRules.kiPct?sRules.kiPct:100;
-    if(sRaid && chr->objId==1 && RulesEnraged()) pct=pct*150/100;
-    return amount>1000000 ? amount : amount*pct/100;
+    if(sRaid && chr->objId==1 && Port_BattleRulesEnraged()) pct=pct*150/100;
+    return amount>1000000 ? amount : (amount/100)*pct+(amount%100)*pct/100;
 }
 s32 Port_BattleRulesArmor(s32 objId) {
     BtlMemberChr *chr=BtlChar_FindByObjId(objId);
