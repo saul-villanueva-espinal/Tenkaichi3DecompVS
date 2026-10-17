@@ -359,7 +359,7 @@ s32 gPortTboSpar;       /* the battle that runs is Train While Waiting's sparrin
 static char sTbBgCode[CODE_LEN + 1];
 static f32 Tb_Beat(s32 period);
 
-static char *sTbHubName[HUB_COUNT] = {"Quick Match", "Raid Boss Online", "Torneo Online", "Create Room", "Join Room", "Ranked Match", "Friends", "Replays", "Profile"};
+static char *sTbHubName[HUB_COUNT] = {"Quick Match", "Raid Boss Online", "Torneo Local", "Create Room", "Join Room", "Ranked Match", "Friends", "Replays", "Profile"};
 static const s32 sTbHubReady[HUB_COUNT] = {1, 1, 1, 1, 1, 0, 0, 0, 1};
 static char *sTbHubSay[HUB_COUNT] = {
     "Pelea contra quien este buscando ahora mismo. Sin limites y entrenando mientras esperas.",

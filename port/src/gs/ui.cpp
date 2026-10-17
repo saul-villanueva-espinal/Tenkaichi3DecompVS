@@ -2516,6 +2516,13 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
     bool inBattle = sBattleActive;
     SDL_UnlockSpinlock(&sFeatureLock);
     if (!inBattle || sOpen || sChat || ImGui::GetIO().WantTextInput) return;
+    // ImGui receives keyboard events only while F1 is open. Gameplay photo
+    // controls must read SDL's keyboard state, as the gamepads already do.
+    const bool *keys = SDL_GetKeyboardState(NULL);
+    static bool photoWas, hudWas, resetWas;
+    bool photoDown=keys[SDL_SCANCODE_P],hudDown=keys[SDL_SCANCODE_H],resetDown=keys[SDL_SCANCODE_R];
+    bool photoPressed=photoDown&&!photoWas,hudPressed=hudDown&&!hudWas,resetPressed=resetDown&&!resetWas;
+    photoWas=photoDown;hudWas=hudDown;resetWas=resetDown;
     // Read the real SDL gamepad: ImGui navigation may be disabled while playing.
     bool combo = false;
     float stickX = 0.0f, stickY = 0.0f;
@@ -2540,10 +2547,10 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
     static bool comboWas;
     bool comboPressed = combo && !comboWas;
     comboWas = combo;
-    if (ImGui::IsKeyPressed(ImGuiKey_P, false) || comboPressed) {
+    if (photoPressed || comboPressed) {
         Port_TogglePhotoMode();
     }
-    if (ImGui::IsKeyPressed(ImGuiKey_H, false)) {
+    if (hudPressed) {
         Port_ToggleHud();
     }
 
@@ -2552,27 +2559,27 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
         gPortPhotoYaw += stickX * 2.0f * dt;
         gPortPhotoPitch -= stickY * 1.5f * dt;
         // Orbit Controls
-        if (ImGui::IsKeyDown(ImGuiKey_LeftArrow) || ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadLeft)) {
+        if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadLeft)) {
             gPortPhotoYaw -= 2.0f * dt;
         }
-        if (ImGui::IsKeyDown(ImGuiKey_RightArrow) || ImGui::IsKeyDown(ImGuiKey_D) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadRight)) {
+        if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadRight)) {
             gPortPhotoYaw += 2.0f * dt;
         }
-        if (ImGui::IsKeyDown(ImGuiKey_UpArrow) || ImGui::IsKeyDown(ImGuiKey_W) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadUp)) {
+        if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadUp)) {
             gPortPhotoPitch += 1.5f * dt;
         }
-        if (ImGui::IsKeyDown(ImGuiKey_DownArrow) || ImGui::IsKeyDown(ImGuiKey_S) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadDown)) {
+        if (keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadDown)) {
             gPortPhotoPitch -= 1.5f * dt;
         }
-        if (zoomIn || ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsKeyDown(ImGuiKey_GamepadL1)) {
+        if (zoomIn || keys[SDL_SCANCODE_Q] || ImGui::IsKeyDown(ImGuiKey_GamepadL1)) {
             gPortPhotoDist *= (1.0f - 1.2f * dt);
             if (gPortPhotoDist < 0.25f) gPortPhotoDist = 0.25f;
         }
-        if (zoomOut || ImGui::IsKeyDown(ImGuiKey_E) || ImGui::IsKeyDown(ImGuiKey_GamepadR1)) {
+        if (zoomOut || keys[SDL_SCANCODE_E] || ImGui::IsKeyDown(ImGuiKey_GamepadR1)) {
             gPortPhotoDist *= (1.0f + 1.2f * dt);
             if (gPortPhotoDist > 3.5f) gPortPhotoDist = 3.5f;
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
+        if (resetPressed) {
             gPortPhotoYaw = 0.0f;
             gPortPhotoPitch = 0.0f;
             gPortPhotoDist = 1.0f;
