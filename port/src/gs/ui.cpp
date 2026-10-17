@@ -2895,6 +2895,8 @@ static bool frame_build(void) {
         SDL_snprintf(sNotice, sizeof(sNotice), "Update available: 0.%d.%d. F1 for the download page.", latest / 100, latest % 100);
         sNoticeUntil = SDL_GetTicks() + 10000;
     }
+    int coopKnown=0, coopTotal=0;
+    int coopLobby=Port_CoopLobbyStatus(&coopKnown,&coopTotal);
     bool notice = sNotice[0] != '\0' && SDL_GetTicks() < sNoticeUntil;
     if (sNoticeNew) { // (set from the game's side: the time starts when it is first drawn)
         sNoticeNew = 0;
@@ -2919,7 +2921,7 @@ static bool frame_build(void) {
     bool chat = online && (sChat || chat_recent());
     meter_count();
     sBuilt = false;
-    if (!sReady || (!sOpen && !sQuit && !notice && !overlay && !meter && !names && !bars && !modesOn && !chat && !feature_overlay_on())) {
+    if (!sReady || (!coopLobby && !sOpen && !sQuit && !notice && !overlay && !meter && !names && !bars && !modesOn && !chat && !feature_overlay_on())) {
         return false;
     }
     if (sPadHold && sCapKind != 2) { // a binding was taken: the controller works the window again once nothing is held
@@ -2953,6 +2955,17 @@ static bool frame_build(void) {
     ImGui::NewFrame();
     Port_UpdateAndDrawPhotoMode(ImGui::GetForegroundDrawList());
     if (!sOpen) pc_teams_preview();
+    if (coopLobby) {
+        ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * .5f, ImGui::GetIO().DisplaySize.y * .5f), ImGuiCond_Always, ImVec2(.5f,.5f));
+        ImGui::SetNextWindowBgAlpha(.96f);
+        if (ImGui::Begin("Sala Raid online", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+            if (coopLobby==1) ImGui::TextUnformatted("Comprobando datos del juego y paquetes...");
+            else ImGui::Text("Esperando jugadores: %d / %d",coopKnown,coopTotal);
+            ImGui::TextUnformatted("La partida comienza cuando todos estan conectados.");
+            ImGui::TextDisabled("Cierra la ventana del juego para cancelar.");
+        }
+        ImGui::End();
+    }
     if (bars && !Port_HudHidden()) {
         bars_draw();
     }

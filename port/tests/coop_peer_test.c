@@ -5,6 +5,7 @@
 #include "port_coop.h"
 static unsigned frame;
 void Port_VerifyStart(void) {}
+void Port_CoopWaitFrame(void) {}
 void PortCharas_Init(void) {}
 int Port_DataFingerprint(unsigned long long *out) { *out=0x123456789abcdef0ull;return 1; }
 unsigned long long Port_CharacterFingerprint(void) { return getenv("FIXTURE_BAD_ASSET")?123:456; }
@@ -21,10 +22,19 @@ int Port_NetActive(void) { return 0; }
 int Port_NetSession(void) { return 0; }
 int Port_ModesFight(void) { return 0; }
 int ChrTbl_GetCost(int chara) { (void)chara;return 2; }
-void Port_CoopRelaunch(void) { abort(); }
-int main(void) {
+static int launched;
+void Port_CoopRelaunch(void) { assert(Port_CoopEnabled()); launched=1; }
+int main(int argc,char **argv) {
     PcBattle b;unsigned char pad[18];int p;
+    if(argc==2 && !strcmp(argv[1],"--launch-test")) {
+        Port_PcBattleDefault(&b);b.mode=PC_RAID;b.players=2;b.count[0]=2;
+        assert(Port_CoopLaunch(1,"127.0.0.1",29740,&b));
+        assert(launched && getenv("BT3_COOP_HOST") && getenv("BT3_COOP_CONFIG"));
+        puts("coop_launch_test: inherited and CRT environments agree");return 0;
+    }
     assert(Port_CoopConfig(&b));
+    assert(b.fighter[0][Port_CoopMe()].chara==(getenv("FIXTURE_HERO")?atoi(getenv("FIXTURE_HERO")):0));
+    for(p=0;p<4;p++) {int k,found=0;for(k=0;k<4;k++) found+=b.fighter[0][k].chara==p*2;assert(found==1);}
     for(frame=0;frame<300;frame++) {
         Port_CoopBeginTick(frame);
         for(p=0;p<b.players;p++) {

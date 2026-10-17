@@ -17,19 +17,21 @@ with tempfile.TemporaryDirectory() as tmp:
         s.bind(('127.0.0.1', 0))
         port = s.getsockname()[1]
     env = {k: v for k, v in os.environ.items() if not k.startswith('BT3_COOP')}
+    subprocess.run([exe, "--launch-test"], env=env, check=True, timeout=10)
     peers = []
     try:
         peers.append(subprocess.Popen([exe], env=env | {'BT3_COOP_HOST': str(port)}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
         time.sleep(.1)
         bad = subprocess.run([exe], env=env | {'BT3_COOP_JOIN': f'127.0.0.1:{port}', 'FIXTURE_BAD_ASSET': '1'}, capture_output=True, text=True, timeout=10)
         assert bad.returncode == 2 and 'rechazo' in bad.stderr, bad
-        for _ in range(3):
-            peers.append(subprocess.Popen([exe], env=env | {'BT3_COOP_JOIN': f'127.0.0.1:{port}'}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
+        for hero in (2,4,6):
+            config=[3,4,0,4,1]+sum(([hero if s==0 and i==0 else (0 if s==0 else 4),0] for s in range(2) for i in range(10)),[])
+            peers.append(subprocess.Popen([exe], env=env | {'BT3_COOP_JOIN': f'127.0.0.1:{port}', 'FIXTURE_HERO':str(hero), 'BT3_COOP_CONFIG':','.join(map(str,config))}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
         for p in peers:
             out, err = p.communicate(timeout=30)
             assert p.returncode == 0, out + err
             assert 'all four distinct pads' in out, out + err
-        print('coop_test: real four-process UDP session, distinct inputs and mismatched-package rejection pass')
+        print('coop_test: real four-process UDP session, distinct inputs, agreed individual heroes and mismatched-package rejection pass')
     finally:
         for p in peers:
             if p.poll() is None:

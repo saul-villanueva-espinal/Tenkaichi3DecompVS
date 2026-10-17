@@ -13,7 +13,10 @@ static void pc_battle_ui(void) {
     const char *const costumes[] = {"Traje 1","Traje 2","Traje 3","Traje 4","Traje 5","Traje 6","Traje 7","Traje 8"};
     if (!ready) {
         Port_PcBattleDefault(&b);
-        if (getenv("BT3_UI_PC_TEAMS")) { b.mode = PC_RELAY; b.count[0] = b.count[1] = 10; }
+        if (getenv("BT3_UI_PC_TEAMS")) {
+            b.mode = PC_RELAY; b.count[0] = b.count[1] = 10;
+            for (int s = 0; s < 2; s++) for (int i = 0; i < 10; i++) b.fighter[s][i].chara = s ? 79 : 109;
+        }
         ready = true;
     }
     ImGui::SeparatorText("Plantilla y combates PC");
@@ -87,7 +90,7 @@ static void pc_battle_ui(void) {
         ImGui::SeparatorText("Sala Raid online (UDP directo / LAN)");
         ImGui::InputText("Direccion del anfitrion", address, sizeof(address));
         ImGui::InputInt("Puerto", &port);
-        ImGui::TextWrapped("Cada jugador abre su juego. El anfitrion elige los aliados y el jefe; todos necesitan los mismos datos y paquetes. La sala inicia cuando se conectan los jugadores elegidos.");
+        ImGui::TextWrapped("Cada jugador abre su juego. El anfitrion elige el jefe. Al unirte, se usa tu primer aliado; todos necesitan los mismos datos y paquetes. La sala inicia cuando se conectan los jugadores elegidos.");
         if (ImGui::Button("Crear sala Raid")) {
             if (!Port_CoopLaunch(1, address, port, &b)) snprintf(message, sizeof(message), "No se pudo crear la sala: revisa personajes, trajes y puerto.");
         }

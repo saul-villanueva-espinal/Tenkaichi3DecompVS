@@ -11,9 +11,18 @@ extern void Port_LocalPlayersSet(int);
 extern int Port_PcTestHealth(void);
 extern void *BtlChar_FindByObjId(s32);
 extern int Port_CoopEnabled(void), Port_CoopConfig(PcBattle *);
+extern unsigned Port_CoopSeed(void);
+extern int Port_NetActive(void), Port_NetSession(void);
 static PcBattle sBattle;
 static s32 sRelay, sNext[2], sLevel[2];
 static volatile s32 sRemaining[2];
+
+/* Keep the window responsive while verifying assets or waiting for the party.
+   This advances presentation only; battle objects and clocks do not exist yet. */
+void Port_CoopWaitFrame(void) {
+    extern void Gfx_BeginFrame(void), Gfx_EndFrame(s32), Gfx_ClearScreen(s32, u32), Dma_Flush(void);
+    Gfx_BeginFrame(); Gfx_ClearScreen(0, 0x80120B08); Gfx_EndFrame(1); Dma_Flush();
+}
 
 /* The same ten-member builder can supply any legacy team selector. Its five
    visible native slots are the first bank; the rest enter as defeated benches
@@ -21,7 +30,7 @@ static volatile s32 sRemaining[2];
 void Port_PcApplyTeams(void) {
     PcBattle b;
     s32 s, i;
-    if ((Battle_GetMode() != 0 && Battle_GetMode() != 2) || Port_ModesFight() != PORT_MODE_NONE || Port_CoopEnabled()) return;
+    if ((Battle_GetMode() != 0 && Battle_GetMode() != 2) || Port_ModesFight() != PORT_MODE_NONE || Port_CoopEnabled() || Port_NetActive() || Port_NetSession()) return;
     if (!Port_PcTeamsTake(&b)) return;
     sBattle = b; sRelay = 1;
     for (s = 0; s < 2; s++) {
@@ -86,6 +95,8 @@ int Port_PcBattleBuild(void) {
     s32 s, i, mode;
     if (Port_CoopEnabled()) {
         if (!Port_CoopConfig(&b)) return 0;
+        { extern void Port_Srand(unsigned); extern void Rand_Seed(unsigned);
+          Port_Srand(Port_CoopSeed()); Rand_Seed(Port_CoopSeed()); }
     } else if (!Port_PcBattleTake(&b)) return 0;
     Battle_ClearWork();
     sBattle = b;
