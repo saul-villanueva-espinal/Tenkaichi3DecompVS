@@ -1223,6 +1223,9 @@ void BtlHit_ApplyHit(HitChr *atk) {
         if (BtlAct_TestPoweredSkill(def, 0x40)) {
             lvl++;
         }
+#ifdef PORT
+        { extern s32 Port_BattleRulesArmor(s32); lvl+=Port_BattleRulesArmor(def->objId); }
+#endif
         if (def->unkE14 > 0) {
             lvl++;
         }

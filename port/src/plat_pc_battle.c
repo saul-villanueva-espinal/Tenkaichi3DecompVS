@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include <errno.h>
+#include <limits.h>
 #include <pthread.h>
 #include "../include/port_pc_battle.h"
 #include "../include/plat_charas.h"
@@ -25,6 +27,28 @@ void Port_PcBattleDefault(PcBattle *b) {
     b->count[0] = b->count[1] = 1;
     for (s = 0; s < 2; s++) for (i = 0; i < PORT_RELAY_MAX; i++) b->fighter[s][i].chara = s ? 4 : 0;
 }
+/* Accept complete old teams (45 ints) and complete current configurations.
+   Never accept a partial extension, overflow, or trailing garbage. */
+int Port_PcBattleParse(PcBattle *b, const char *text) {
+    PcBattle parsed; unsigned i, n=sizeof(parsed)/sizeof(int); int *v=(int *)&parsed;
+    char why[160];
+    if(!b || !text) return 0;
+    Port_PcBattleDefault(&parsed);
+    for(i=0;i<n;i++) {
+        char *end; long value;
+        errno=0; value=strtol(text,&end,10);
+        if(end==text || errno==ERANGE || value<INT_MIN || value>INT_MAX) return 0;
+        v[i]=(int)value;
+        if(!*end) {
+            if(i+1!=45 && i+1!=n) return 0;
+            if(!Port_PcBattleValidate(&parsed,why,sizeof(why))) return 0;
+            *b=parsed;return 1;
+        }
+        if(*end!=',') return 0;
+        text=end+1;
+    }
+    return 0;
+}
 int Port_PcRosterCount(void) { return PORT_DISC_CHARAS + Port_CharaCount(); }
 int Port_PcRosterId(int i) {
     return i < 0 || i >= Port_PcRosterCount() ? -1 : i < PORT_DISC_CHARAS ? i : PORT_CHARA_FIRST + i - PORT_DISC_CHARAS;
@@ -38,6 +62,17 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
     else if (b->stage < 0 || b->stage >= 36) error = "Escenario no valido";
     else if ((b->mode == PC_DUEL || b->mode == PC_RELAY) && b->players > 2) error = "Duelo por relevos admite uno o dos mandos";
     else if (b->mode == PC_TRAINING && b->players != 1) error = "Entrenamiento utiliza un mando";
+    if(b && !error) {
+        const PcBattleRules *r=&b->rules;
+        if(r->damagePct<0 || r->damagePct>400 || r->kiPct<0 || r->kiPct>400 ||
+           r->regenPerSec<0 || r->regenPerSec>1000 || r->regenSides<0 || r->regenSides>3 ||
+           r->healthPct<0 || r->healthPct>100 || r->bossHp<0 || r->bossHp>250000 ||
+           r->bossDamagePct<0 || r->bossDamagePct>400 || r->enragePct<0 || r->enragePct>90 ||
+           r->cpuLevel1<0 || r->cpuLevel1>30 || r->bgm1<0 || r->bgm1>20 ||
+           r->infiniteKiChara1<0 || r->infiniteKiChara1>PORT_CHARA_ID_LIMIT ||
+           r->armorSides<0 || r->armorSides>3) error="Reglas de combate fuera de rango";
+        else if(b->mode!=PC_RAID && (r->bossHp || r->bossDamagePct || r->enragePct)) error="Reglas de jefe fuera de Raid";
+    }
     for (s = 0; b && !error && s < 2; s++) {
         int max = b->mode == PC_RELAY || b->mode == PC_DUEL ? PORT_RELAY_MAX : (b->mode == PC_TAG || b->mode == PC_FFA) ? 5 : b->mode == PC_RAID && s == 0 ? 4 : 1;
         if (b->count[s] < 1 || b->count[s] > max) { error = "Cantidad de integrantes no valida para el modo"; break; }
@@ -101,14 +136,7 @@ int Port_PcBattleTake(PcBattle *b) {
     if (result) { *b = sPending; sRequested = 0; }
     pthread_mutex_unlock(&sLock);
     if (!result && getenv("BT3_PC_CONFIG")) {
-        const char *p = getenv("BT3_PC_CONFIG");
-        unsigned i; int *v = (int *)b; char why[160];
-        for (i = 0; i < sizeof(*b)/sizeof(int); i++) {
-            char *end; long n = strtol(p, &end, 10);
-            if (end == p || (i + 1 < sizeof(*b)/sizeof(int) && *end != ',')) return 0;
-            v[i] = (int)n; p = *end ? end + 1 : end;
-        }
-        result = Port_PcBattleValidate(b, why, sizeof(why));
+        result = Port_PcBattleParse(b, getenv("BT3_PC_CONFIG"));
     }
     return result;
 }

@@ -57,7 +57,7 @@ void Port_ToggleHud(void);
 int Port_PhotoActive(void);
 int Port_HudHidden(void);
 void Port_PhotoCamera(float *yaw, float *pitch, float *distance);
-void Port_SetBattleOverlay(int active, int health);
+void Port_SetBattleOverlay(int active, int health,int maxHealth);
 void Port_FormHint(int side, int x, int y, int count);
 
 #ifdef __cplusplus

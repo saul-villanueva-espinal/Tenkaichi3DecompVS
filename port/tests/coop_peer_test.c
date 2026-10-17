@@ -33,6 +33,9 @@ int main(int argc,char **argv) {
         puts("coop_launch_test: inherited and CRT environments agree");return 0;
     }
     assert(Port_CoopConfig(&b));
+    assert(b.rules.bossHp==162500 && b.rules.bossDamagePct==200 && b.rules.enragePct==50);
+    assert(b.rules.regenPerSec==150 && b.rules.damagePct==125 && b.rules.armorSides==2);
+    assert(b.rules.cpuLevel1==30 && b.rules.bgm1==14 && b.rules.infiniteKiChara1==134);
     assert(b.fighter[0][Port_CoopMe()].chara==(getenv("FIXTURE_HERO")?atoi(getenv("FIXTURE_HERO")):0));
     for(p=0;p<4;p++) {int k,found=0;for(k=0;k<4;k++) found+=b.fighter[0][k].chara==p*2;assert(found==1);}
     for(frame=0;frame<300;frame++) {

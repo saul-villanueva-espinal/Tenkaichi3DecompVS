@@ -88,7 +88,7 @@ static const RaidBossDef sBosses[] = {
         3,   /* Wasteland */
         13,  /* BGM */
         65000,
-        "Ki infinito inagotable, super armadura e inmunidad a aturdimiento."
+        "Ki infinito. Armadura adicional en Dios de la Destruccion."
     },
     {
         "Super Baby Gran Mono",
@@ -150,7 +150,7 @@ static void Rd_Init(void) {
 static void Rd_DrawBossCard(f32 x, f32 y, f32 w, f32 h) {
     const RaidBossDef *b = &sBosses[sRd->bossIndex];
     char hpBuf[32];
-    s32 actualHp = 60000; /* The battle engine's supported raid health. */
+    s32 actualHp = b->hp * (sRd->difficulty==0?100:sRd->difficulty==1?150:250)/100;
 
     Ps_Panel(TBO_KIT_WINDOW, x, y, x + w, y + h, 0x85);
     Ps_Heading(x + 16, y + 16, (char *)b->name, 0.85f, w - 32, 0x80);
@@ -182,7 +182,7 @@ static void Rd_DrawRoomCard(f32 x, f32 y, f32 w, f32 h) {
     };
     static const char *sDiffNames[] = {
         "Guerrero Z  (Salud x1.0 / Dano x1.0)",
-        "Super Saiyan  (Salud x1.5 / Dano x1.5 / Ki Veloz)",
+        "Super Saiyan  (Salud x1.5 / Dano x1.5)",
         "Dios de la Destruccion  (Salud x2.5 / Super Armadura / Dano x2.0)"
     };
 
@@ -328,6 +328,13 @@ s32 PortRaid_Run(void) {
                 battle.fighter[1][0].chara = boss->chara;
                 battle.fighter[1][0].costume = 0;
                 battle.stage = boss->stage;
+                battle.rules.bossHp=boss->hp*(sRd->difficulty==0?100:sRd->difficulty==1?150:250)/100;
+                battle.rules.bossDamagePct=sRd->difficulty==0?100:sRd->difficulty==1?150:200;
+                battle.rules.enragePct=50;
+                battle.rules.cpuLevel1=sRd->difficulty==0?14:sRd->difficulty==1?21:30;
+                battle.rules.bgm1=boss->bgm+1;
+                battle.rules.armorSides=sRd->difficulty==2?2:0;
+                if(sRd->bossIndex==4) battle.rules.infiniteKiChara1=boss->chara+1;
 
                 /* Default allies */
                 battle.fighter[0][0].chara = 3;  /* Goku Fin */

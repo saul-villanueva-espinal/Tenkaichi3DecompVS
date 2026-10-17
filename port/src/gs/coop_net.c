@@ -20,9 +20,9 @@ typedef int socklen_t;
 #define closesocket close
 #endif
 #include "../../include/port_coop.h"
-enum { CMAGIC = 0x42543343, CVERSION = 2, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
+enum { CMAGIC = 0x42543343, CVERSION = 3, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
        CRING = 4096, CPAD = 18, CREDUNDANT = 16, CDELAY = 3, CHEAD = 48 };
-_Static_assert(sizeof(PcBattle) == 180, "Update the co-op protocol when PcBattle changes");
+_Static_assert(sizeof(PcBattle) == 228, "Update the co-op protocol when PcBattle changes");
 static int sSock = -1, sHost, sMe, sPlayers, sReady;
 static uint32_t sNonce, sTick, sStartTick, sSampled;
 static PcBattle sBattle;
@@ -106,14 +106,9 @@ static void lobby_frame(void) {
     if(millis()-last>=16) { Port_CoopWaitFrame(); last=millis(); }
 }
 static void parse_config(const char *text) {
-    int *v=(int *)&sBattle; unsigned i;
     Port_PcBattleDefault(&sBattle); sBattle.mode=PC_RAID;sBattle.players=4;sBattle.count[0]=4;
     if(!text) return;
-    for(i=0;i<sizeof(PcBattle)/4;i++) {
-        char *end; long n=strtol(text,&end,10);
-        if(end==text || (i+1<sizeof(PcBattle)/4 && *end!=',')) fail("Configuracion incompleta");
-        v[i]=(int)n; text=*end ? end+1:end;
-    }
+    if(!Port_PcBattleParse(&sBattle,text)) fail("Configuracion incompleta o no valida");
 }
 static void start_socket(int port) {
     struct sockaddr_in local;

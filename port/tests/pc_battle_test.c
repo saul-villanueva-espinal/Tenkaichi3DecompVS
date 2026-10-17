@@ -41,5 +41,19 @@ int main(void) {
     assert(Port_PcBattleValidate(&b,why,sizeof(why)));
     b.count[0]=3;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
     assert(Port_PcRosterCount()==169&&Port_PcRosterId(161)==198&&Port_PcRosterId(169)==-1);
+    {
+        char text[1200];size_t used=0;unsigned k;int *v=(int *)&b;
+        b.count[0]=4;b.fighter[0][9].costume=0;
+        for(k=0;k<45;k++) used+=(size_t)snprintf(text+used,sizeof(text)-used,"%s%d",k?",":"",v[k]);
+        assert(Port_PcBattleParse(&got,text) && got.rules.bossHp==0);
+        strcat(text,",125");assert(!Port_PcBattleParse(&got,text));
+        b.rules.bossHp=162500;b.rules.damagePct=125;b.rules.cpuLevel1=30;
+        used=0;
+        for(k=0;k<sizeof(b)/sizeof(int);k++) used+=(size_t)snprintf(text+used,sizeof(text)-used,"%s%d",k?",":"",v[k]);
+        assert(Port_PcBattleParse(&got,text) && memcmp(&b,&got,sizeof(b))==0);
+        strcat(text,",1");assert(!Port_PcBattleParse(&got,text));
+        assert(!Port_PcBattleParse(&got,"9999999999999999999999999"));
+        b.rules.bossHp=250001;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
+    }
     puts("pc_battle_test: ten-member teams, duplicates, costumes, four allies and request isolation pass");
 }

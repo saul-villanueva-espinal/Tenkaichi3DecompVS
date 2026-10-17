@@ -1051,6 +1051,9 @@ s32 BtlCharApi_GetArmorBreakLevel(s32 objId) {
     if (BtlAct_TestPoweredSkill(opp, 0x40)) {
         level++;
     }
+#ifdef PORT
+    { extern s32 Port_BattleRulesArmor(s32); level+=Port_BattleRulesArmor(opp->objId); }
+#endif
     level += opp->unkE14 > 0;
     if (BtlMember_HasAbility(opp, 0x46)) {
         level++;

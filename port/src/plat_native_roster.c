@@ -16,10 +16,9 @@ void Port_RosterRemember(const PcBattle *b) {
     Port_SettingTextSave(key,text);Port_SettingsWrite();
 }
 int Port_RosterRecall(int mode,PcBattle *b) {
-    char key[40],text[900],why[160];const char *p=text;int *v=(int *)b;unsigned i;
+    char key[40],text[900];
     snprintf(key,sizeof(key),"native_roster_%d",mode);Port_SettingText(key,"",text,sizeof(text));
-    for(i=0;i<sizeof(*b)/sizeof(int);i++) {char *end;long n=strtol(p,&end,10);if(end==p || (i+1<sizeof(*b)/sizeof(int)&&*end!=',')) return 0;v[i]=(int)n;p=*end?end+1:end;}
-    return b->mode==mode && Port_PcBattleValidate(b,why,sizeof(why));
+    return Port_PcBattleParse(b,text) && b->mode==mode;
 }
 int Port_RosterFavorite(int chara,int toggle) {
     char text[PORT_TOTAL_CHARAS*12],out[PORT_TOTAL_CHARAS*12];int ids[PORT_TOTAL_CHARAS],n=0,i,found=0;char *p;size_t used=0;

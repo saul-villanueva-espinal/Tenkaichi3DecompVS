@@ -61,7 +61,7 @@ static const ChallengeFloorDef sFloors[CHALLENGE_FLOORS] = {
         "Saga Saiyan",
         "La Tierra es invadida por los guerreros del espacio exterior.",
         "Derrota a los Saibaman, Raditz, Nappa y al principe Vegeta.",
-        "Carga de Ki Veloz (+50%) | Sin limite de tiempo",
+        "Ganancia de Ki +50% | Sin limite de tiempo",
         2, 0, 0, 5,
         { 79, 77, 80, 29, 30 },
         { 0, 0, 0, 0, 0 }
@@ -83,7 +83,7 @@ static const ChallengeFloorDef sFloors[CHALLENGE_FLOORS] = {
         "Saga de los Androides & Cell",
         "El destino de la humanidad se decide en el Ring de Cell.",
         "Enfrenta al ejercito de la Red Ribbon y al bio-androide supremo.",
-        "Regeneracion Bio-Androide | IA Celular Ultra Agresiva",
+        "Enemigos: +150 HP/segundo | IA nivel 20",
         4, 6, 10, 9,
         { 100, 101, 102, 103, 104, 105, 106, 107, 108 },
         { 0, 0, 0, 0, 0, 0, 0, 0, 0 }
@@ -164,7 +164,7 @@ static s32 sCustomBgm = 0;       /* 0..19 */
 static s32 sCustomMod = 0;       /* 0: Normal 1.0x, 1: Danio 1.25x, 2: Caos 1.5x, 3: Berserk 2.0x */
 static s32 sCustomCur = 0;       /* Currently focused custom setting */
 
-#define CUSTOM_SETTINGS_COUNT 8
+#define CUSTOM_SETTINGS_COUNT 7
 
 static const char *const sFormatNames[3] = { "Duelo por Relevos (10v10)", "Batalla Tag Team (5v5)", "Duelo Individual (1v1)" };
 static const char *const sArchetypeNames[5] = { "Guerreros Z", "Villanos Principales", "Legion Androide", "Jefes Multiverso", "Seleccion Aleatoria" };
@@ -204,7 +204,7 @@ static void Challenge_DrawHeader(s32 activeTab) {
 
     /* Header title & subtitle */
     Ps_Text(18, 8, "TORRE DE DESAFIOS Y BATALLAS PERSONALIZADAS", 0.60f, 476, 1);
-    Ps_Text(20, 27, "MODO OFFLINE REVOLUCIONARIO - MOTOR DE RELEVOS Y TAG TEAM 10v10", 0.33f, 474, 2);
+    Ps_Text(20, 27, "DESAFIOS OFFLINE - RELEVOS 10v10 Y TAG TEAM 5v5", 0.33f, 474, 2);
 
     /* Tabs Bar */
     {
@@ -337,6 +337,13 @@ s32 PortChallenge_Run(void) {
                 battle.mode = PC_RELAY;
                 battle.players = 1;
                 battle.stage = fl->stage;
+                battle.rules.cpuLevel1=fl->difficulty==2?6:fl->difficulty==3?14:fl->difficulty==4?21:30;
+                battle.rules.bgm1=fl->bgm+1;
+                if(floorCur==0) battle.rules.kiPct=150;
+                if(floorCur==1) battle.rules.damagePct=125;
+                if(floorCur==2) {battle.rules.regenPerSec=150;battle.rules.regenSides=2;}
+                if(floorCur==3) battle.rules.infiniteKiChara1=118; /* Kid Buu 117 */
+                if(floorCur==4) battle.rules.armorSides=2;
                 battle.count[0] = 5; /* Player chooses up to 5 warriors */
                 battle.count[1] = fl->enemyCount;
                 for (i = 0; i < fl->enemyCount; i++) {
@@ -362,6 +369,8 @@ s32 PortChallenge_Run(void) {
                 battle.mode = PC_RELAY;
                 battle.players = 1;
                 battle.stage = Rand_Range(35);
+                battle.rules.healthPct=25;
+                battle.rules.cpuLevel1=21;
                 battle.count[0] = 10; /* Full 10 warriors for survival */
                 battle.count[1] = 10;
                 Challenge_GenerateSurvivalEnemies(battle.fighter[1], 10);
@@ -416,6 +425,9 @@ s32 PortChallenge_Run(void) {
                 battle.mode = (sCustomFormat == 1) ? PC_TAG : (sCustomFormat == 2) ? PC_DUEL : PC_RELAY;
                 battle.players = 1;
                 battle.stage = sCustomStage;
+                battle.rules.cpuLevel1=sCustomAi==0?6:sCustomAi==1?14:sCustomAi==2?21:30;
+                battle.rules.bgm1=sCustomBgm+1;
+                battle.rules.damagePct=sCustomMod==0?100:sCustomMod==1?125:sCustomMod==2?150:200;
                 battle.count[0] = (sCustomFormat == 2) ? 1 : (sCustomFormat == 1) ? 5 : 10;
                 battle.count[1] = (sCustomFormat == 2) ? 1 : (sCustomFormat == 1 && sCustomEnemyNum>5) ? 5 : sCustomEnemyNum;
                 Challenge_GenerateCustomEnemies(battle.fighter[1], battle.count[1], sCustomArchetype);
@@ -536,8 +548,8 @@ s32 PortChallenge_Run(void) {
             /* Rules list */
             Ps_Text(24, 246, "REGLAS DE SUPERVIVENCIA:", 0.36f, 186, 2);
             Ps_Text(24, 268, "- Relevos continuos de 10 luchadores.", 0.31f, 186, 0);
-            Ps_Text(24, 286, "- La salud de tu equipo se conserva.", 0.31f, 186, 0);
-            Ps_Text(24, 304, "- La CPU aumenta su nivel progresivo.", 0.31f, 186, 0);
+            Ps_Text(24, 286, "- Tu equipo inicia con 25% de salud.", 0.31f, 186, 0);
+            Ps_Text(24, 304, "- Rivales CPU de nivel 20.", 0.31f, 186, 0);
             Ps_Text(24, 322, "- 290 casillas para ampliar el roster.", 0.31f, 186, 0);
             Ps_Text(24, 350, "Triangulo: Reiniciar record personal.", 0.30f, 186, 3);
 
@@ -573,8 +585,7 @@ s32 PortChallenge_Run(void) {
                     "4. Dificultad de la IA",
                     "5. Escenario de Combate",
                     "6. Banda Sonora (BGM)",
-                    "7. Modificador de Danio",
-                    "8. Iniciar Combate Ahora"
+                    "7. Modificador de Danio"
                 };
 
                 for (i = 0; i < CUSTOM_SETTINGS_COUNT; i++) {

@@ -172,16 +172,11 @@ void BtlMember_LoadParams(BtlMemberChr *chr, s32 member, s32 init, f32 healthPct
         }
         g->variant = variant;
         g->maxPower = 0;
-#ifdef PORT
-        extern int Port_ModesFight(void);
-        if (Port_ModesFight() == 3 && chr->side == 1) {
-            g->healthMax = 60000;
-            g->health = 60000;
-            g->ki = g->kiMax;
-            g->blast = g->blastMax;
-        }
-#endif
     }
+#ifdef PORT
+    { extern void Port_BattleRulesGauge(BtlMemberChr *,BtlMemberGauge *,s32);
+      Port_BattleRulesGauge(chr,g,init); }
+#endif
 }
 
 /* Returns member entry n. */
@@ -423,6 +418,12 @@ s32 BtlMember_Damage(BtlMemberChr *chr, s32 amount, s32 flags) {
     if (!BtlChar_TestFlag(chr, 3) && !(flags & BTL_DMG_ANY_STATE)) {
         return 0;
     }
+#ifdef PORT
+    if(!(flags & BTL_DMG_NO_HIT)) {
+        extern s32 Port_BattleRulesDamage(BtlMemberChr *,s32);
+        amount=Port_BattleRulesDamage(chr,amount);
+    }
+#endif
     if (!(flags & BTL_DMG_EXACT) && amount >= 10) {
         s32 r = amount % 10;
 
@@ -549,6 +550,9 @@ s32 BtlMember_AddKi(BtlMemberChr *chr, s32 amount) {
     if (amount <= 0) {
         return 0;
     }
+#ifdef PORT
+    { extern s32 Port_BattleRulesKi(BtlMemberChr *,s32); amount=Port_BattleRulesKi(chr,amount); }
+#endif
     g->ki += amount;
     if (g->ki > g->kiMax) {
         over = g->ki - g->kiMax;
@@ -870,12 +874,12 @@ void BtlMembers_UpdateQueuedDamage(void) {
 void Port_BattleOverlayUpdate(s32 active) {
     extern BtlMemberChr *BtlChar_Get(s32 side);
     extern int Port_ModesFight(void);
-    extern void Port_SetBattleOverlay(int active, int health);
-    s32 hp = -1;
+    extern void Port_SetBattleOverlay(int active, int health,int maxHealth);
+    s32 hp = -1,maxHp=0;
     if (active && Port_ModesFight() == 3) {
         BtlMemberChr *boss = BtlChar_Get(1);
-        if (boss != NULL) hp = BtlUtil_Max(BtlMember_GetActiveGauge(boss)->health, 0);
+        if (boss != NULL) {hp = BtlUtil_Max(BtlMember_GetActiveGauge(boss)->health, 0);maxHp=BtlMember_GetActiveGauge(boss)->healthMax;}
     }
-    Port_SetBattleOverlay(active, hp);
+    Port_SetBattleOverlay(active, hp,maxHp);
 }
 #endif

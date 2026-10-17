@@ -20,7 +20,8 @@ with tempfile.TemporaryDirectory() as tmp:
     subprocess.run([exe, "--launch-test"], env=env, check=True, timeout=10)
     peers = []
     try:
-        peers.append(subprocess.Popen([exe], env=env | {'BT3_COOP_HOST': str(port)}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
+        host_config=[3,4,0,4,1]+sum(([0 if s==0 else 4,0] for s in range(2) for i in range(10)),[])+[125,150,150,2,25,162500,200,50,30,14,134,2]
+        peers.append(subprocess.Popen([exe], env=env | {'BT3_COOP_HOST': str(port),'BT3_COOP_CONFIG':','.join(map(str,host_config))}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
         time.sleep(.1)
         bad = subprocess.run([exe], env=env | {'BT3_COOP_JOIN': f'127.0.0.1:{port}', 'FIXTURE_BAD_ASSET': '1'}, capture_output=True, text=True, timeout=10)
         assert bad.returncode == 2 and 'rechazo' in bad.stderr, bad

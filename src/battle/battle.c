@@ -203,6 +203,9 @@ s32 Battle_Term(void) {
     { extern void PortChallenge_RecordResult(s32),PortTournament_RecordResult(s32);
       PortChallenge_RecordResult(0);PortTournament_RecordResult(0); }
 #endif
+#ifdef PORT
+    { extern void Port_BattleRulesSet(const void *); Port_BattleRulesSet(NULL); }
+#endif
     BattleResult_Finish();
     Adx_StopAll();
     BtlChar_FreeAll();
@@ -521,6 +524,9 @@ void Battle_Loop(void) {
         Snd_SendFighters();
         BtlGame_PreUpdate();
         Battle_UpdateWork();
+#ifdef PORT
+        { extern void Port_BattleRulesTick(void); Port_BattleRulesTick(); }
+#endif
         BtlAiMgr_Update();
         BtlChars_SampleInput();
         draw = Battle_Update();

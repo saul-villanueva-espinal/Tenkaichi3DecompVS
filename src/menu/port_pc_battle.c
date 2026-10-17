@@ -122,6 +122,7 @@ int Port_PcBattleBuild(void) {
           Port_Srand(Port_CoopSeed()); Rand_Seed(Port_CoopSeed()); }
     } else if (!Port_PcBattleTake(&b)) return 0;
     Battle_ClearWork();
+    { extern void Port_BattleRulesSet(const PcBattle *); Port_BattleRulesSet(&b); }
     sBattle = b; sRelayMask = 3;
     sRelay = b.mode == PC_RELAY || (b.mode == PC_DUEL && (b.count[0] > 5 || b.count[1] > 5));
     mode = b.mode == PC_FFA ? PORT_MODE_FFA : b.mode == PC_TAG ? PORT_MODE_TEAM : b.mode == PC_RAID ? PORT_MODE_RAID : PORT_MODE_NONE;
@@ -130,10 +131,12 @@ int Port_PcBattleBuild(void) {
     Port_LocalPlayersSet(b.players);
     BattleSetup_SetRule(b.players > 1, b.mode == PC_TRAINING ? 6 : 0, 0, sRelay || b.mode == PC_RAID || b.mode == PC_TRAINING ? 0 : 3, 0, b.stage, 0);
     if(sNativeRules) BattleSetup_SetRule(b.players>1,b.mode==PC_TRAINING?6:0,sNativeBgm,b.mode==PC_TRAINING||b.mode==PC_RAID?0:gSaveData->rule[0]==4?0:gSaveData->rule[0]+1,gSaveData->rule[2],b.stage,gSaveData->rule[5]^1);
+    if(b.rules.bgm1) Battle_GetSetup()->rule.bgm=b.rules.bgm1-1;
     for (s = 0; s < 2; s++) {
         s32 count = b.count[s] > 5 ? 5 : b.count[s];
         s32 cpu = (s == 1 && (b.players == 1 || b.mode == PC_RAID || b.mode == PC_TRAINING)) || (sNativeRules && sNativeCpuCpu && mode==PORT_MODE_NONE && b.mode!=PC_TRAINING);
         sLevel[s] = b.mode == PC_TRAINING && s ? -1 : sNativeRules ? CpuLevel_FromSetting(gSaveData->rule[1]) : 13;
+        if(b.rules.cpuLevel1 && cpu) sLevel[s]=b.rules.cpuLevel1-1;
         sNext[s] = count;
         sRemaining[s] = b.count[s];
         BattleSetup_SetSide(s, cpu ? BTL_CONTROL_CPU : BTL_CONTROL_PAD, s, count, 1, 1, 0, NULL);

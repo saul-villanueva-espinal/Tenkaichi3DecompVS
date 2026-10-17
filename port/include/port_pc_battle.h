@@ -6,11 +6,19 @@ extern "C" {
 #endif
 enum { PC_DUEL, PC_TRAINING, PC_TAG, PC_RAID, PC_RELAY, PC_FFA, PC_MODE_COUNT };
 typedef struct PcFighter { int chara, costume; } PcFighter;
+/* Zero values preserve the normal game's rules. Sent by the raid host. */
+typedef struct PcBattleRules {
+    int damagePct, kiPct, regenPerSec, regenSides, healthPct;
+    int bossHp, bossDamagePct, enragePct, cpuLevel1, bgm1;
+    int infiniteKiChara1, armorSides;
+} PcBattleRules;
 typedef struct PcBattle {
     int mode, players, stage, count[2];
     PcFighter fighter[2][PORT_RELAY_MAX];
+    PcBattleRules rules;
 } PcBattle;
 void Port_PcBattleDefault(PcBattle *b);
+int Port_PcBattleParse(PcBattle *b, const char *text);
 int Port_PcBattleValidate(const PcBattle *b, char *why, int size);
 int Port_PcBattleRequest(const PcBattle *b);
 int Port_PcBattlePending(void);

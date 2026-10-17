@@ -619,6 +619,9 @@ s32 BtlColl_HitByBlast(BtlCollChr *chr, BtlCollHit *hit) {
         if (BtlAct_TestPoweredSkill(chr, 0x40)) {
             n++;
         }
+#ifdef PORT
+        { extern s32 Port_BattleRulesArmor(s32); n+=Port_BattleRulesArmor(chr->objId); }
+#endif
         if (chr->unkE14 > 0) {
             n++;
         }

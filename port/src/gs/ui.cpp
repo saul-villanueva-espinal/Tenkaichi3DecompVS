@@ -2405,7 +2405,7 @@ extern "C" void Port_UiNotice(const char *text) {
 // ============================================================================
 // The battle and renderer run on different threads. Share only small locked snapshots.
 static SDL_SpinLock sFeatureLock;
-static int sBattleActive, sBossHealth = -1;
+static int sBattleActive, sBossHealth = -1, sBossMaxHealth;
 struct FormHint { int x, y, count; Uint64 until; };
 static FormHint sFormHints[2];
 extern "C" {
@@ -2425,10 +2425,10 @@ extern "C" void Port_PhotoCamera(float *yaw, float *pitch, float *distance) {
     *yaw = gPortPhotoYaw; *pitch = gPortPhotoPitch; *distance = gPortPhotoDist;
     SDL_UnlockSpinlock(&sFeatureLock);
 }
-extern "C" void Port_SetBattleOverlay(int active, int health) {
+extern "C" void Port_SetBattleOverlay(int active, int health,int maxHealth) {
     SDL_LockSpinlock(&sFeatureLock);
     sBattleActive = active;
-    sBossHealth = health;
+    sBossHealth = health;sBossMaxHealth=maxHealth;
     if (!active) {
         __atomic_store_n(&gPortPhotoMode, 0, __ATOMIC_RELEASE);
         __atomic_store_n(&gPortHideHud, 0, __ATOMIC_RELEASE);
@@ -2450,7 +2450,7 @@ static bool feature_overlay_on(void) {
 static void Port_DrawFeatureHints(ImDrawList *dl) {
     if (Port_HudHidden() || gUiPresentW <= 0 || gUiPresentH <= 0) return;
     SDL_LockSpinlock(&sFeatureLock);
-    int hp = sBossHealth;
+    int hp = sBossHealth,maxHp=sBossMaxHealth;
     bool active = sBattleActive;
     FormHint hints[2] = {sFormHints[0], sFormHints[1]};
     SDL_UnlockSpinlock(&sFeatureLock);
@@ -2458,13 +2458,16 @@ static void Port_DrawFeatureHints(ImDrawList *dl) {
     ImFont *font = ImGui::GetFont();
     if (hp >= 0 && GsDraw_HudShown()) {
         char text[128];
-        snprintf(text, sizeof(text), "[JEFE COLOSAL: RAID BOSS]  %d/6 barras", (hp + 9999) / 10000);
+        snprintf(text, sizeof(text), "JEFE  %d / %d HP%s", hp,maxHp, hp>0 && hp*2<=maxHp?"  FURIA":"");
         float size = 11.0f * sy;
         ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
         float x = gUiPresentX + gUiPresentW - ts.x - 8.0f * sx;
         float y = gUiPresentY + 3.0f * sy;
         dl->AddRectFilled(ImVec2(x - 4 * sx, y), ImVec2(x + ts.x + 4 * sx, y + ts.y + 3 * sy), IM_COL32(45, 8, 12, 220), 3 * sy);
         dl->AddText(font, size, ImVec2(x, y), IM_COL32(255, 205, 75, 255), text);
+        float ratio=maxHp>0?((float)hp/maxHp):0;
+        dl->AddRectFilled(ImVec2(x,y+ts.y+4*sy),ImVec2(x+ts.x,y+ts.y+8*sy),IM_COL32(50,20,20,255));
+        dl->AddRectFilled(ImVec2(x,y+ts.y+4*sy),ImVec2(x+ts.x*ratio,y+ts.y+8*sy),IM_COL32(240,125,20,255));
     }
     if (active && GsDraw_HudShown()) {
         int a = Port_PcRelayRemaining(0), b = Port_PcRelayRemaining(1);

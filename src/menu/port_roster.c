@@ -377,9 +377,11 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     sNr.count[0]=sNr.count[1]=max;if(sNr.mode==PC_RAID) {sNr.count[0]=sNr.players;sNr.count[1]=1;}
     remembered=Port_RosterRecall(sNr.mode,&last);
     if(remembered && last.count[0]<=max && last.count[1]<=max && last.players==sNr.players) sNr=last;else remembered=0;
+    memset(&sNr.rules,0,sizeof(sNr.rules));
     memset(sNrFilled,0,sizeof(sNrFilled));if(remembered) memset(sNrFilled,1,sizeof(sNrFilled));
     if(kind==3 && out!=NULL && out->count[1]>0) {
         s32 k;
+        sNr.rules=out->rules;
         sNr.count[1] = out->count[1] > 10 ? 10 : out->count[1];
         for(k=0; k<sNr.count[1]; k++) {
             sNr.fighter[1][k] = out->fighter[1][k];
