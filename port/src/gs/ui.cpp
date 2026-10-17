@@ -172,7 +172,18 @@ static SDL_GPUTexture *make_strip(uint8_t *pix, size_t bytes, uint32_t w, uint32
     tbi.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
     tbi.size = (Uint32)bytes;
     tb = SDL_CreateGPUTransferBuffer(sDevice, &tbi);
+    if (tb == NULL) {
+        SDL_ReleaseGPUTexture(sDevice, tex);
+        free(pix);
+        return NULL;
+    }
     map = SDL_MapGPUTransferBuffer(sDevice, tb, false);
+    if (map == NULL) {
+        SDL_ReleaseGPUTransferBuffer(sDevice, tb);
+        SDL_ReleaseGPUTexture(sDevice, tex);
+        free(pix);
+        return NULL;
+    }
     memcpy(map, pix, bytes);
     SDL_UnmapGPUTransferBuffer(sDevice, tb);
     free(pix);

@@ -161,6 +161,10 @@ static GsTex tex_create(uint32_t w, uint32_t h, int format, int levels) {
 /* Queues a level's pixels for the copy pass (which frees them). Takes ownership of `px`; 0 = dropped. */
 static int tex_upload(GsTex handle, int level, uint32_t w, uint32_t h, int format, const void *px, uint32_t bytes) {
     (void)format; /* a Vulkan texture is made with its format; the pixels arrive as they are */
+    if (px == NULL || handle == 0 || w == 0 || h == 0) {
+        free((void *)px);
+        return 0;
+    }
     if (sPendingCount == MAX_PENDING) {
         free((void *)px);
         return 0;
@@ -657,40 +661,46 @@ static void vk_frame_end(void) {
         SDL_GPUTransferBufferLocation src;
         SDL_GPUBufferRegion dst;
         void *p = SDL_MapGPUTransferBuffer(sDev, sVxfer, true);
-        memcpy(p, gsVerts, gsVertCount * sizeof(Vtx));
-        SDL_UnmapGPUTransferBuffer(sDev, sVxfer);
-        src.transfer_buffer = sVxfer;
-        src.offset = 0;
-        dst.buffer = sVbuf;
-        dst.offset = 0;
-        dst.size = gsVertCount * sizeof(Vtx);
-        SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+        if (p != NULL) {
+            memcpy(p, gsVerts, gsVertCount * sizeof(Vtx));
+            SDL_UnmapGPUTransferBuffer(sDev, sVxfer);
+            src.transfer_buffer = sVxfer;
+            src.offset = 0;
+            dst.buffer = sVbuf;
+            dst.offset = 0;
+            dst.size = gsVertCount * sizeof(Vtx);
+            SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+        }
     }
     if (gsVuVertCount != 0) {
         SDL_GPUTransferBufferLocation src;
         SDL_GPUBufferRegion dst;
         void *p = SDL_MapGPUTransferBuffer(sDev, sVuXfer, true);
-        memcpy(p, gsVuVerts, gsVuVertCount * 48);
-        SDL_UnmapGPUTransferBuffer(sDev, sVuXfer);
-        src.transfer_buffer = sVuXfer;
-        src.offset = 0;
-        dst.buffer = sVuVbuf;
-        dst.offset = 0;
-        dst.size = gsVuVertCount * 48;
-        SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+        if (p != NULL) {
+            memcpy(p, gsVuVerts, gsVuVertCount * 48);
+            SDL_UnmapGPUTransferBuffer(sDev, sVuXfer);
+            src.transfer_buffer = sVuXfer;
+            src.offset = 0;
+            dst.buffer = sVuVbuf;
+            dst.offset = 0;
+            dst.size = gsVuVertCount * 48;
+            SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+        }
     }
     if (gsVuIdxCount != 0) {
         SDL_GPUTransferBufferLocation src;
         SDL_GPUBufferRegion dst;
         void *p = SDL_MapGPUTransferBuffer(sDev, sVuIXfer, true);
-        memcpy(p, gsVuIdx, gsVuIdxCount * sizeof(uint32_t));
-        SDL_UnmapGPUTransferBuffer(sDev, sVuIXfer);
-        src.transfer_buffer = sVuIXfer;
-        src.offset = 0;
-        dst.buffer = sVuIbuf;
-        dst.offset = 0;
-        dst.size = gsVuIdxCount * sizeof(uint32_t);
-        SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+        if (p != NULL) {
+            memcpy(p, gsVuIdx, gsVuIdxCount * sizeof(uint32_t));
+            SDL_UnmapGPUTransferBuffer(sDev, sVuIXfer);
+            src.transfer_buffer = sVuIXfer;
+            src.offset = 0;
+            dst.buffer = sVuIbuf;
+            dst.offset = 0;
+            dst.size = gsVuIdxCount * sizeof(uint32_t);
+            SDL_UploadToGPUBuffer(copy, &src, &dst, true);
+        }
     }
     for (i = 0; i < sPendingCount; i++) {
         SDL_GPUTransferBufferCreateInfo ti;
@@ -698,12 +708,26 @@ static void vk_frame_end(void) {
         SDL_GPUTextureTransferInfo src;
         SDL_GPUTextureRegion dst;
         void *p;
+        uint32_t size = sPending[i].bytes ? sPending[i].bytes : sPending[i].w * sPending[i].h * 4;
+        if (size == 0 || sPending[i].px == NULL || sPending[i].tex == NULL) {
+            free(sPending[i].px);
+            continue;
+        }
         SDL_zero(ti);
         ti.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
-        ti.size = sPending[i].bytes ? sPending[i].bytes : sPending[i].w * sPending[i].h * 4;
+        ti.size = size;
         tb = SDL_CreateGPUTransferBuffer(sDev, &ti);
+        if (tb == NULL) {
+            free(sPending[i].px);
+            continue;
+        }
         p = SDL_MapGPUTransferBuffer(sDev, tb, false);
-        memcpy(p, sPending[i].px, ti.size);
+        if (p == NULL) {
+            SDL_ReleaseGPUTransferBuffer(sDev, tb);
+            free(sPending[i].px);
+            continue;
+        }
+        memcpy(p, sPending[i].px, size);
         SDL_UnmapGPUTransferBuffer(sDev, tb);
         SDL_zero(src);
         src.transfer_buffer = tb;
@@ -745,22 +769,26 @@ static void vk_frame_end(void) {
         ti.usage = SDL_GPU_TRANSFERBUFFERUSAGE_UPLOAD;
         ti.size = GS_W * GS_H * 4;
         tb = SDL_CreateGPUTransferBuffer(sDev, &ti);
-        px = SDL_MapGPUTransferBuffer(sDev, tb, false);
-        for (y = 0; y < GS_H; y++) {
-            for (x = 0; x < GS_W; x++) {
-                px[y * GS_W + x] = Gs_VramRead(fbp * 32, 8, 0, x, y) | 0xFF000000u;
+        if (tb != NULL) {
+            px = SDL_MapGPUTransferBuffer(sDev, tb, false);
+            if (px != NULL) {
+                for (y = 0; y < GS_H; y++) {
+                    for (x = 0; x < GS_W; x++) {
+                        px[y * GS_W + x] = Gs_VramRead(fbp * 32, 8, 0, x, y) | 0xFF000000u;
+                    }
+                }
+                SDL_UnmapGPUTransferBuffer(sDev, tb);
+                SDL_zero(src);
+                src.transfer_buffer = tb;
+                SDL_zero(dst);
+                dst.texture = sFbTex[i];
+                dst.w = GS_W;
+                dst.h = GS_H;
+                dst.d = 1;
+                SDL_UploadToGPUTexture(copy, &src, &dst, false);
             }
+            SDL_ReleaseGPUTransferBuffer(sDev, tb);
         }
-        SDL_UnmapGPUTransferBuffer(sDev, tb);
-        SDL_zero(src);
-        src.transfer_buffer = tb;
-        SDL_zero(dst);
-        dst.texture = sFbTex[i];
-        dst.w = GS_W;
-        dst.h = GS_H;
-        dst.d = 1;
-        SDL_UploadToGPUTexture(copy, &src, &dst, false);
-        SDL_ReleaseGPUTransferBuffer(sDev, tb);
     }
     SDL_EndGPUCopyPass(copy);
     gGsFbUploads = 0;
