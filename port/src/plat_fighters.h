@@ -12,7 +12,7 @@ extern "C" {
 
 /* plat_fighters.c: the settings, held to their ranges */
 int Port_ExtraCount(void);      /* the Experiments tab's switch: how many extra fighters every Duel / training fight gets */
-int Port_LocalPlayers(void);    /* 2..4: players 3 and 4 in a two-player Team Battle / Free-for-All */
+int Port_LocalPlayers(void);    /* 1..4 local players; in Raid all human players fight the CPU boss. */
 void Port_LocalPlayersSet(int n);
 int Port_ExtraChara(int index); /* extra fighter `index`: its character 0..160 */
 int Port_ExtraTeam(int index);  /* 0, 1: a player's team; -1: its own */
@@ -28,7 +28,7 @@ int Port_TestRoster(int side, int index);
 const char *Port_FighterName(int chara); /* a character's name from the game data ("" if it gave none); the window's thread only */
 
 /* plat_modes.c: the extra modes, the main menu's second set of entries (SELECT there) */
-enum { PORT_MODE_NONE, PORT_MODE_TEAM, PORT_MODE_FFA, PORT_MODE_RAID, PORT_MODE_TRAINING, PORT_MODE_COUNT };
+/* Mode constants are shared with the game through port_fighters.h. */
 
 typedef struct PortModesView { /* what the main menu shows now, for the code that draws the hint (gs/ui.cpp) */
     int hint;   /* the game's main menu is up and takes input: the hint is shown */
@@ -54,6 +54,11 @@ extern float gPortPhotoPitch;
 extern float gPortPhotoDist;
 void Port_TogglePhotoMode(void);
 void Port_ToggleHud(void);
+int Port_PhotoActive(void);
+int Port_HudHidden(void);
+void Port_PhotoCamera(float *yaw, float *pitch, float *distance);
+void Port_SetBattleOverlay(int active, int health);
+void Port_FormHint(int side, int x, int y, int count);
 
 #ifdef __cplusplus
 }

@@ -144,7 +144,8 @@ extern void Port_TargetLog(int i, int target, int x, int locked);
 s32 Port_TargetHuman(s32 i) {
     extern int Port_FightPad(int k); /* port/src/plat_fighters.c: an extra fighter's controller, -1 the computer */
     if (i == 0 || i == 1) {
-        return !BattleSide_IsCpu(i) || (i == 0 && Port_TargetTestFlick(-1));
+        return (BtlChar_Get(i)->pad >= 0 && !*(s32 *)((u8 *)BtlChar_Get(i) + 0x1278)) ||
+               (i == 0 && Port_TargetTestFlick(-1));
     }
     return i >= 2 && i < BtlChar_GetCount() && Port_FightPad(i - 2) >= 0; /* (players 3 and 4, and a teammate) */
 }
@@ -383,6 +384,7 @@ static void Port_UpdateSpectate(void) {
                         extern void Port_SetFightPad(int k, int pad);
                         *deadInject = 1;
                         deadChr->pad = -1;
+                        if (p >= 2) Port_SetFightPad(p - 2, -1);
                         *allyInject = 0;
                         allyChr->pad = pad;
                         if (curAlly >= 2) {
@@ -417,7 +419,8 @@ s32 Port_HudFighter(s32 side) {
     {
         /* (four quarters: the two gauges are the top quarters' fighters; the bottom ones', hud_b.c) */
         extern s32 Port_QuadMode(void);
-        if (Port_QuadMode()) {
+        extern int Port_ModesFight(void), Battle_IsSplitScreen(void);
+        if (Port_QuadMode() || (Port_ModesFight() == 3 && Battle_IsSplitScreen())) {
             return Port_Spectated(Port_QuarterFighter(side));
         }
     }
@@ -446,7 +449,7 @@ s32 Port_QuadMode(void) {
         return 0;
     }
     for (k = 2; k < BtlChar_GetCount(); k++) {
-        if (Port_FightPad(k - 2) >= 0) {
+        if (Port_FightPad(k - 2) >= 2) {
             return 1;
         }
     }
@@ -455,7 +458,9 @@ s32 Port_QuadMode(void) {
 /* Three local players (asked for by the user: "two top, one wide bottom"): the quarters with nobody on controller
    4; player 3 has the whole bottom half (btl_cam.c, layout 4). */
 s32 Port_QuadThree(void) {
+    extern int Port_ModesFight(void);
     s32 k;
+    if (Port_ModesFight() == 3) return 0; /* Raid uses four quarters for 3P and 4P. */
 
     if (!Port_QuadMode()) {
         return 0;
@@ -521,7 +526,7 @@ static void Port_UpdateRevive(void) {
         extern s32 BtlMember_HasBlast(void *chr, s32 amount);
         extern void BtlMember_SubBlast(void *chr, s32 amount);
         extern void BtlMember_AddHealth(void *chr, s32 amount);
-        extern void BtlAnim_Play(void *chr, s32 motion, f32 blend);
+        extern void BtlAct_Request(BtlFlagChr *chr, s32 action);
         extern s32 BtlInput_IsHeld(BtlFlagChr *chr, u32 mask);
 
         if (BtlChar_IsDead(reviver)) {
@@ -540,10 +545,10 @@ static void Port_UpdateRevive(void) {
                 f32 dist;
                 Vec4_Sub(&d, &BtlChar_GetPos(target)->pos, &BtlChar_GetPos(reviver)->pos);
                 dist = Vec3_Length(&d);
-                if (dist <= 40.0f) {
+                if (dist < 40.0f) {
                     BtlMember_SubBlast((void *)reviver, 300000);
                     BtlMember_AddHealth((void *)target, 10000);
-                    BtlAnim_Play((void *)target, 0xE1, 0.2f);
+                    BtlAct_Request(target, 0xE1); /* get-up action, not an unrelated animation id */
                     fprintf(stderr, "bt3: teammate revive: fighter %d revived ally %d (spent 3 blast stocks)\n", p, k);
                     break;
                 }

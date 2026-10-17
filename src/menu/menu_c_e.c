@@ -922,6 +922,17 @@ void CharSel_Draw(void) {
         Flash_ClipSetFlags(f, &ref, 0x80, (u8)gCharSel->faceMask);
         Flash_FindLabel(f, NULL, i ? "mc_name_text_r" : "mc_name_text_l", &ref);
         TextBox_AttachLine(f, &ref, 0, 0, CS_NAME_LINE(gCharSel->side[i]->chara), &gCharSel->nameBox[i]);
+#ifdef PORT
+        {
+            extern void Flash_ClipGetPos(MFlash *, MFlashRef *, s32 *, s32 *);
+            extern void Port_FormHint(int side, int x, int y, int count);
+            s32 nx, ny;
+            s32 col = gCharSel->side[i]->col, row = gCharSel->side[i]->row;
+            Flash_ClipGetPos(f, &ref, &nx, &ny);
+            if (gCharSel->side[i]->state == CHARSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gCharSel->rows[i])
+                Port_FormHint(i, nx, ny + 30, gCharSel->cells[i][col + row * 7].formCount);
+        }
+#endif
         Flash_FindLabel(f, NULL, i ? "mc_form_text_r" : "mc_form_text_l", &ref);
         TextBox_AttachLine(f, &ref, 0, 0, PORT_FORM_LINE(gCharSel->side[i]->chara), &gCharSel->formBox[i]);
     }

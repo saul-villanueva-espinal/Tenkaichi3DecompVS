@@ -985,6 +985,22 @@ void TeamSel_Draw(void) {
         Flash_ClipSetFlags(flash, &ref, 0x80, (u8)gTeamSel->faceMask);
         Flash_FindLabel(flash, NULL, i ? "mc_name_text_r" : "mc_name_text_l", &ref);
         TextBox_AttachLine(flash, &ref, 0, 0, PORT_NAME_LINE(gTeamSel->side[i]->chara), &gTeamSel->nameBox[i]);
+#ifdef PORT
+        {
+            extern void Flash_ClipGetPos(MFlash *, MFlashRef *, s32 *, s32 *);
+            extern void Port_FormHint(int side, int x, int y, int count);
+            s32 nx, ny;
+            s32 cur = gTeamSel->side[i]->cur;
+            s32 col = -1, row = -1;
+            if (cur >= 0 && cur < TS_MEMBER_MAX) {
+                col = gTeamSel->side[i]->member[cur].col;
+                row = gTeamSel->side[i]->member[cur].row;
+            }
+            Flash_ClipGetPos(flash, &ref, &nx, &ny);
+            if (gTeamSel->side[i]->state == TEAMSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gTeamSel->rows[i])
+                Port_FormHint(i, nx, ny + 30, gTeamSel->cells[i][col + row * 7].formCount);
+        }
+#endif
         Flash_FindLabel(flash, NULL, i ? "mc_form_text_r" : "mc_form_text_l", &ref);
         TextBox_AttachLine(flash, &ref, 0, 0, PORT_FORM_LINE(gTeamSel->side[i]->chara), &gTeamSel->formBox[i]);
     }

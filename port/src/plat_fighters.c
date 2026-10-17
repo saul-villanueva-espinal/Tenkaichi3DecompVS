@@ -42,9 +42,10 @@
 #include <string.h>
 #include "gs/menu_labels.h"
 #include "plat_fighters.h"
+#include "plat_charas.h"
 #include "port_fighters.h"
 
-#define CHARA_COUNT 161  /* characters 0..160 (MCHR_RANDOM, include/menu/menu_d.h) */
+#define CHARA_COUNT (PORT_CHARA_FIRST + PORT_CHARA_MAX)  /* characters 0..160 (MCHR_RANDOM, include/menu/menu_d.h) */
 #define EXTRA_MAX PORT_EXTRA_MAX /* extra fighters a fight can have so far */
 #define FILE_CHARA 0x590 /* file ids of character c: c * 10 + this is its model, + 8 and + 9 its two animation files
                             (what battle_load.c asks for) */
@@ -90,7 +91,7 @@ int Port_ExtraCount(void) {
    quarters (src/battle/btl_cam.c). 2: the game's own two. */
 int Port_LocalPlayers(void) {
     int n = Port_Setting("local_players", 2);
-    return n < 2 ? 2 : n > 4 ? 4 : n;
+    return n < 1 ? 1 : n > 4 ? 4 : n;
 }
 
 /* The loader asks before anything is loaded (battle_load.c, Port_LoadExtras): is this a fight of three or four
@@ -105,7 +106,7 @@ int Port_LocalQuadFight(int mode, int members0, int members1, int replay, int sc
            members0 + members1 > 2 && (forced || mode == 0) && !replay && !script;
 }
 void Port_LocalPlayersSet(int n) {
-    Port_SettingSave("local_players", n < 2 ? 2 : n > 4 ? 4 : n);
+    Port_SettingSave("local_players", n < 1 ? 1 : n > 4 ? 4 : n);
     Port_SettingsWrite();
 }
 int Port_ExtraChara(int index) {
@@ -144,17 +145,18 @@ void Port_ExtraSet(int count, int index, int chara, int team, int level) {
 
 /* 1 when the three files a fight reads for character `chara` are in the data folder and not empty. `why`: the
    first one that is not, for the window and the log. */
-int Port_ExtraCharaOk(int chara, char *why, int size) {
-    static const int kFiles[3] = {0, 8, 9};
+static int chara_files_ok(int chara, int costume, char *why, int size) {
+    static const int kFiles[3] = {0, 16, 24};
     char path[1024];
     int i;
 
-    if (chara < 0 || chara >= CHARA_COUNT) {
+    if (chara < 0 || chara >= CHARA_COUNT || (chara >= 161 && chara < PORT_CHARA_FIRST)) {
         snprintf(why, (size_t)size, "there is no character %d (0..%d)", chara, CHARA_COUNT - 1);
         return 0;
     }
     for (i = 0; i < 3; i++) {
-        int id = chara * 10 + FILE_CHARA + kFiles[i]; /* (ids from 1 are the second archive's files, from 0) */
+        int id = 0xD48 + PORT_CHARA_FILE_INDEX + chara * PORT_FILES_PER_CHARA +
+                 (costume >= 0 && costume < 8 ? costume : 0) + kFiles[i]; /* (ids from 1 are the second archive's files, from 0) */
         FILE *fp = Port_FilePath(1, id - 1, NULL, path, sizeof(path)) ? fopen(path, "rb") : NULL;
         long bytes = 0;
         if (fp != NULL) {
@@ -171,6 +173,10 @@ int Port_ExtraCharaOk(int chara, char *why, int size) {
     return 1;
 }
 
+int Port_ExtraCharaOk(int chara, char *why, int size) {
+    return chara_files_ok(chara, 0, why, size);
+}
+
 /* One more extra fighter for the fight being set up. 0: not taken (the table is full, there is no such character,
    its files are missing: the reason is logged, and kept for the window). */
 static int fight_add(int chara, int costume, int team, int level, int member) {
@@ -181,7 +187,7 @@ static int fight_add(int chara, int costume, int team, int level, int member) {
         fprintf(stderr, "bt3: extra fighter: character %d is left out (a fight has %d fighters at most)\n", chara, PORT_FIGHTER_MAX);
         return 0;
     }
-    if (!Port_ExtraCharaOk(chara, why, sizeof(why))) {
+    if (!chara_files_ok(chara, costume, why, sizeof(why))) {
         fprintf(stderr, "bt3: extra fighter: character %d is left out (%s)\n", chara, why);
         sLast = EXTRA_FILES;
         return 0;
@@ -291,7 +297,7 @@ int Port_ExtraSetup(int mode, int members0, int members1, int split, int replay,
         }
     } else if (roster) {
         /* The sides' own members, all at once. (A fight of one member a side is the game's own fight of two.) */
-        if (members0 + members1 > 2) {
+        if (members0 + members1 > 2 || page == PORT_MODE_RAID) {
             asked = 1;
             if (!forced && mode != 0) {
                 last = EXTRA_MODE;
@@ -359,10 +365,8 @@ int Port_ExtraAdd(int side, int index, int chara, int costume, int level) {
     if (sFightRoster == PORT_MODE_FFA) {
         team = 2 + sFightCount;
     } else if (sFightRoster == PORT_MODE_RAID) {
-        team = side != 0 ? 1 : 0;
-        if (side != 0) {
-            level = 29;
-        }
+        /* Only side 2's lead is the boss. Every extra selection joins the cooperative team. */
+        team = 0;
     } else {
         team = side != 0;
     }
@@ -377,11 +381,12 @@ void Port_ExtraDone(void) {
     for (k = 0; k < sFightCount; k++) {
         sFight[k].pad = -1;
     }
-    for (pad = 2; sFightSplit && sFightRoster != 0 && pad < local; pad++) {
+    for (pad = sFightRoster == PORT_MODE_RAID ? 1 : 2;
+         sFightSplit && sFightRoster != 0 && pad < local; pad++) {
         for (pass = 0; pass < 2; pass++) {
             for (k = 0; k < sFightCount; k++) {
                 int m = sFight[k].member;
-                if (sFight[k].pad < 0 && (pass == 1 || m == (pad - 2) * 8 + 1)) {
+                if (sFight[k].pad < 0 && (sFightRoster == PORT_MODE_RAID || pass == 1 || m == (pad - 2) * 8 + 1)) {
                     sFight[k].pad = pad;
                     break;
                 }

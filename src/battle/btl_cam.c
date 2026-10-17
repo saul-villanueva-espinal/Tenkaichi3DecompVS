@@ -5,6 +5,9 @@
 #include "battle/btl_demo_cam.h"
 #include "sys/heap.h"
 #include "sys/pad.h"
+#ifdef PORT
+#include "port_fighters.h"
+#endif
 
 /* Battle camera, 0x23E040-0x23F620. See battle/btl_cam.h for the structures and the per-frame flow. */
 
@@ -532,6 +535,13 @@ void BtlCam_UpdateView(s32 side) {
         sPortViewObj[side] = objId;
     }
 #endif
+#ifdef PORT
+    if (Battle_IsSplitScreen() && Port_ModesFight() == PORT_MODE_RAID) {
+        extern s32 Port_QuarterFighter(s32 q), Port_Spectated(s32 p), Port_FighterObjId(s32 i);
+        objId = Port_FighterObjId(Port_Spectated(Port_QuarterFighter(side)));
+        sPortViewObj[side] = objId;
+    }
+#endif
     BtlCharApi_GetCamPose(objId, &view->pos, &view->rot);
     view->priority = BtlCharApi_HasCamPriority(objId);
     BtlCam_BuildView(view, 1);
@@ -886,3 +896,49 @@ f32 CamShake_GetTime(CamShake *shake) {
     }
     return time;
 }
+
+#ifdef PORT
+void Port_PhotoCameraUpdate(s32 active) {
+    static BtlCamView saved[2];
+    static s32 captured;
+    extern void Port_PhotoCamera(float *yaw, float *pitch, float *distance);
+    f32 yaw, pitch, distance;
+    s32 i;
+    if (!active) {
+        if (captured) {
+            for (i = 0; i < 2; i++) gBtlCam->views[i] = saved[i];
+        }
+        captured = 0;
+        return;
+    }
+    if (!captured) {
+        for (i = 0; i < 2; i++) saved[i] = gBtlCam->views[i];
+        captured = 1;
+    }
+    Port_PhotoCamera(&yaw, &pitch, &distance);
+    for (i = 0; i < 2; i++) {
+        BtlCamView *v = &gBtlCam->views[i];
+        Mtx44 axes;
+        Vec4 pivot;
+        f32 cp, radius = 15.0f;
+        *v = saved[i];
+        BtlCam_SetViewLayout(v, VIEW_LAYOUT_FULL);
+        Mtx_InverseRT(&axes, &saved[i].view.world2view2);
+        pivot.x = saved[i].pos.x + axes.m[2][0] * radius;
+        pivot.y = saved[i].pos.y + axes.m[2][1] * radius;
+        pivot.z = saved[i].pos.z + axes.m[2][2] * radius;
+        v->rot.x += pitch;
+        if (v->rot.x > 1.5f) v->rot.x = 1.5f;
+        if (v->rot.x < -1.5f) v->rot.x = -1.5f;
+        v->rot.y += yaw;
+        /* Obtain the rotated forward axis from the game's own matrix convention. */
+        View_SetTransform(&v->view.world2view, &v->view.world2view2, &v->pos, &v->rot);
+        Mtx_InverseRT(&axes, &v->view.world2view2);
+        cp = radius * distance;
+        v->pos.x = pivot.x - axes.m[2][0] * cp;
+        v->pos.y = pivot.y - axes.m[2][1] * cp;
+        v->pos.z = pivot.z - axes.m[2][2] * cp;
+        BtlCam_BuildView(v, 0);
+    }
+}
+#endif

@@ -469,13 +469,41 @@ s32 Battle_DrawSplit(void) {
 /* Runs battle frames until the sequence reports the end; restarts the match when BATTLE_FLAG_RESTART is raised. */
 void Battle_Loop(void) {
     s32 draw;
-    s32 done;
+    s32 done = 0;
+#ifdef PORT
+    extern int Port_PhotoActive(void);
+    extern void Port_BattleOverlayUpdate(s32 active);
+    extern void Port_PhotoCameraUpdate(s32 active);
+    s32 photoWas = 0;
+    draw = !Battle_IsSplitScreen();
+    Port_BattleOverlayUpdate(1);
+#endif
 
     do {
         if (Battle_GetWork()->flags & BATTLE_FLAG_RESTART) {
             Battle_Restart();
             Battle_GetWork()->flags &= ~BATTLE_FLAG_RESTART;
         }
+#ifdef PORT
+        if (Port_PhotoActive()) {
+            Gfx_BeginFrame();
+            Pad_Update();
+            Port_PhotoCameraUpdate(1);
+            photoWas = 1;
+            BtlCam_SelectView(0);
+            BtlCam_ApplyView(0);
+            BtlObj_UpdateVisibility(0);
+            BtlObj_FinishVisibility(0);
+            Battle_Draw();
+            Gfx_EndFrame(2);
+            Dma_Flush();
+            continue;
+        }
+        if (photoWas) {
+            Port_PhotoCameraUpdate(0);
+            photoWas = 0;
+        }
+#endif
         Job_Run();
         Gfx_BeginFrame();
         if (!(Battle_GetWork()->flags & BATTLE_FLAG_PAUSE)) {
@@ -492,6 +520,9 @@ void Battle_Loop(void) {
         BtlChars_SampleInput();
         draw = Battle_Update();
         done = BtlGame_Update();
+#ifdef PORT
+        Port_BattleOverlayUpdate(1);
+#endif
         if (Battle_IsSplitScreen() && draw) {
             Battle_DrawSplit();
         } else {
@@ -500,6 +531,9 @@ void Battle_Loop(void) {
         Gfx_EndFrame(2);
         Dma_Flush();
     } while (!done);
+#ifdef PORT
+    Port_BattleOverlayUpdate(0);
+#endif
 }
 
 /* Runs one whole battle scene; called by Game_Main after the menu overlay returns. */

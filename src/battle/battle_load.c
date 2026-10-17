@@ -1323,6 +1323,22 @@ static void Port_LoadExtras(void) {
             setup->sides[1].pad = 1;
         }
     }
+    if (Port_ModesFight() == PORT_MODE_RAID && Battle_GetMode() == 0 &&
+        !BattleReplay_IsActive() && Battle_GetScript() < 0) {
+        BattleSide *boss = &setup->sides[1];
+        s32 need = Port_LocalPlayers() - 1;
+        s32 allies = setup->sides[0].memberCount - 1 + boss->memberCount - 1;
+        /* Fill missing cooperative slots from the selected ally, retaining its costume. */
+        while (allies < need && setup->sides[0].memberCount < BTL_MEMBER_MAX) {
+            BattleSide *team = &setup->sides[0];
+            team->members[team->memberCount++] = team->members[team->lead];
+            allies++;
+        }
+        setup->rule.screenMode = Port_LocalPlayers() > 1 ? 1 : 0;
+        boss->control = BTL_CONTROL_CPU;
+        boss->pad = 1; /* CPU control ignores the pad; keep a valid index for setup bitfields. */
+        boss->members[boss->lead].cpuLevel = 29;
+    }
     roster = Port_ExtraSetup(Battle_GetMode(), setup->sides[0].memberCount, setup->sides[1].memberCount, Battle_IsSplitScreen(),
                              BattleReplay_IsActive(), Battle_GetScript() >= 0);
     if (roster == 0) {

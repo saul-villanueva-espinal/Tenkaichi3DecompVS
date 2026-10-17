@@ -66,7 +66,7 @@ static int online(void) {
 }
 
 const char *Port_ModesName(int mode) {
-    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Modo Raid Boss", "Entrenamiento"};
+    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Modo Raid Boss", "Entrenamiento Extra"};
     return mode > PORT_MODE_NONE && mode < PORT_MODE_COUNT ? kNames[mode] : "";
 }
 
@@ -161,7 +161,7 @@ void Port_ModesShowPlayers(const int *rows) {
    from it (3 or 4: players 3 and 4 play the teams' second members; 1 or 2: the game's own), and the mode is chosen
    as Port_ModesChoose does. */
 int Port_ModesChoosePlayers(int entry, int n) {
-    Port_LocalPlayersSet(n >= 3 ? n : 2);
+    Port_LocalPlayersSet(n);
     fprintf(stderr, "bt3: modes: %s for %s\n", Port_ModesName(entry + 1), Port_ModesPlayersName(n));
     return Port_ModesChoose(entry);
 }

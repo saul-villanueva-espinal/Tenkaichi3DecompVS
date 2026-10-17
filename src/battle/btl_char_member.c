@@ -450,13 +450,15 @@ s32 BtlMember_Damage(BtlMemberChr *chr, s32 amount, s32 flags) {
     }
     g->health = health - amount;
 #ifdef PORT
-    if (amount >= 50) {
+    /* Report actual HP removed, including overkill clamping. */
+    s32 actualDamage = before - BtlUtil_Max(g->health, 0);
+    if (actualDamage > 0) {
         extern void Port_AddDamagePopup(int side, int damage, float x, float y, float z);
         BtlMemberPose *pose = BtlChar_GetPos(chr);
         if (pose != NULL) {
-            Port_AddDamagePopup(chr->side, amount, pose->pos.x, pose->pos.y + 1.2f, pose->pos.z);
+            Port_AddDamagePopup(chr->side, actualDamage, pose->pos.x, pose->pos.y + 1.2f, pose->pos.z);
         } else {
-            Port_AddDamagePopup(chr->side, amount, 0.0f, 0.0f, 0.0f);
+            Port_AddDamagePopup(chr->side, actualDamage, 0.0f, 0.0f, 0.0f);
         }
     }
 #endif
@@ -876,3 +878,17 @@ void BtlMembers_UpdateQueuedDamage(void) {
         }
     }
 }
+
+#ifdef PORT
+void Port_BattleOverlayUpdate(s32 active) {
+    extern BtlMemberChr *BtlChar_Get(s32 side);
+    extern int Port_ModesFight(void);
+    extern void Port_SetBattleOverlay(int active, int health);
+    s32 hp = -1;
+    if (active && Port_ModesFight() == 3) {
+        BtlMemberChr *boss = BtlChar_Get(1);
+        if (boss != NULL) hp = BtlUtil_Max(BtlMember_GetActiveGauge(boss)->health, 0);
+    }
+    Port_SetBattleOverlay(active, hp);
+}
+#endif

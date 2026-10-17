@@ -1208,13 +1208,6 @@ void BtlHit_ApplyHit(HitChr *atk) {
         react = BtlAtk_GetReactionG(atk);
     } else {
         s32 lvl = 0;
-#ifdef PORT
-        extern int Port_ModesFight(void);
-        if (Port_ModesFight() == 3 && def->side == 1) {
-            lvl += 2;
-        }
-#endif
-
         if (BtlParam_GetFlags(def) & 4) {
             lvl = 1;
         }
@@ -1246,6 +1239,13 @@ void BtlHit_ApplyHit(HitChr *atk) {
                 lvl--;
             }
         }
+#ifdef PORT
+        /* Apply after the base armor assignment, before the attack's armor penetration. */
+        extern int Port_ModesFight(void);
+        if (Port_ModesFight() == 3 && def->side == 1) {
+            lvl += 2;
+        }
+#endif
         lvl -= BtlAtk_GetUnk2C(atk);
         if (lvl > 0 && (af & 4)) {
             react = 2;

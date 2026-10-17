@@ -6,6 +6,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdint.h>
+#include <math.h>
 #include "imgui.h"
 #include "imgui_impl_sdl3.h"
 #include "imgui_impl_sdlgpu3.h"
@@ -1650,14 +1651,14 @@ static void chara_label(char *out, size_t size, int chara) {
 static void experiments_tab(void) {
     static const char *const kTeams[] = {"Equipo 1 (Jugador 1)", "Equipo 2 (Jugador 2)", "Por su cuenta (Contra todos)"};
     static const char *const kLast[] = {NULL,
-                                        "El último combate tuvo el tercer luchador activo.",
-                                        "El último combate fue original: solo Duelo y Entrenamiento pueden tener tercer luchador.",
-                                        "El último combate fue original: un bando tenía más de un integrante.",
-                                        "El último combate fue original: la pantalla ya estaba dividida para dos jugadores.",
-                                        "El último combate fue original: era una repetición.",
-                                        "El último combate fue original: combate de historia con guión.",
-                                        "El último combate fue original: las partidas online no permiten luchador extra.",
-                                        "El último combate fue original: no se encontraron los archivos del personaje."};
+                                        "El Ãºltimo combate tuvo el tercer luchador activo.",
+                                        "El Ãºltimo combate fue original: solo Duelo y Entrenamiento pueden tener tercer luchador.",
+                                        "El Ãºltimo combate fue original: un bando tenÃ­a mÃ¡s de un integrante.",
+                                        "El Ãºltimo combate fue original: la pantalla ya estaba dividida para dos jugadores.",
+                                        "El Ãºltimo combate fue original: era una repeticiÃ³n.",
+                                        "El Ãºltimo combate fue original: combate de historia con guiÃ³n.",
+                                        "El Ãºltimo combate fue original: las partidas online no permiten luchador extra.",
+                                        "El Ãºltimo combate fue original: no se encontraron los archivos del personaje."};
     static int checked = -1, ok, age; // the character whose files were looked for, what came of it, frames since
     static char why[160], refused[320];
     int count = Port_ExtraCount(), chara = Port_ExtraChara(0), team = Port_ExtraTeam(0), level = Port_ExtraLevel(0);
@@ -1675,8 +1676,8 @@ static void experiments_tab(void) {
         if (ImGui::Combo("Jugadores en esta PC", &local, kLocal, 3)) {
             Port_LocalPlayersSet(local + 2);
         }
-        ImGui::TextWrapped("Para Batalla por Equipos o Todos Contra Todos (pulsa SELECT en el Menú Principal), con "
-                           "dos o más luchadores por equipo: el mando 3 controla al 2º luchador del Equipo 1, y el mando 4 al 2º del Equipo 2. "
+        ImGui::TextWrapped("Para Batalla por Equipos o Todos Contra Todos (pulsa SELECT en el MenÃº Principal), con "
+                           "dos o mÃ¡s luchadores por equipo: el mando 3 controla al 2Âº luchador del Equipo 1, y el mando 4 al 2Âº del Equipo 2. "
                            "La pantalla se divide en 4 cuadrantes (uno para cada jugador).");
     }
     ImGui::Spacing();
@@ -1685,7 +1686,7 @@ static void experiments_tab(void) {
         count = on ? 1 : 0;
     }
     ImGui::SetItemTooltip("Un tercer luchador, controlado por la CPU, se une a la siguiente pelea que inicies.\n"
-                          "Funciona en combates 1 contra 1 de Duelo (contra la máquina) o de Entrenamiento.\n"
+                          "Funciona en combates 1 contra 1 de Duelo (contra la mÃ¡quina) o de Entrenamiento.\n"
                           "Historia, torneos, batallas por equipo originales y repeticiones se mantienen sin cambios.");
     if (Port_NetActive()) {
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Desactivado durante partidas online.");
@@ -1735,13 +1736,13 @@ static void experiments_tab(void) {
                 team = at == 2 ? -1 : at;
             }
         }
-        ImGui::SetItemTooltip("De qué bando pelea. Los luchadores del mismo equipo no se golpean entre sí.\n"
+        ImGui::SetItemTooltip("De quÃ© bando pelea. Los luchadores del mismo equipo no se golpean entre sÃ­.\n"
                               "Por su cuenta: pelea contra ambos jugadores (todos contra todos).");
         ImGui::TableNextColumn();
         ImGui::SetNextItemWidth(-FLT_MIN);
         ImGui::SliderInt("##level", &level, 0, 29, "%d", ImGuiSliderFlags_AlwaysClamp);
         ImGui::SetItemTooltip("Dificultad de la CPU de 0 a 29.\n"
-                              "Los cinco niveles estándar del juego son: 0, 6, 13 (Normal), 21 y 29 (Muy difícil).");
+                              "Los cinco niveles estÃ¡ndar del juego son: 0, 6, 13 (Normal), 21 y 29 (Muy difÃ­cil).");
         ImGui::PopID();
         ImGui::EndTable();
     }
@@ -1768,13 +1769,13 @@ static void experiments_tab(void) {
     ImGui::Separator();
     ImGui::Spacing();
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f), "INSTRUCCIONES PARA ACTIVAR MODOS EXTRA (TAG TEAM / EXTRA FIGHTERS):");
-    ImGui::TextWrapped("1. En la pantalla del MENÚ PRINCIPAL del juego, pulsa la tecla o botón asignado a SELECT.\n"
-                       "2. El menú cambiará y mostrará: 'Team Battle' (Batalla por Equipos simultánea), 'Free-for-All' (Todos contra todos) y 'Training'.\n"
-                       "3. Elige el número de jugadores (1 a 4) y selecciona tus luchadores en la pantalla de equipos.\n"
-                       "4. ¡En el combate lucharán todos los personajes simultáneamente en la misma arena!");
+    ImGui::TextWrapped("1. En la pantalla del MENÃš PRINCIPAL del juego, pulsa la tecla o botÃ³n asignado a SELECT.\n"
+                       "2. El menÃº cambiarÃ¡ y mostrarÃ¡: 'Team Battle' (Batalla por Equipos simultÃ¡nea), 'Free-for-All' (Todos contra todos) y 'Training'.\n"
+                       "3. Elige el nÃºmero de jugadores (1 a 4) y selecciona tus luchadores en la pantalla de equipos.\n"
+                       "4. Â¡En el combate lucharÃ¡n todos los personajes simultÃ¡neamente en la misma arena!");
     if (Port_ModesFight() != PORT_MODE_NONE) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.3f, 1.0f));
-        ImGui::TextWrapped("Modo actual activo: %s (se mantendrá hasta que vuelvas al Menú Principal).",
+        ImGui::TextWrapped("Modo actual activo: %s (se mantendrÃ¡ hasta que vuelvas al MenÃº Principal).",
                            Port_ModesName(Port_ModesFight()));
         ImGui::PopStyleColor();
     }
@@ -2214,8 +2215,81 @@ extern "C" void Port_UiNotice(const char *text) {
 }
 
 // ============================================================================
-// SPARKING! ZERO STYLE FLOATING DAMAGE POPUPS & CINEMATIC PHOTO MODE 360°
+// SPARKING! ZERO STYLE FLOATING DAMAGE POPUPS & CINEMATIC PHOTO MODE 360Â°
 // ============================================================================
+// The battle and renderer run on different threads. Share only small locked snapshots.
+static SDL_SpinLock sFeatureLock;
+static int sBattleActive, sBossHealth = -1;
+struct FormHint { int x, y, count; Uint64 until; };
+static FormHint sFormHints[2];
+extern "C" {
+int gPortPhotoMode = 0;
+int gPortHideHud = 0;
+float gPortPhotoYaw = 0.0f, gPortPhotoPitch = 0.0f, gPortPhotoDist = 1.0f;
+}
+
+extern "C" int Port_PhotoActive(void) {
+    return __atomic_load_n(&gPortPhotoMode, __ATOMIC_ACQUIRE);
+}
+extern "C" int Port_HudHidden(void) {
+    return __atomic_load_n(&gPortHideHud, __ATOMIC_ACQUIRE);
+}
+extern "C" void Port_PhotoCamera(float *yaw, float *pitch, float *distance) {
+    SDL_LockSpinlock(&sFeatureLock);
+    *yaw = gPortPhotoYaw; *pitch = gPortPhotoPitch; *distance = gPortPhotoDist;
+    SDL_UnlockSpinlock(&sFeatureLock);
+}
+extern "C" void Port_SetBattleOverlay(int active, int health) {
+    SDL_LockSpinlock(&sFeatureLock);
+    sBattleActive = active;
+    sBossHealth = health;
+    if (!active) {
+        __atomic_store_n(&gPortPhotoMode, 0, __ATOMIC_RELEASE);
+        __atomic_store_n(&gPortHideHud, 0, __ATOMIC_RELEASE);
+    }
+    SDL_UnlockSpinlock(&sFeatureLock);
+}
+extern "C" void Port_FormHint(int side, int x, int y, int count) {
+    if ((unsigned)side >= 2) return;
+    SDL_LockSpinlock(&sFeatureLock);
+    sFormHints[side] = {x, y, count, SDL_GetTicks() + 150};
+    SDL_UnlockSpinlock(&sFeatureLock);
+}
+static bool feature_overlay_on(void) {
+    SDL_LockSpinlock(&sFeatureLock);
+    bool on = sBattleActive || sFormHints[0].until > SDL_GetTicks() || sFormHints[1].until > SDL_GetTicks();
+    SDL_UnlockSpinlock(&sFeatureLock);
+    return on;
+}
+static void Port_DrawFeatureHints(ImDrawList *dl) {
+    if (Port_HudHidden() || gUiPresentW <= 0 || gUiPresentH <= 0) return;
+    SDL_LockSpinlock(&sFeatureLock);
+    int hp = sBossHealth;
+    FormHint hints[2] = {sFormHints[0], sFormHints[1]};
+    SDL_UnlockSpinlock(&sFeatureLock);
+    float sx = (float)gUiPresentW / 512.0f, sy = (float)gUiPresentH / 448.0f;
+    ImFont *font = ImGui::GetFont();
+    if (hp >= 0 && GsDraw_HudShown()) {
+        char text[128];
+        snprintf(text, sizeof(text), "[JEFE COLOSAL: RAID BOSS]  %d/6 barras", (hp + 9999) / 10000);
+        float size = 11.0f * sy;
+        ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+        float x = gUiPresentX + gUiPresentW - ts.x - 8.0f * sx;
+        float y = gUiPresentY + 3.0f * sy;
+        dl->AddRectFilled(ImVec2(x - 4 * sx, y), ImVec2(x + ts.x + 4 * sx, y + ts.y + 3 * sy), IM_COL32(45, 8, 12, 220), 3 * sy);
+        dl->AddText(font, size, ImVec2(x, y), IM_COL32(255, 205, 75, 255), text);
+    }
+    for (const FormHint &h : hints) {
+        if (h.count <= 1 || h.until <= SDL_GetTicks()) continue;
+        const char *text = "[< L1] Forma [R1 >]";
+        float size = 11.0f * sy;
+        ImVec2 ts = font->CalcTextSizeA(size, FLT_MAX, 0.0f, text);
+        float x = gUiPresentX + h.x * sx, y = gUiPresentY + h.y * sy;
+        dl->AddRectFilled(ImVec2(x - 3 * sx, y), ImVec2(x + ts.x + 3 * sx, y + ts.y), IM_COL32(10, 15, 25, 200), 3 * sy);
+        dl->AddText(font, size, ImVec2(x, y), IM_COL32(255, 220, 95, 255), text);
+    }
+}
+
 struct PortDamagePopup {
     int side;
     int damage;
@@ -2232,7 +2306,8 @@ static int sPopupCount = 0;
 
 extern "C" void Port_AddDamagePopup(int side, int damage, float x, float y, float z) {
     (void)x; (void)y; (void)z;
-    if (damage <= 0 || gUiPresentW <= 0 || gUiPresentH <= 0) return;
+    if (damage <= 0) return;
+    SDL_LockSpinlock(&sFeatureLock);
     if (sPopupCount >= MAX_DAMAGE_POPUPS) {
         for (int i = 0; i < MAX_DAMAGE_POPUPS - 1; i++) {
             sPopups[i] = sPopups[i + 1];
@@ -2245,28 +2320,31 @@ extern "C" void Port_AddDamagePopup(int side, int damage, float x, float y, floa
     p.max_timer = 1.25f;
     p.timer = 1.25f;
     p.vy = 55.0f;
-    p.is_massive = damage >= 2500;
+    p.is_massive = damage > 2500;
 
-    float base_x = (side == 0) ? ((float)gUiPresentX + (float)gUiPresentW * 0.35f) : ((float)gUiPresentX + (float)gUiPresentW * 0.65f);
-    float base_y = (float)gUiPresentY + (float)gUiPresentH * 0.45f;
-    float scatter_x = (float)((rand() % 90) - 45);
-    float scatter_y = (float)((rand() % 60) - 30);
-    p.x = base_x + scatter_x;
-    p.y = base_y + scatter_y;
+    // Store normalized game-page coordinates; window dimensions belong to the renderer.
+    static unsigned scatter = 0x9e3779b9u;
+    scatter = scatter * 1664525u + 1013904223u;
+    p.x = (side == 0 ? 179.0f : 333.0f) + (float)((int)(scatter % 90) - 45);
+    p.y = 202.0f + (float)((int)((scatter >> 8) % 60) - 30);
+    SDL_UnlockSpinlock(&sFeatureLock);
 }
 
 static void Port_DrawDamagePopups(ImDrawList *dl) {
-    if (sPopupCount == 0 || gUiPresentW <= 0 || gUiPresentH <= 0) return;
+    if (gUiPresentW <= 0 || gUiPresentH <= 0) return;
+    SDL_LockSpinlock(&sFeatureLock);
+    if (!sBattleActive) sPopupCount = 0;
     float dt = ImGui::GetIO().DeltaTime;
     if (dt <= 0.0f || dt > 0.1f) dt = 1.0f / 60.0f;
 
+    if (Port_PhotoActive()) dt = 0.0f;
     ImFont *font = ImGui::GetFont();
     int active = 0;
     for (int i = 0; i < sPopupCount; i++) {
         PortDamagePopup &p = sPopups[i];
         p.timer -= dt;
         p.y -= p.vy * dt;
-        p.vy *= 0.93f;
+        p.vy *= powf(0.93f, dt * 60.0f);
         if (p.timer <= 0.0f) {
             continue;
         }
@@ -2277,9 +2355,13 @@ static void Port_DrawDamagePopups(ImDrawList *dl) {
         if (a_byte < 5) continue;
 
         float size = (p.is_massive ? 28.0f : 20.0f) * ((float)gUiPresentH / 448.0f);
-        if (progress > 0.88f) {
-            size *= 1.3f;
+        float age = p.max_timer - p.timer;
+        if (age < 0.22f) {
+            float t = age / 0.22f;
+            size *= 1.0f + (p.damage > 4000 ? 0.65f : 0.3f) * (1.0f - t) * (1.0f - t);
         }
+        float px = gUiPresentX + p.x * ((float)gUiPresentW / 512.0f);
+        float py = gUiPresentY + p.y * ((float)gUiPresentH / 448.0f);
 
         char buf[32];
         snprintf(buf, sizeof(buf), "-%d", p.damage);
@@ -2287,21 +2369,28 @@ static void Port_DrawDamagePopups(ImDrawList *dl) {
         ImU32 text_col;
         if (p.is_massive) {
             text_col = IM_COL32(255, 65, 30, a_byte);
-        } else if (p.damage >= 1000) {
+        } else if (p.damage > 1000) {
             text_col = IM_COL32(255, 215, 0, a_byte);
         } else {
-            text_col = IM_COL32(255, 255, 225, a_byte);
+            text_col = IM_COL32(255, 255, 255, a_byte);
         }
         ImU32 shadow_col = IM_COL32(0, 0, 0, (int)(a_byte * 0.95f));
 
+        if (!Port_HudHidden()) {
+        if (p.damage > 4000) {
+            const char *critical = "\xC2\xA1" "CR\xC3\x8D" "TICO!";
+            dl->AddText(font, size * 0.5f, ImVec2(px + 1, py - size * 0.6f + 1), shadow_col, critical);
+            dl->AddText(font, size * 0.5f, ImVec2(px, py - size * 0.6f), text_col, critical);
+        }
         for (int ox = -2; ox <= 2; ox++) {
             for (int oy = -2; oy <= 2; oy++) {
                 if (ox != 0 || oy != 0) {
-                    dl->AddText(font, size, ImVec2(p.x + (float)ox, p.y + (float)oy), shadow_col, buf);
+                    dl->AddText(font, size, ImVec2(px + (float)ox, py + (float)oy), shadow_col, buf);
                 }
             }
         }
-        dl->AddText(font, size, ImVec2(p.x, p.y), text_col, buf);
+        dl->AddText(font, size, ImVec2(px, py), text_col, buf);
+        }
 
         if (active != i) {
             sPopups[active] = p;
@@ -2309,29 +2398,30 @@ static void Port_DrawDamagePopups(ImDrawList *dl) {
         active++;
     }
     sPopupCount = active;
+    SDL_UnlockSpinlock(&sFeatureLock);
 }
 
-// Cinematic Photo Mode 360° & Clean HUD Toggle
-extern "C" {
-int gPortPhotoMode = 0;
-int gPortHideHud = 0;
-float gPortPhotoYaw = 0.0f;
-float gPortPhotoPitch = 0.0f;
-float gPortPhotoDist = 1.0f;
-}
-
+// Cinematic Photo Mode 360Â° & Clean HUD Toggle
 static float sPhotoToastTimer = 0.0f;
 static const char *sPhotoToast = "";
 
 extern "C" void Port_TogglePhotoMode(void) {
-    gPortPhotoMode = !gPortPhotoMode;
-    sPhotoToast = gPortPhotoMode ? "MODO FOTO ACTIVADO (Camara Libre 360)" : "MODO FOTO DESACTIVADO";
+    SDL_LockSpinlock(&sFeatureLock);
+    if (!sBattleActive || Port_NetSession() || Port_NetActive()) {
+        SDL_UnlockSpinlock(&sFeatureLock);
+        return;
+    }
+    gPortPhotoYaw = gPortPhotoPitch = 0.0f;
+    gPortPhotoDist = 1.0f;
+    __atomic_store_n(&gPortPhotoMode, !Port_PhotoActive(), __ATOMIC_RELEASE);
+    SDL_UnlockSpinlock(&sFeatureLock);
+    sPhotoToast = Port_PhotoActive() ? "MODO FOTO ACTIVADO (Camara Libre 360)" : "MODO FOTO DESACTIVADO";
     sPhotoToastTimer = 2.5f;
 }
 
 extern "C" void Port_ToggleHud(void) {
-    gPortHideHud = !gPortHideHud;
-    sPhotoToast = gPortHideHud ? "INTERFAZ OCULTA (Foto Limpia)" : "INTERFAZ VISIBLE";
+    __atomic_store_n(&gPortHideHud, !Port_HudHidden(), __ATOMIC_RELEASE);
+    sPhotoToast = Port_HudHidden() ? "INTERFAZ OCULTA (Foto Limpia)" : "INTERFAZ VISIBLE";
     sPhotoToastTimer = 2.0f;
 }
 
@@ -2339,15 +2429,45 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
     float dt = ImGui::GetIO().DeltaTime;
     if (dt <= 0.0f || dt > 0.1f) dt = 1.0f / 60.0f;
 
-    // Toggle hotkeys
-    if (ImGui::IsKeyPressed(ImGuiKey_P, false)) {
+    SDL_LockSpinlock(&sFeatureLock);
+    bool inBattle = sBattleActive;
+    SDL_UnlockSpinlock(&sFeatureLock);
+    if (!inBattle || sOpen || sChat || ImGui::GetIO().WantTextInput) return;
+    // Read the real SDL gamepad: ImGui navigation may be disabled while playing.
+    bool combo = false;
+    float stickX = 0.0f, stickY = 0.0f;
+    bool zoomIn = false, zoomOut = false;
+    int count = 0;
+    SDL_JoystickID *ids = SDL_GetGamepads(&count);
+    for (int i = 0; i < count; i++) {
+        SDL_Gamepad *pad = SDL_GetGamepadFromID(ids[i]);
+        if (!pad) continue;
+        combo |= SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_STICK) && SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_RIGHT_STICK);
+        if (i != 0) continue;
+        stickX = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32768.0f;
+        stickY = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32768.0f;
+        if (fabsf(stickX) < 0.18f) stickX = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX) / 32768.0f;
+        if (fabsf(stickY) < 0.18f) stickY = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY) / 32768.0f;
+        if (fabsf(stickX) < 0.18f) stickX = 0.0f;
+        if (fabsf(stickY) < 0.18f) stickY = 0.0f;
+        zoomIn = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
+        zoomOut = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
+    }
+    SDL_free(ids);
+    static bool comboWas;
+    bool comboPressed = combo && !comboWas;
+    comboWas = combo;
+    if (ImGui::IsKeyPressed(ImGuiKey_P, false) || comboPressed) {
         Port_TogglePhotoMode();
     }
     if (ImGui::IsKeyPressed(ImGuiKey_H, false)) {
         Port_ToggleHud();
     }
 
-    if (gPortPhotoMode) {
+    SDL_LockSpinlock(&sFeatureLock);
+    if (Port_PhotoActive()) {
+        gPortPhotoYaw += stickX * 2.0f * dt;
+        gPortPhotoPitch -= stickY * 1.5f * dt;
         // Orbit Controls
         if (ImGui::IsKeyDown(ImGuiKey_LeftArrow) || ImGui::IsKeyDown(ImGuiKey_A) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadLeft)) {
             gPortPhotoYaw -= 2.0f * dt;
@@ -2361,22 +2481,25 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
         if (ImGui::IsKeyDown(ImGuiKey_DownArrow) || ImGui::IsKeyDown(ImGuiKey_S) || ImGui::IsKeyDown(ImGuiKey_GamepadDpadDown)) {
             gPortPhotoPitch -= 1.5f * dt;
         }
-        if (ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsKeyDown(ImGuiKey_GamepadL1)) {
+        if (zoomIn || ImGui::IsKeyDown(ImGuiKey_Q) || ImGui::IsKeyDown(ImGuiKey_GamepadL1)) {
             gPortPhotoDist *= (1.0f - 1.2f * dt);
             if (gPortPhotoDist < 0.25f) gPortPhotoDist = 0.25f;
         }
-        if (ImGui::IsKeyDown(ImGuiKey_E) || ImGui::IsKeyDown(ImGuiKey_GamepadR1)) {
+        if (zoomOut || ImGui::IsKeyDown(ImGuiKey_E) || ImGui::IsKeyDown(ImGuiKey_GamepadR1)) {
             gPortPhotoDist *= (1.0f + 1.2f * dt);
             if (gPortPhotoDist > 3.5f) gPortPhotoDist = 3.5f;
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_R, false) || ImGui::IsKeyPressed(ImGuiKey_GamepadR3, false)) {
+        if (ImGui::IsKeyPressed(ImGuiKey_R, false)) {
             gPortPhotoYaw = 0.0f;
             gPortPhotoPitch = 0.0f;
             gPortPhotoDist = 1.0f;
         }
 
+        gPortPhotoYaw = fmodf(gPortPhotoYaw, 6.2831853f);
+        if (gPortPhotoPitch > 1.5f) gPortPhotoPitch = 1.5f;
+        if (gPortPhotoPitch < -1.5f) gPortPhotoPitch = -1.5f;
         // Draw sleek photo mode controls bar if HUD is not hidden
-        if (!gPortHideHud && gUiPresentW > 0 && gUiPresentH > 0) {
+        if (!Port_HudHidden() && gUiPresentW > 0 && gUiPresentH > 0) {
             float sy = (float)gUiPresentH / 448.0f;
             float font_size = 14.0f * sy;
             const char *barText = "[MODO FOTO 360] Orbitar: Flechas/WASD | Zoom: Q/E (L1/R1) | Reset: [R] | Ocultar HUD: [H] | Salir: [P]";
@@ -2392,7 +2515,7 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
     }
 
     // Toast notification
-    if (sPhotoToastTimer > 0.0f && gUiPresentW > 0 && gUiPresentH > 0) {
+    if (!Port_HudHidden() && sPhotoToastTimer > 0.0f && gUiPresentW > 0 && gUiPresentH > 0) {
         sPhotoToastTimer -= dt;
         float alpha = sPhotoToastTimer > 0.5f ? 1.0f : (sPhotoToastTimer / 0.5f);
         int a_byte = (int)(alpha * 255.0f);
@@ -2409,6 +2532,7 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
             dl->AddText(font, font_size, ImVec2(tx, ty), IM_COL32(255, 255, 255, a_byte), sPhotoToast);
         }
     }
+    SDL_UnlockSpinlock(&sFeatureLock);
 }
 
 // The meter: frames shown and the game's speed, and in an online match the connection. A setting (Video tab).
@@ -2778,7 +2902,7 @@ static bool frame_build(void) {
     bool chat = online && (sChat || chat_recent());
     meter_count();
     sBuilt = false;
-    if (!sReady || (!sOpen && !sQuit && !notice && !overlay && !meter && !names && !bars && !modesOn && !chat)) {
+    if (!sReady || (!sOpen && !sQuit && !notice && !overlay && !meter && !names && !bars && !modesOn && !chat && !feature_overlay_on())) {
         return false;
     }
     if (sPadHold && sCapKind != 2) { // a binding was taken: the controller works the window again once nothing is held
@@ -2810,7 +2934,8 @@ static bool frame_build(void) {
     ImGui_ImplSDL3_NewFrame();
     fonts_apply(); // (a face chosen for the fight panels, between two frames)
     ImGui::NewFrame();
-    if (bars) {
+    Port_UpdateAndDrawPhotoMode(ImGui::GetForegroundDrawList());
+    if (bars && !Port_HudHidden()) {
         bars_draw();
     }
     if (modesOn) {
@@ -2826,18 +2951,15 @@ static bool frame_build(void) {
     if (sQuit && PortQuit_Failed()) {
         build_quit();
     }
-    if (meter) {
+    if (meter && !Port_HudHidden()) {
         meter_draw();
     }
-    if (chat) {
+    if (chat && !Port_HudHidden()) {
         chat_draw();
     }
-    // Draw Floating Damage Numbers (Sparking! Zero style)
     Port_DrawDamagePopups(ImGui::GetForegroundDrawList());
-
-    // Update & Draw Cinematic Photo Mode 360 & HUD Toggle
-    Port_UpdateAndDrawPhotoMode(ImGui::GetForegroundDrawList());
-    if (names && GsDraw_HudShown() && gUiPresentW > 0 && gUiPresentH > 0) { // (with the HUD: not over an intro)
+    Port_DrawFeatureHints(ImGui::GetForegroundDrawList());
+    if (names && !Port_HudHidden() && GsDraw_HudShown() && gUiPresentW > 0 && gUiPresentH > 0) { // (with the HUD: not over an intro)
         // Under each side's health bar (the game's 512 x 448 page: the bars end at about y 50). The left place is
         // side 0's, or this player's own side when the HUD's sides are swapped.
         ImDrawList *dl = ImGui::GetBackgroundDrawList();

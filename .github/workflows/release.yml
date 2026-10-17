@@ -29,6 +29,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Test native mode rosters and controller assignments
+        run: sh port/tests/run_modes_test.sh
+
       # The build container (port/release/Dockerfile): Ubuntu 22.04, clang/LLVM 22, SDL3 from source, mingw-w64.
       # Its layers are cached between runs, so only the first run pays for building it.
       - uses: docker/setup-buildx-action@v3

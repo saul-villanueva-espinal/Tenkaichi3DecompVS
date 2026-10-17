@@ -633,8 +633,8 @@ void Hud_SlideIn(f32 seconds) {
    but the caption part, 2 only updates. */
 void Hud_Draw(void) {
 #ifdef PORT
-    extern int gPortHideHud;
-    if (gPortHideHud) {
+    extern int Port_HudHidden(void);
+    if (Port_HudHidden()) {
         return;
     }
 #endif

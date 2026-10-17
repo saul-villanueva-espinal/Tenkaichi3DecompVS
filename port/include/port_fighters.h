@@ -10,6 +10,10 @@ extern "C" {
    by fighter (roster index, which is also the fighter's object id) is this long. */
 #define PORT_FIGHTER_MAX 10
 #define PORT_EXTRA_MAX (PORT_FIGHTER_MAX - 2)
+
+enum { PORT_MODE_NONE, PORT_MODE_TEAM, PORT_MODE_FFA, PORT_MODE_RAID, PORT_MODE_TRAINING, PORT_MODE_COUNT };
+int Port_ModesFight(void);
+int Port_LocalPlayers(void);
 /* Teams are numbered from 0: 0 is player 1's, 1 player 2's, and in a fight where everyone is alone each fighter
    has its own, so there can be as many as fighters. */
 #define PORT_TEAM_MAX PORT_FIGHTER_MAX
