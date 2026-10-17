@@ -1168,6 +1168,7 @@ s32 UbTeamSel_Run(s32 section) {
 #ifdef PORT
     if(!Port_NetActive() && !Port_NetSession()) {
         PcBattle b;s32 i,dp=UB_PROG->dpRule?(UB_PROG->dpRule+1)*5:0;
+        memset(&b,0,sizeof(b)); /* No supplied rival preset in this legacy mode. */
         if(!Port_NativeRosterPick(&b,3,dp))return 0;
         memset(&UB_PROG->team,0,sizeof(UB_PROG->team));
         UB_PROG->teamSize=b.count[0]>5?5:b.count[0];
