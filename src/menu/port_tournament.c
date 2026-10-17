@@ -66,7 +66,8 @@ typedef struct {
     s32 launchBattle;
 } TourneySystem;
 
-static TourneySystem *sTr;
+static TourneySystem sTrData;
+static TourneySystem *sTr = &sTrData;
 
 static const char *sRivalPoolNames[] = {
     "Goku (Fin)", "Vegeta", "Gohan Definitivo", "Piccolo", 
@@ -383,7 +384,6 @@ static void Tr_DrawSpectator(void) {
 s32 PortTournament_Run(void) {
     s32 result = 0;
 
-    sTr = Heap_Alloc(sizeof(TourneySystem), 0x20, 0, 2);
     memset(sTr, 0, sizeof(TourneySystem));
     Tr_InitTournament();
 
@@ -508,8 +508,6 @@ s32 PortTournament_Run(void) {
         }
     }
 
-    Heap_Free(sTr);
-    sTr = NULL;
     Dma_ResetBuffers();
     return result;
 }

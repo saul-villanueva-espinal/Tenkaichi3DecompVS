@@ -126,7 +126,8 @@ typedef struct {
     s32 launchBattle;
 } RaidSystem;
 
-static RaidSystem *sRd;
+static RaidSystem sRdData;
+static RaidSystem *sRd = &sRdData;
 
 static void Rd_Init(void) {
     sRd->bossIndex = 0;
@@ -230,7 +231,6 @@ static void Rd_DrawRoomCard(f32 x, f32 y, f32 w, f32 h) {
 s32 PortRaid_Run(void) {
     s32 result = 0;
 
-    sRd = Heap_Alloc(sizeof(RaidSystem), 0x20, 0, 2);
     memset(sRd, 0, sizeof(RaidSystem));
     Rd_Init();
 
@@ -399,8 +399,6 @@ s32 PortRaid_Run(void) {
         }
     }
 
-    Heap_Free(sRd);
-    sRd = NULL;
     Dma_ResetBuffers();
     return result;
 }
