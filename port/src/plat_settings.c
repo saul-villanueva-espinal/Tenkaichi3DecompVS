@@ -16,7 +16,7 @@
 
 #define MAX_SETTINGS 200
 static struct { char name[24]; int value; } sSet[MAX_SETTINGS];
-/* The few settings that are text (the player's online name): `name="text"` in the file, after the numbers. A
+/* The few settings that are text (online name, menu language): `name="text"` in the file, after the numbers. A
    release from before these reads past such a line. */
 #define MAX_TEXTS 24
 #define TEXT_CAP 8192 /* complete ten-member rosters and a growing favorites list */
