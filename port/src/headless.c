@@ -27,6 +27,7 @@ extern void Demo_SetupBattle(void);
 
 static int sBattles;
 static int sFromMenu;
+static int sTourneyFinished;
 
 #if (defined(__x86_64__) || defined(__aarch64__)) && defined(__clang__) /* (the 64-bit builds: game pointers are 4 bytes) */
 #undef __ptr32 /* the Windows headers of mingw define these two away */
@@ -141,7 +142,7 @@ int __wrap_Progress_Main(int arg) {
                     extern int PortTournamentOnline_Card(void);
                     fprintf(stderr,"bt3: torneo: CAMPEON %d; torneo completo\n",state.champion+1);
                     gPortMenuMode=1;PortTournamentOnline_Card();gPortMenuMode=0;
-                    if(getenv("BT3_TOURNAMENT_TEST_BOTS")) exit(0);
+                    if(getenv("BT3_TOURNAMENT_TEST_BOTS")) sTourneyFinished=1;
                     gProgress->mode=4;
                     goto tournament_finished;
                 }
@@ -343,6 +344,12 @@ void Port_Trace(unsigned vblanks) {
     unsigned u[2][3];
     int *clock;
     int i;
+
+    if(sTourneyFinished && gPortMenuMode && gProgress!=NULL && gProgress->mode==4) {
+        static unsigned since;
+        if(!since) since=vblanks;
+        if(vblanks-since>=240) {fprintf(stderr,"bt3: torneo: PASS main menu responsive after final\n");exit(0);}
+    }
 
     /* Tournament results are automatic: nobody waiting as a spectator can
        choose a rematch or accidentally change the other participants' menu. */
