@@ -4,6 +4,8 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 #ifdef PORT
+#include "port_pc_battle.h"
+extern int Port_NetActive(void),Port_NetSession(void);
 static MChrCell sPortLargeGrid[CHARSEL_SIDES][PORT_CHARA_GRID_CAPACITY];
 extern void ChrGrid_BuildPort(s32 *, MChrCell *, s32 *, MChrCell *, s32 *, MChrCell *);
 #include "battle/col_c.h" /* FontStyle / FONT_ALIGN_* / FONT_SHADOW_*, for the names of added stages */
@@ -1999,6 +2001,9 @@ extern s32 CpuLevel_FromSetting(u32 setting);
 
 /* Runs the screen. Returns 0 when it was cancelled, otherwise non-zero with the battle set up. */
 s32 CharSel_Run(s32 section) {
+#ifdef PORT
+    if(!Port_NetActive() && !Port_NetSession() && (gProgress->mode==39 || gProgress->mode==45)) return Port_NativeRosterBattle(gProgress->mode==45?2:0);
+#endif
     s32 result = 1;
     s32 screenMode;
     s32 bgm;

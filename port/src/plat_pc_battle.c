@@ -16,6 +16,8 @@ volatile int gPortPcTeamDp;
 extern int ChrTbl_GetCost(int chara);
 static PcBattle sTeams;
 static int sTeamsPending;
+static int sTeamsMask = 3, sTakenMask = 3;
+volatile int gPortNativeRosterActive;
 void Port_PcBattleDefault(PcBattle *b) {
     int s, i;
     memset(b, 0, sizeof(*b));
@@ -37,7 +39,7 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
     else if ((b->mode == PC_DUEL || b->mode == PC_RELAY) && b->players > 2) error = "Duelo por relevos admite uno o dos mandos";
     else if (b->mode == PC_TRAINING && b->players != 1) error = "Entrenamiento utiliza un mando";
     for (s = 0; b && !error && s < 2; s++) {
-        int max = b->mode == PC_RELAY || b->mode == PC_DUEL ? PORT_RELAY_MAX : b->mode == PC_TAG ? 5 : b->mode == PC_RAID && s == 0 ? 4 : 1;
+        int max = b->mode == PC_RELAY || b->mode == PC_DUEL ? PORT_RELAY_MAX : (b->mode == PC_TAG || b->mode == PC_FFA) ? 5 : b->mode == PC_RAID && s == 0 ? 4 : 1;
         if (b->count[s] < 1 || b->count[s] > max) { error = "Cantidad de integrantes no valida para el modo"; break; }
         for (i = 0; i < b->count[s]; i++) {
             const PcFighter *f = &b->fighter[s][i];
@@ -48,7 +50,7 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
             if (!Port_ExtraCostumeOk(f->chara, f->costume, why, size)) return 0;
         }
     }
-    if (!error && b->mode == PC_TAG && (b->count[0] < (b->players >= 3 ? 2 : 1) || b->count[1] < (b->players >= 4 ? 2 : 1))) error = "Selecciona un integrante para cada mando";
+    if (!error && (b->mode == PC_TAG || b->mode == PC_FFA) && (b->count[0] < (b->players >= 3 ? 2 : 1) || b->count[1] < (b->players >= 4 ? 2 : 1))) error = "Selecciona un integrante para cada mando";
     if (!error && b->mode == PC_RAID && b->count[0] < b->players) error = "Selecciona un aliado por jugador";
     if (why && size > 0) snprintf(why, (size_t)size, "%s", error ? error : "");
     return error == NULL;
@@ -79,7 +81,7 @@ int Port_PcTeamsRequest(const PcBattle *b) {
             if (cost > gPortPcTeamDp) return 0;
         }
     }
-    pthread_mutex_lock(&sLock); sTeams = *b; sTeamsPending = 1; pthread_mutex_unlock(&sLock);
+    pthread_mutex_lock(&sLock); sTeams = *b; sTeamsMask = 3; sTeamsPending = 1; pthread_mutex_unlock(&sLock);
     return 1;
 }
 int Port_PcTeamsPreview(PcBattle *b) {
@@ -89,7 +91,7 @@ int Port_PcTeamsPreview(PcBattle *b) {
 }
 int Port_PcTeamsTake(PcBattle *b) {
     int result;
-    pthread_mutex_lock(&sLock); result = sTeamsPending; if (result) *b = sTeams; sTeamsPending = 0; pthread_mutex_unlock(&sLock);
+    pthread_mutex_lock(&sLock); result = sTeamsPending; if (result) { *b = sTeams; sTakenMask = sTeamsMask; } sTeamsPending = 0; pthread_mutex_unlock(&sLock);
     return result;
 }
 int Port_PcBattleTake(PcBattle *b) {
@@ -120,3 +122,20 @@ int Port_PcTestHealth(void) {
     int n = e ? atoi(e) : 100;
     return n >= 1 && n <= 100 ? n : 100;
 }
+
+/* Native menus hand the same validated configuration to the game thread. */
+int Port_PcRosterQueue(const PcBattle *b) {
+    char why[160];
+    if (Port_NetActive() || Port_NetSession() || !Port_PcBattleValidate(b, why, sizeof(why))) return 0;
+    pthread_mutex_lock(&sLock); sPending = *b; sRequested = 1; pthread_mutex_unlock(&sLock);
+    return 1;
+}
+int Port_PcRosterPlayerQueue(const PcBattle *b, int dp) {
+    char why[160]; int i,cost=0;
+    if (Port_NetActive() || Port_NetSession() || !Port_PcBattleValidate(b,why,sizeof(why))) return 0;
+    for(i=0;i<b->count[0];i++) cost+=ChrTbl_GetCost(b->fighter[0][i].chara);
+    if(dp>0 && cost>dp) return 0;
+    pthread_mutex_lock(&sLock);sTeams=*b;sTeamsMask=1;sTeamsPending=1;pthread_mutex_unlock(&sLock);
+    return 1;
+}
+int Port_PcTeamsMask(void) { return sTakenMask; }

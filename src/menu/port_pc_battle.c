@@ -6,6 +6,8 @@
 #include "menu/menu_a.h"
 #include "port_pc_battle.h"
 #include "port_fighters.h"
+#include "sys/save.h"
+extern s32 CpuLevel_FromSetting(s32);
 extern void Port_SettingSave(const char *, int);
 extern void Port_LocalPlayersSet(int);
 extern int Port_PcTestHealth(void);
@@ -14,8 +16,10 @@ extern int Port_CoopEnabled(void), Port_CoopConfig(PcBattle *);
 extern unsigned Port_CoopSeed(void);
 extern int Port_NetActive(void), Port_NetSession(void);
 static PcBattle sBattle;
-static s32 sRelay, sNext[2], sLevel[2];
+static s32 sRelay, sNext[2], sLevel[2], sRelayMask = 3;
 static volatile s32 sRemaining[2];
+static s32 sNativeRules,sNativeCpuCpu,sNativeTraining;
+void Port_PcNativeRules(s32 players,s32 training) {sNativeRules=1;sNativeCpuCpu=players==2;sNativeTraining=training;}
 
 /* Keep the window responsive while verifying assets or waiting for the party.
    This advances presentation only; battle objects and clocks do not exist yet. */
@@ -32,11 +36,17 @@ void Port_PcApplyTeams(void) {
     s32 s, i;
     if ((Battle_GetMode() != 0 && Battle_GetMode() != 2) || Port_ModesFight() != PORT_MODE_NONE || Port_CoopEnabled() || Port_NetActive() || Port_NetSession()) return;
     if (!Port_PcTeamsTake(&b)) return;
-    sBattle = b; sRelay = 1;
+    if (Port_PcTeamsMask() == 1) {
+        BattleSide *original = &Battle_GetSetup()->sides[1];
+        b.count[1] = original->memberCount;
+        for (i=0;i<b.count[1] && i<5;i++) { b.fighter[1][i].chara=original->members[i].chara; b.fighter[1][i].costume=original->members[i].costume; }
+    }
+    sBattle = b; sRelay = 1; sRelayMask = Port_PcTeamsMask();
     for (s = 0; s < 2; s++) {
         BattleSide *side = &Battle_GetSetup()->sides[s];
         s32 level = side->members[0].cpuLevel;
         sLevel[s] = level;
+        if (!(sRelayMask & (1 << s))) { sNext[s] = side->memberCount; sRemaining[s] = side->memberCount; continue; }
         side->memberCount = b.count[s] > 5 ? 5 : b.count[s]; side->lead = 0;
         sNext[s] = side->memberCount; sRemaining[s] = b.count[s];
         for (i = 0; i < side->memberCount; i++) {
@@ -54,6 +64,7 @@ void Port_PcRelayRewind(void) {
     if (!sRelay) return;
     for (s = 0; s < 2; s++) {
         BattleSide *side = &Battle_GetSetup()->sides[s];
+        if (!(sRelayMask & (1 << s))) continue;
         side->memberCount = sBattle.count[s] > 5 ? 5 : sBattle.count[s];
         side->lead = 0;
         for (i = 0; i < side->memberCount; i++) {
@@ -99,26 +110,28 @@ int Port_PcBattleBuild(void) {
           Port_Srand(Port_CoopSeed()); Rand_Seed(Port_CoopSeed()); }
     } else if (!Port_PcBattleTake(&b)) return 0;
     Battle_ClearWork();
-    sBattle = b;
+    sBattle = b; sRelayMask = 3;
     sRelay = b.mode == PC_RELAY || (b.mode == PC_DUEL && (b.count[0] > 5 || b.count[1] > 5));
-    mode = b.mode == PC_TAG ? PORT_MODE_TEAM : b.mode == PC_RAID ? PORT_MODE_RAID : PORT_MODE_NONE;
-    Port_SettingSave("modes_fight", mode);
-    Port_SettingSave("modes_extras", 0);
+    mode = b.mode == PC_FFA ? PORT_MODE_FFA : b.mode == PC_TAG ? PORT_MODE_TEAM : b.mode == PC_RAID ? PORT_MODE_RAID : PORT_MODE_NONE;
+    Port_SettingSave("modes_fight", sNativeRules && sNativeTraining ? PORT_MODE_TRAINING : mode);
+    Port_SettingSave("modes_extras", sNativeRules && sNativeTraining ? 1 : 0);
     Port_LocalPlayersSet(b.players);
     BattleSetup_SetRule(b.players > 1, b.mode == PC_TRAINING ? 6 : 0, 0, sRelay || b.mode == PC_RAID || b.mode == PC_TRAINING ? 0 : 3, 0, b.stage, 0);
+    if(sNativeRules) BattleSetup_SetRule(b.players>1,b.mode==PC_TRAINING?6:0,0,b.mode==PC_TRAINING||b.mode==PC_RAID?0:gSaveData->rule[0]==4?0:gSaveData->rule[0]+1,gSaveData->rule[2],b.stage,gSaveData->rule[5]^1);
     for (s = 0; s < 2; s++) {
         s32 count = b.count[s] > 5 ? 5 : b.count[s];
-        s32 cpu = s == 1 && (b.players == 1 || b.mode == PC_RAID || b.mode == PC_TRAINING);
-        sLevel[s] = b.mode == PC_TRAINING && s ? -1 : 13;
+        s32 cpu = (s == 1 && (b.players == 1 || b.mode == PC_RAID || b.mode == PC_TRAINING)) || (sNativeRules && sNativeCpuCpu && mode==PORT_MODE_NONE && b.mode!=PC_TRAINING);
+        sLevel[s] = b.mode == PC_TRAINING && s ? -1 : sNativeRules ? CpuLevel_FromSetting(gSaveData->rule[1]) : 13;
         sNext[s] = count;
         sRemaining[s] = b.count[s];
         BattleSetup_SetSide(s, cpu ? BTL_CONTROL_CPU : BTL_CONTROL_PAD, s, count, 1, 1, 0, NULL);
         for (i = 0; i < count; i++) {
             PcFighter *f = &b.fighter[s][i];
-            BattleSetup_SetMember(s, i, f->chara, f->costume, 0, b.mode == PC_TRAINING && s ? -1 : 13, (f32)Port_PcTestHealth(), NULL);
+            BattleSetup_SetMember(s, i, f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
         }
     }
     BattleSetup_Finish();
+    sNativeRules=sNativeCpuCpu=sNativeTraining=0;
     /* Return to the main menu after a PC battle; there is no legacy selector
        with only five plates standing behind a ten-member team. */
     gProgress->mode = 4;

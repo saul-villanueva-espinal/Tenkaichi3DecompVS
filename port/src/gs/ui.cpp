@@ -1070,6 +1070,7 @@ static int chat_event(const SDL_Event *ev) {
            ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev->type == SDL_EVENT_MOUSE_BUTTON_UP || ev->type == SDL_EVENT_MOUSE_WHEEL;
 }
 
+extern "C" { extern volatile int gPortNativeRosterActive; void Port_RosterPointerSet(int,int); }
 int Ui_Event(const SDL_Event *ev) {
     if (!sReady) {
         return 0;
@@ -1077,6 +1078,10 @@ int Ui_Event(const SDL_Event *ev) {
     if (ev->type == SDL_EVENT_GAMEPAD_ADDED || ev->type == SDL_EVENT_GAMEPAD_REMOVED) { // (also while it is closed: its list of controllers)
         ImGui_ImplSDL3_ProcessEvent(ev);
         return 0;
+    }
+    if(!sOpen && !sQuit && !sChat && gPortNativeRosterActive && ev->type==SDL_EVENT_MOUSE_BUTTON_DOWN && ev->button.button==SDL_BUTTON_LEFT && gUiPresentW>0 && gUiPresentH>0) {
+        int x=(int)((ev->button.x-gUiPresentX)*512.0f/gUiPresentW),y=(int)((ev->button.y-gUiPresentY)*448.0f/gUiPresentH);
+        Port_RosterPointerSet(x,y);return 1;
     }
     if (!sOpen && !sQuit && !sChat && PortInput_TboEvent(ev)) { // typed on a keypad of Tenkaichi Budokai Online
         return 1;

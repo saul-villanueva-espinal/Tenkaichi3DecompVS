@@ -4,7 +4,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-enum { PC_DUEL, PC_TRAINING, PC_TAG, PC_RAID, PC_RELAY, PC_MODE_COUNT };
+enum { PC_DUEL, PC_TRAINING, PC_TAG, PC_RAID, PC_RELAY, PC_FFA, PC_MODE_COUNT };
 typedef struct PcFighter { int chara, costume; } PcFighter;
 typedef struct PcBattle {
     int mode, players, stage, count[2];
@@ -14,6 +14,19 @@ void Port_PcBattleDefault(PcBattle *b);
 int Port_PcBattleValidate(const PcBattle *b, char *why, int size);
 int Port_PcBattleRequest(const PcBattle *b);
 int Port_PcBattlePending(void);
+int Port_PcRosterQueue(const PcBattle *b);
+int Port_PcRosterPlayerQueue(const PcBattle *b, int dp);
+int Port_PcTeamsMask(void);
+void Port_RosterRemember(const PcBattle *b);
+int Port_RosterRecall(int mode, PcBattle *b);
+int Port_RosterFavorite(int chara, int toggle);
+int Port_RosterTestMode(void);
+unsigned Port_RosterTestInput(unsigned age);
+int Port_RosterPointerRead(int *x, int *y);
+void Port_RosterPointerSet(int x, int y);
+extern volatile int gPortNativeRosterActive;
+int Port_NativeRosterPick(PcBattle *out, int kind, int dp);
+int Port_NativeRosterBattle(int kind);
 int Port_PcBattleTake(PcBattle *b);
 int Port_PcTeamsRequest(const PcBattle *b);
 int Port_PcTeamsTake(PcBattle *b);

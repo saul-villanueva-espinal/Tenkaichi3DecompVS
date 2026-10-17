@@ -1,6 +1,7 @@
 #include "common.h"
 #ifdef PORT
 #include "port_pc_battle.h"
+extern int Port_NetActive(void),Port_NetSession(void);
 #endif
 #include "menu/menu_e.h"
 #include "menu/menu_f.h"
@@ -2312,6 +2313,9 @@ f32 TeamSel_Input(s32 *result) {
  * the versus battle) and 1 is returned.
  */
 s32 TeamSel_Run(s32 section) {
+#ifdef PORT
+    if(!Port_NetActive() && !Port_NetSession()) return Port_NativeRosterBattle(1);
+#endif
     s32 result = 1;
     s32 i;
     s32 j;

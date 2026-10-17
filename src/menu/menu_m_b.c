@@ -1,6 +1,10 @@
 #include "common.h"
 #ifdef PORT
 #include "port_pc_battle.h"
+extern int Port_NetActive(void),Port_NetSession(void);
+#endif
+#ifdef PORT
+#include "port_pc_battle.h"
 #endif
 #include "menu/menu_m.h"
 #include "sys/pad.h"
@@ -1161,6 +1165,16 @@ void UbTeamSel_UpdateEnd(void) {
  * in gProgress->team and their number in gProgress->teamSize), 0 when the player backed out.
  */
 s32 UbTeamSel_Run(s32 section) {
+#ifdef PORT
+    if(!Port_NetActive() && !Port_NetSession()) {
+        PcBattle b;s32 i,dp=UB_PROG->dpRule?(UB_PROG->dpRule+1)*5:0;
+        if(!Port_NativeRosterPick(&b,3,dp))return 0;
+        memset(&UB_PROG->team,0,sizeof(UB_PROG->team));
+        UB_PROG->teamSize=b.count[0]>5?5:b.count[0];
+        for(i=0;i<5;i++) {UB_PROG->team.member[i].chara=i<UB_PROG->teamSize?b.fighter[0][i].chara:-1;UB_PROG->team.member[i].color=b.fighter[0][i].costume;}
+        return Port_PcRosterPlayerQueue(&b,dp);
+    }
+#endif
     s32 result = 1;
 
     UbTeamSel_Init(section);

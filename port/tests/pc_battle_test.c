@@ -27,6 +27,12 @@ int main(void) {
     assert(Port_PcTeamsRequest(&b)&&Port_PcTeamsPreview(&got));
     gPortPcTeamDp=0;
     assert(Port_PcTeamsTake(&got)&&memcmp(&b,&got,sizeof(b))==0&&!Port_PcTeamsPreview(&got));
+    assert(Port_PcTeamsMask()==3);
+    gPortPcTeamReady=gPortPcHubReady=0;
+    assert(Port_PcRosterQueue(&b)&&Port_PcBattleTake(&got)&&memcmp(&b,&got,sizeof(b))==0);
+    assert(!Port_PcRosterPlayerQueue(&b,19));
+    assert(Port_PcRosterPlayerQueue(&b,20)&&Port_PcTeamsTake(&got)&&Port_PcTeamsMask()==1);
+    assert(memcmp(&b,&got,sizeof(b))==0);
     b.count[0]=11;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));b.count[0]=10;
     b.fighter[0][9].chara=PORT_CHARA_FIRST+8;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
     b.fighter[0][9].chara=PORT_CHARA_FIRST+7;assert(Port_PcBattleValidate(&b,why,sizeof(why)));

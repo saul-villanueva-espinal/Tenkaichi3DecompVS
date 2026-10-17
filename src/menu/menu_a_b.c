@@ -69,6 +69,17 @@ s32 Progress_Main(s32 arg) {
         FirstRun_Main();
         gProgress->flags &= ~MPROG_FIRST_RUN;
     }
+#ifdef PORT
+    { /* Reproducible native-screen QA, after the normal archive initialization. */
+        extern int Port_RosterTestMode(void),Port_NativeRosterBattle(int);
+        static s32 tested;
+        s32 test=Port_RosterTestMode();
+        if(test && !tested) {
+            tested=1;Save_UnlockAll(gSaveData);gProgress->mode=test==2?45:test==3?39:40;
+            return Port_NativeRosterBattle(test==2?2:test==3?0:1);
+        }
+    }
+#endif
     flags = BattleResult_GetFlags();
     reason = BattleResult_GetReason();
     if (flags & 8) {

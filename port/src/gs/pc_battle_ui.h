@@ -9,7 +9,7 @@ static void pc_battle_ui(void) {
     static int side, slot, port = 29740;
     static char address[200] = "127.0.0.1", message[200];
     static ImGuiTextFilter search;
-    const char *const modes[] = {"Duelo", "Entrenamiento", "Tag Team simultaneo", "Raid cooperativo", "Relevos 10 vs 10"};
+    const char *const modes[] = {"Duelo", "Entrenamiento", "Tag Team simultaneo", "Raid cooperativo", "Relevos 10 vs 10", "Todos contra todos"};
     const char *const costumes[] = {"Traje 1","Traje 2","Traje 3","Traje 4","Traje 5","Traje 6","Traje 7","Traje 8"};
     if (!ready) {
         Port_PcBattleDefault(&b);
@@ -28,9 +28,9 @@ static void pc_battle_ui(void) {
         b.count[1] = b.mode == PC_RELAY ? 10 : 1;
         side = slot = 0;
     }
-    int maxPlayers = b.mode == PC_TRAINING ? 1 : b.mode == PC_TAG || b.mode == PC_RAID ? 4 : 2;
+    int maxPlayers = b.mode == PC_TRAINING ? 1 : b.mode == PC_TAG || b.mode == PC_FFA || b.mode == PC_RAID ? 4 : 2;
     ImGui::SliderInt("Jugadores", &b.players, 1, maxPlayers);
-    if (b.mode == PC_TAG) {
+    if (b.mode == PC_TAG || b.mode == PC_FFA) {
         if (b.players >= 3 && b.count[0] < 2) b.count[0] = 2;
         if (b.players >= 4 && b.count[1] < 2) b.count[1] = 2;
     }
@@ -41,7 +41,7 @@ static void pc_battle_ui(void) {
         for (int s = 0; s < 2; s++) {
             ImGui::TableNextColumn(); ImGui::PushID(s);
             ImGui::TextUnformatted(b.mode == PC_RAID ? s ? "JEFE CPU" : "ALIADOS" : s ? "EQUIPO 2" : "EQUIPO 1");
-            int max = (b.mode == PC_RELAY || b.mode == PC_DUEL) ? 10 : b.mode == PC_TAG ? 5 : b.mode == PC_RAID && !s ? 4 : 1;
+            int max = (b.mode == PC_RELAY || b.mode == PC_DUEL) ? 10 : (b.mode == PC_TAG || b.mode == PC_FFA) ? 5 : b.mode == PC_RAID && !s ? 4 : 1;
             if (max > 1) ImGui::SliderInt("Integrantes", &b.count[s], b.mode == PC_RAID && !s ? b.players : 1, max);
             for (int i = 0; i < b.count[s]; i++) {
                 ImGui::PushID(i);
