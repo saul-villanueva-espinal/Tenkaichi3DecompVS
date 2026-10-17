@@ -11,3 +11,4 @@ cc -std=c11 -D_POSIX_C_SOURCE=200809L -Iport/include port/tests/pc_battle_test.c
     port/src/plat_pc_battle.c -lpthread -o "$tmp/pc_battle_test"
 "$tmp/pc_battle_test"
 python3 port/tests/run_coop_test.py
+python3 port/tests/run_relay_test.py

@@ -1,4 +1,7 @@
 #include "common.h"
+#ifdef PORT
+#include "port_pc_battle.h"
+#endif
 #include "menu/menu_a.h"
 #ifdef PORT
 extern void Port_NetMenuOpen(void);
@@ -861,6 +864,7 @@ s32 MainMenu_Run(s32 section) {
     MainMenu_Init(section);
 #ifdef PORT
     { extern volatile int gPortPcHubReady; gPortPcHubReady = 1; }
+    { PcBattle discarded; Port_PcTeamsTake(&discarded); }
 #endif
     ColorFade_StartIn(0, 0, 0, 0x14);
     while (1) {

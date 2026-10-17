@@ -15,6 +15,11 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size);
 int Port_PcBattleRequest(const PcBattle *b);
 int Port_PcBattlePending(void);
 int Port_PcBattleTake(PcBattle *b);
+int Port_PcTeamsRequest(const PcBattle *b);
+int Port_PcTeamsTake(PcBattle *b);
+int Port_PcTeamsPreview(PcBattle *b);
+void Port_PcApplyTeams(void);
+void Port_PcRelayRewind(void);
 int Port_PcBattleBuild(void); /* game thread, after leaving main menu */
 void Port_PcRelayTick(void);  /* game thread, before the KO/next-member checks */
 int Port_PcRelayRemaining(int side);

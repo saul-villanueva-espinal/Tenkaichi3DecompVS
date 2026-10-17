@@ -1966,6 +1966,9 @@ void BattleSetup_SetPoolMember(s32 count, s32 idx, s32 chara, s32 costume, s32 v
 
 /* BattleSetup_FinishEx(0). */
 void BattleSetup_Finish(void) {
+#ifdef PORT
+    { extern void Port_PcApplyTeams(void); Port_PcApplyTeams(); }
+#endif
     BattleSetup_FinishEx(0);
 }
 

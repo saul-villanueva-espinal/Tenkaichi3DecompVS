@@ -1,15 +1,19 @@
 #include <stdio.h>
 #include <string.h>
+#include <stdlib.h>
 #include <pthread.h>
 #include "../include/port_pc_battle.h"
 #include "../include/plat_charas.h"
 extern const char *Port_FighterName(int chara);
 extern int Port_ExtraCostumeOk(int chara, int costume, char *why, int size);
-extern int Port_NetActive(void), Port_NetSession(void);
+extern int Port_NetActive(void), Port_NetSession(void), Port_ModesFight(void);
 static pthread_mutex_t sLock = PTHREAD_MUTEX_INITIALIZER;
 static PcBattle sPending;
 static int sRequested;
 volatile int gPortPcHubReady;
+volatile int gPortPcTeamReady;
+static PcBattle sTeams;
+static int sTeamsPending;
 void Port_PcBattleDefault(PcBattle *b) {
     int s, i;
     memset(b, 0, sizeof(*b));
@@ -31,7 +35,7 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
     else if ((b->mode == PC_DUEL || b->mode == PC_RELAY) && b->players > 2) error = "Duelo por relevos admite uno o dos mandos";
     else if (b->mode == PC_TRAINING && b->players != 1) error = "Entrenamiento utiliza un mando";
     for (s = 0; b && !error && s < 2; s++) {
-        int max = b->mode == PC_RELAY ? PORT_RELAY_MAX : b->mode == PC_TAG ? 5 : b->mode == PC_RAID && s == 0 ? 4 : 1;
+        int max = b->mode == PC_RELAY || b->mode == PC_DUEL ? PORT_RELAY_MAX : b->mode == PC_TAG ? 5 : b->mode == PC_RAID && s == 0 ? 4 : 1;
         if (b->count[s] < 1 || b->count[s] > max) { error = "Cantidad de integrantes no valida para el modo"; break; }
         for (i = 0; i < b->count[s]; i++) {
             const PcFighter *f = &b->fighter[s][i];
@@ -60,11 +64,42 @@ int Port_PcBattlePending(void) {
     pthread_mutex_lock(&sLock); result = sRequested; pthread_mutex_unlock(&sLock);
     return result;
 }
+int Port_PcTeamsRequest(const PcBattle *b) {
+    char why[160];
+    if (!gPortPcTeamReady || Port_ModesFight() != 0 || (b->mode != PC_DUEL && b->mode != PC_RELAY) ||
+        Port_NetActive() || Port_NetSession() || !Port_PcBattleValidate(b, why, sizeof(why))) return 0;
+    pthread_mutex_lock(&sLock); sTeams = *b; sTeamsPending = 1; pthread_mutex_unlock(&sLock);
+    return 1;
+}
+int Port_PcTeamsPreview(PcBattle *b) {
+    int result;
+    pthread_mutex_lock(&sLock); result = sTeamsPending; if (result) *b = sTeams; pthread_mutex_unlock(&sLock);
+    return result;
+}
+int Port_PcTeamsTake(PcBattle *b) {
+    int result;
+    pthread_mutex_lock(&sLock); result = sTeamsPending; if (result) *b = sTeams; sTeamsPending = 0; pthread_mutex_unlock(&sLock);
+    return result;
+}
 int Port_PcBattleTake(PcBattle *b) {
     int result;
     pthread_mutex_lock(&sLock);
     result = sRequested;
     if (result) { *b = sPending; sRequested = 0; }
     pthread_mutex_unlock(&sLock);
+    if (!result && getenv("BT3_PC_CONFIG")) {
+        const char *p = getenv("BT3_PC_CONFIG");
+        unsigned i; int *v = (int *)b; char why[160];
+        for (i = 0; i < sizeof(*b)/sizeof(int); i++) {
+            char *end; long n = strtol(p, &end, 10);
+            if (end == p || (i + 1 < sizeof(*b)/sizeof(int) && *end != ',')) return 0;
+            v[i] = (int)n; p = *end ? end + 1 : end;
+        }
+        result = Port_PcBattleValidate(b, why, sizeof(why));
+    }
     return result;
+}
+
+void Port_PcRelayLog(int side, int entered, int chara) {
+    fprintf(stderr, "bt3: relevo: equipo %d, reserva %d/%d, personaje %d\n", side + 1, entered, PORT_RELAY_MAX, chara);
 }

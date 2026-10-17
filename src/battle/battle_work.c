@@ -51,6 +51,9 @@ void Battle_ResetWork(void) {
 
     Adx_StopAll();
     Battle_GetWork()->flags = 0;
+#ifdef PORT
+    { extern void Port_PcRelayRewind(void); Port_PcRelayRewind(); }
+#endif
     BtlLoad_Reload();
     BattleReplay_ClearDataFlag();
     BattleResult_Clear();

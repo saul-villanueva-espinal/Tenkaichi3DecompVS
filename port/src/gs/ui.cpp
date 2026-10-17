@@ -2262,12 +2262,13 @@ static bool feature_overlay_on(void) {
     SDL_LockSpinlock(&sFeatureLock);
     bool on = sBattleActive || sFormHints[0].until > SDL_GetTicks() || sFormHints[1].until > SDL_GetTicks();
     SDL_UnlockSpinlock(&sFeatureLock);
-    return on;
+    return on || gPortPcTeamReady;
 }
 static void Port_DrawFeatureHints(ImDrawList *dl) {
     if (Port_HudHidden() || gUiPresentW <= 0 || gUiPresentH <= 0) return;
     SDL_LockSpinlock(&sFeatureLock);
     int hp = sBossHealth;
+    bool active = sBattleActive;
     FormHint hints[2] = {sFormHints[0], sFormHints[1]};
     SDL_UnlockSpinlock(&sFeatureLock);
     float sx = (float)gUiPresentW / 512.0f, sy = (float)gUiPresentH / 448.0f;
@@ -2281,6 +2282,13 @@ static void Port_DrawFeatureHints(ImDrawList *dl) {
         float y = gUiPresentY + 3.0f * sy;
         dl->AddRectFilled(ImVec2(x - 4 * sx, y), ImVec2(x + ts.x + 4 * sx, y + ts.y + 3 * sy), IM_COL32(45, 8, 12, 220), 3 * sy);
         dl->AddText(font, size, ImVec2(x, y), IM_COL32(255, 205, 75, 255), text);
+    }
+    if (active && GsDraw_HudShown()) {
+        int a = Port_PcRelayRemaining(0), b = Port_PcRelayRemaining(1);
+        char text[100] = "";
+        if (a || b) snprintf(text, sizeof(text), "RELEVOS  Equipo 1: %d restantes  |  Equipo 2: %d restantes", a, b);
+        if (Port_CoopEnabled()) snprintf(text, sizeof(text), "RAID ONLINE  Jugador %d (mando local 1)", Port_CoopMe() + 1);
+        if (text[0]) dl->AddText(font, 11.0f * sy, ImVec2(gUiPresentX + 8 * sx, gUiPresentY + 22 * sy), IM_COL32(245,220,150,255), text);
     }
     for (const FormHint &h : hints) {
         if (h.count <= 1 || h.until <= SDL_GetTicks()) continue;
@@ -2938,6 +2946,7 @@ static bool frame_build(void) {
     fonts_apply(); // (a face chosen for the fight panels, between two frames)
     ImGui::NewFrame();
     Port_UpdateAndDrawPhotoMode(ImGui::GetForegroundDrawList());
+    if (!sOpen) pc_teams_preview();
     if (bars && !Port_HudHidden()) {
         bars_draw();
     }

@@ -2,7 +2,7 @@
    thread; the modern roster does not write into legacy menu/save structures. */
 #include "../../include/port_pc_battle.h"
 #include "../../include/port_coop.h"
-extern "C" volatile int gPortPcHubReady;
+extern "C" volatile int gPortPcHubReady, gPortPcTeamReady;
 static void pc_battle_ui(void) {
     static PcBattle b;
     static bool ready;
@@ -30,7 +30,7 @@ static void pc_battle_ui(void) {
         for (int s = 0; s < 2; s++) {
             ImGui::TableNextColumn(); ImGui::PushID(s);
             ImGui::TextUnformatted(b.mode == PC_RAID ? s ? "JEFE CPU" : "ALIADOS" : s ? "EQUIPO 2" : "EQUIPO 1");
-            int max = b.mode == PC_RELAY ? 10 : b.mode == PC_TAG ? 5 : b.mode == PC_RAID && !s ? 4 : 1;
+            int max = (b.mode == PC_RELAY || b.mode == PC_DUEL) ? 10 : b.mode == PC_TAG ? 5 : b.mode == PC_RAID && !s ? 4 : 1;
             if (max > 1) ImGui::SliderInt("Integrantes", &b.count[s], b.mode == PC_RAID && !s ? b.players : 1, max);
             for (int i = 0; i < b.count[s]; i++) {
                 ImGui::PushID(i);
@@ -60,6 +60,13 @@ static void pc_battle_ui(void) {
         ImGui::PopID();
     }
     ImGui::EndChild();
+    ImGui::BeginDisabled(!gPortPcTeamReady || Port_ModesFight() != PORT_MODE_NONE || (b.mode != PC_RELAY && b.mode != PC_DUEL) || Port_NetActive() || Port_CoopEnabled());
+    if (ImGui::Button("Usar estos equipos en el modo actual")) {
+        if (!Port_PcBattleValidate(&b, message, sizeof(message))) {}
+        else if (Port_PcTeamsRequest(&b)) snprintf(message, sizeof(message), "Equipos guardados para este selector. Confirma el combate para aplicarlos.");
+    }
+    ImGui::EndDisabled();
+    if (gPortPcTeamReady) ImGui::TextWrapped("Puedes aplicar hasta diez integrantes por equipo en Duelo y Ultimate Battle. Entraran por relevos; se mantienen las reglas de este modo.");
     ImGui::BeginDisabled(!gPortPcHubReady || Port_NetActive() || Port_CoopEnabled());
     if (ImGui::Button("Iniciar combate local")) {
         if (!Port_PcBattleValidate(&b, message, sizeof(message))) {}
@@ -83,4 +90,32 @@ static void pc_battle_ui(void) {
     if (!gPortPcHubReady) ImGui::TextDisabled("Abre este panel desde el menu principal para iniciar un combate.");
     if (message[0]) ImGui::TextWrapped("%s", message);
     ImGui::Spacing();
+}
+
+static void pc_teams_preview(void) {
+    if (!gPortPcTeamReady) return;
+    PcBattle b;
+    bool pending = Port_PcTeamsPreview(&b) != 0;
+    ImGuiIO &io = ImGui::GetIO();
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * .5f, io.DisplaySize.y * .97f), ImGuiCond_Always, ImVec2(.5f,1));
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * .88f, 0));
+    ImGui::SetNextWindowBgAlpha(.94f);
+    if (ImGui::Begin("Equipos PC##preview", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |
+                     ImGuiWindowFlags_NoInputs | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_NoFocusOnAppearing)) {
+        if (!pending) ImGui::TextUnformatted("F1: plantilla ampliada, trajes y equipos de hasta diez por relevos");
+        else {
+            ImGui::TextUnformatted("EQUIPOS PC POR RELEVOS - confirma el combate en el selector para aplicarlos");
+            if (ImGui::BeginTable("preview_teams",2,ImGuiTableFlags_SizingStretchSame)) {
+                for (int s=0;s<2;s++) {
+                    ImGui::TableNextColumn();ImGui::Text("Equipo %d - %d integrantes",s+1,b.count[s]);
+                    for (int i=0;i<b.count[s];i++) {
+                        const char *name=Port_PcRosterName(b.fighter[s][i].chara);
+                        ImGui::Text("%02d  %s  [T%d]",i+1,name&&*name?name:"Personaje",b.fighter[s][i].costume+1);
+                    }
+                }
+                ImGui::EndTable();
+            }
+        }
+    }
+    ImGui::End();
 }

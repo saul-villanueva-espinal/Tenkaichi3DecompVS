@@ -474,6 +474,9 @@ void TeamSel_ClipGoto(s32 flash, s32 side, s32 kind, char *label) {
 
 /* Loads and unpacks the screen (section `section` of archive 5), builds the grids and restores the last choices. */
 void TeamSel_Init(s32 section) {
+#ifdef PORT
+    { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 1; }
+#endif
     MTexRes *res = NULL;
     s32 i;
     s32 j;
@@ -885,6 +888,9 @@ void TeamSel_Init(s32 section) {
 
 /* Frees the screen: the windows, the movies, the picture buffers and the work area. */
 void TeamSel_Term(void) {
+#ifdef PORT
+    { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 0; }
+#endif
     s32 i;
 
 #ifdef PORT

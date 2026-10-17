@@ -22,7 +22,7 @@ typedef int socklen_t;
 #include "../../include/port_coop.h"
 enum { CMAGIC = 0x42543343, CVERSION = 1, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
        CRING = 4096, CPAD = 18, CREDUNDANT = 16, CDELAY = 3, CHEAD = 48 };
-static int sEnabled = -1, sSock = -1, sHost, sMe, sPlayers, sReady;
+static int sSock = -1, sHost, sMe, sPlayers, sReady;
 static uint32_t sNonce, sTick, sStartTick, sSampled;
 static PcBattle sBattle;
 static struct sockaddr_in sPeer[4];
@@ -142,9 +142,10 @@ int Port_CoopConfig(PcBattle *out) {
         char address[256],*colon;struct addrinfo hints,*result=NULL;
         snprintf(address,sizeof(address),"%s",getenv("BT3_COOP_JOIN"));colon=strrchr(address,':');
         if(!colon) fail("Usa direccion:puerto");*colon++=0;
+        start_socket(0); /* Winsock must be initialized before resolving a host. */
         memset(&hints,0,sizeof(hints));hints.ai_family=AF_INET;hints.ai_socktype=SOCK_DGRAM;
         if(getaddrinfo(address,colon,&hints,&result)) fail("Direccion no valida");
-        memcpy(&sPeer[0],result->ai_addr,sizeof(sPeer[0]));freeaddrinfo(result);start_socket(0);
+        memcpy(&sPeer[0],result->ai_addr,sizeof(sPeer[0]));freeaddrinfo(result);
     }
     fprintf(stderr,"bt3: coop: %s, esperando %d jugadores, datos %016llx\n",sHost?"anfitrion":"cliente",sPlayers,(unsigned long long)sFingerprint);
     begun=millis();

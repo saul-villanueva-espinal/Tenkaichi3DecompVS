@@ -126,7 +126,7 @@ int __wrap_Progress_Main(int arg) {
     port_stage_replace_init();
     {
         extern int Port_CoopEnabled(void), Port_PcBattleBuild(void);
-        if (Port_CoopEnabled()) {
+        if (Port_CoopEnabled() || getenv("BT3_PC_CONFIG") != NULL) {
             /* Fresh process, fixed rules, fresh RNG on every peer. */
             extern void Port_Srand(unsigned);
             extern void Rand_Seed(unsigned);

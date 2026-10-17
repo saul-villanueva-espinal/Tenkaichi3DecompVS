@@ -2,16 +2,17 @@
 from pathlib import Path
 import os
 import socket
+import shutil
 import subprocess
 import tempfile
 import time
 
 root = Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory() as tmp:
-    exe = str(Path(tmp) / 'peer')
-    subprocess.run(['cc', '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra',
+    exe = str(Path(tmp) / ('peer.exe' if os.name == 'nt' else 'peer'))
+    subprocess.run([shutil.which('cc') or shutil.which('gcc'), '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra',
                     '-Iport/include', 'port/tests/coop_peer_test.c', 'port/src/gs/coop_net.c',
-                    'port/src/plat_pc_battle.c', '-lpthread', '-o', exe], cwd=root, check=True)
+                    'port/src/plat_pc_battle.c', '-lpthread'] + (['-lws2_32'] if os.name == 'nt' else []) + ['-o', exe], cwd=root, check=True)
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
         s.bind(('127.0.0.1', 0))
         port = s.getsockname()[1]

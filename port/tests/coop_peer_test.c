@@ -19,6 +19,7 @@ const char *Port_FighterName(int c) { (void)c;return "fixture"; }
 int Port_ExtraCostumeOk(int c,int costume,char *why,int size) { (void)c;(void)costume;(void)why;(void)size;return 1; }
 int Port_NetActive(void) { return 0; }
 int Port_NetSession(void) { return 0; }
+int Port_ModesFight(void) { return 0; }
 void Port_CoopRelaunch(void) { abort(); }
 int main(void) {
     PcBattle b;unsigned char pad[18];int p;
