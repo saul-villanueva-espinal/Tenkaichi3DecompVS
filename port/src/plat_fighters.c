@@ -157,7 +157,8 @@ static int chara_files_ok(int chara, int costume, char *why, int size) {
     for (i = 0; i < 3; i++) {
         int id = 0xD48 + PORT_CHARA_FILE_INDEX + chara * PORT_FILES_PER_CHARA +
                  (costume >= 0 && costume < 8 ? costume : 0) + kFiles[i]; /* (ids from 1 are the second archive's files, from 0) */
-        FILE *fp = Port_FilePath(1, id - 1, NULL, path, sizeof(path)) ? fopen(path, "rb") : NULL;
+        /* File_OpenById: virtual ids are in partition 2, indexed from 0xD48. */
+        FILE *fp = Port_FilePath(2, id - 0xD48, NULL, path, sizeof(path)) ? fopen(path, "rb") : NULL;
         long bytes = 0;
         if (fp != NULL) {
             fseek(fp, 0, SEEK_END);

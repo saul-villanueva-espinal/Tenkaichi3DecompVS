@@ -1160,7 +1160,7 @@ static int alias(const char *rel, char *out, unsigned n) {
         snprintf(out, n, "pzs3us2/%05d.bin", (alt ? 0xCC32 : 0x8D4E) - 0xD48 + (who < live() ? sChara[who].base : 0) * 100 + line);
         return 1;
     }
-    if (index >= PORT_CHARA_MEMBER_INDEX && index < PORT_CHARA_MEMBER_INDEX + PORT_TOTAL_CHARAS * 16) {
+    if (index >= PORT_CHARA_MEMBER_INDEX && index < PORT_CHARA_MEMBER_INDEX + PORT_CHARA_ID_LIMIT * 16) {
         /* the fight's member block (the team mate's small picture): 2 sides * 8 costumes */
         int rem = (index - PORT_CHARA_MEMBER_INDEX) % 16;
         int side = rem % 2;
@@ -1197,7 +1197,7 @@ static int alias(const char *rel, char *out, unsigned n) {
         snprintf(out, n, "pzs3us1/%05d.bin", 7 + (who < live() ? sChara[who].base : 0) * 2 + side);
         return 1;
     }
-    if (index >= PORT_CHARA_FACE_INDEX && index < PORT_CHARA_FACE_INDEX + PORT_TOTAL_CHARAS * 8) {
+    if (index >= PORT_CHARA_FACE_INDEX && index < PORT_CHARA_FACE_INDEX + PORT_CHARA_ID_LIMIT * 8) {
         /* the large picture: 8 costumes per character */
         who = (index - PORT_CHARA_FACE_INDEX) / 8;
         int costume = (index - PORT_CHARA_FACE_INDEX) % 8;
@@ -1232,7 +1232,7 @@ static int alias(const char *rel, char *out, unsigned n) {
         snprintf(out, n, "pzs3us1/%05d.bin", 0x2F8 + (who < live() ? sChara[who].base : 0));
         return 1;
     }
-    if (index >= PORT_CHARA_FILE_INDEX && index < PORT_CHARA_FILE_INDEX + PORT_TOTAL_CHARAS * PORT_FILES_PER_CHARA) {
+    if (index >= PORT_CHARA_FILE_INDEX && index < PORT_CHARA_FILE_INDEX + PORT_CHARA_ID_LIMIT * PORT_FILES_PER_CHARA) {
         who = (index - PORT_CHARA_FILE_INDEX) / PORT_FILES_PER_CHARA;
         k = (index - PORT_CHARA_FILE_INDEX) % PORT_FILES_PER_CHARA;
     } else {

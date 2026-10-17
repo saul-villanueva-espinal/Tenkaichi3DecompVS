@@ -4,6 +4,9 @@
 #include <string.h>
 #include "plat_fighters.h"
 #include "plat_charas.h"
+typedef int s32;
+#define PORT
+#include "../../include/port_chara.h"
 
 static int mode, players = 2, online, missing, last_file;
 unsigned gGsFrame;
@@ -20,7 +23,8 @@ void Port_SettingsWrite(void) {}
 int Port_NetActive(void) { return online; }
 int Port_NetSession(void) { return online; }
 int Port_FilePath(int part, int file, const char *name, char *out, int size) {
-    (void)part; (void)name;
+    (void)name;
+    assert(part == 2); /* match File_OpenById's global-to-partition translation */
     last_file = file;
     snprintf(out, size, "%s", __FILE__);
     return !missing;
@@ -54,8 +58,14 @@ int main(void) {
     assert(Port_ExtraSetup(0, 2, 2, 1, 0, 0) == PORT_MODE_RAID);
     assert(Port_ExtraAdd(1, 1, PORT_CHARA_FIRST + PORT_CHARA_MAX - 1, 7, 13));
     assert(Port_FightTeam(0) == 0); /* side 2 reserves join the cooperative team */
-    assert(last_file == 0xD48 + PORT_CHARA_FILE_INDEX +
-           (PORT_CHARA_FIRST + PORT_CHARA_MAX - 1) * PORT_FILES_PER_CHARA + 7 + 24 - 1);
+    assert(last_file == PORT_CHARA_FILE_INDEX +
+           (PORT_CHARA_FIRST + PORT_CHARA_MAX - 1) * PORT_FILES_PER_CHARA + 7 + 24);
+    for (n = 0; n < PORT_CHARA_MAX; n++) {
+        int id = PORT_CHARA_FIRST + n;
+        assert(CHARA_FROM_FILE(CHARA_MODEL_FILE(id, 7)) == id);
+        assert(CHARA_FROM_FILE(CHARA_ANM_FILE(id, 7)) == id);
+        assert(CHARA_FROM_FILE(CHARA_EFF_FILE(id, 7)) == id);
+    }
     assert(!Port_ExtraCharaOk(161, why, sizeof(why))); /* menu marker is not a fighter */
     assert(!Port_ExtraCharaOk(PORT_CHARA_FIRST + PORT_CHARA_MAX, why, sizeof(why)));
     missing = 1;

@@ -24,6 +24,7 @@
 #define PORT_CHARA_FIRST 0xC6
 #define PORT_CHARA_MAX 129
 #define PORT_TOTAL_CHARAS 290
+#define PORT_CHARA_ID_LIMIT (PORT_CHARA_FIRST + PORT_CHARA_MAX)
 #define PORT_FILES_PER_CHARA 34
 
 #define PORT_CHARA_FILE_INDEX 80000
@@ -62,7 +63,7 @@ extern int Port_CharaBase(int chara); /* an added character's base character; an
 /* backward-compatible macro for table/model lookups */
 #define CHARA_FILE10(c) (PORT_CHARA_FILE0 - 0x590 + (s32)(c) * PORT_FILES_PER_CHARA)
 #define CHARA_FROM_FILE(id) \
-    (((id) >= PORT_CHARA_FILE0 && (id) < PORT_CHARA_FILE0 + PORT_TOTAL_CHARAS * PORT_FILES_PER_CHARA) \
+    (((id) >= PORT_CHARA_FILE0 && (id) < PORT_CHARA_FILE0 + PORT_CHARA_ID_LIMIT * PORT_FILES_PER_CHARA) \
      ? (((id) - PORT_CHARA_FILE0) / PORT_FILES_PER_CHARA) \
      : (((id) - 0x590) / 10))
 

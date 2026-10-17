@@ -6,6 +6,7 @@
 #define PORT_CHARA_FIRST 0xC6 /* the same numbers as include/port_chara.h */
 #define PORT_CHARA_MAX 129
 #define PORT_TOTAL_CHARAS 290
+#define PORT_CHARA_ID_LIMIT (PORT_CHARA_FIRST + PORT_CHARA_MAX)
 #define PORT_FILES_PER_CHARA 34
 
 #define PORT_CHARA_FILE_INDEX 80000
