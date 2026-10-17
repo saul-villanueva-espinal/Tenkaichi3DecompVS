@@ -163,6 +163,10 @@ void Hud_ClearTexMarks(void) {
 /* Calls the update callback of a node and of all nodes under it. */
 void HudNode_Update(HudNode *node) {
     u32 i;
+#ifdef PORT
+    extern int Port_PhotoActive(void);
+    if (Port_PhotoActive()) return;
+#endif
 
     if (node->update != NULL) {
         node->update(node);

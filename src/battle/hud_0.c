@@ -76,8 +76,17 @@ void BtlGame_Draw(void) {
         Port_GsMarker(0x13); /* PORT_2D_END: what follows is not part of the HUD */
     }
 #endif
+#ifdef PORT
+    {
+        extern int Port_PhotoActive(void), Port_HudHidden(void);
+        /* Script cameras must not replace the frozen orbital camera. */
+        if (!Port_PhotoActive()) BtlScript_UpdateView();
+        if (!Port_HudHidden() && !Port_PhotoActive()) PauseMenu_Draw();
+    }
+#else
     BtlScript_UpdateView();
     PauseMenu_Draw();
+#endif
 }
 
 /* 1 while the battle sequence is in the fight state. */

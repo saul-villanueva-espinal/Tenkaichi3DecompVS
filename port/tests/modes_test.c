@@ -44,6 +44,10 @@ static void raid_players(int n) {
 int main(void) {
     int n;
     char why[160];
+    Port_LocalPlayersSet(0);
+    assert(Port_LocalPlayers() == 1);
+    Port_LocalPlayersSet(5);
+    assert(Port_LocalPlayers() == 4);
     for (n = 1; n <= 4; n++) raid_players(n);
     mode = PORT_MODE_RAID;
     assert(Port_ExtraSetup(0, 1, 1, 0, 0, 0) == PORT_MODE_RAID); /* solo lead versus boss */
@@ -57,6 +61,10 @@ int main(void) {
     missing = 1;
     assert(!Port_ExtraAdd(0, 1, 0, 0, 13));
     missing = 0;
+    assert(Port_ExtraSetup(0, 5, 5, 1, 0, 0) == PORT_MODE_RAID);
+    for (n = 0; n < PORT_EXTRA_MAX; n++) assert(Port_ExtraAdd(n / 4, n % 4 + 1, n, n % 8, 13));
+    assert(Port_FightExtras() == PORT_EXTRA_MAX);
+    assert(!Port_ExtraAdd(0, 1, 0, 0, 13));
     mode = PORT_MODE_TEAM;
     assert(Port_ExtraSetup(0, 2, 2, 1, 0, 0) == PORT_MODE_TEAM);
     assert(Port_ExtraAdd(1, 1, 1, 3, 13));

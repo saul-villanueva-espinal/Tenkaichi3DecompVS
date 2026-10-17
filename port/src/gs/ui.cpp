@@ -2989,7 +2989,7 @@ static bool frame_build(void) {
             dl->AddText(font, size, ImVec2(x, y), IM_COL32(255, 255, 255, 255), text);
         }
     }
-    if (notice) { // a line over the picture for a few seconds (the end of an online match)
+    if (notice && !Port_HudHidden()) { // a line over the picture for a few seconds (the end of an online match)
         ImGuiIO &io = ImGui::GetIO();
         ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.12f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowBgAlpha(0.85f);
@@ -2999,7 +2999,7 @@ static bool frame_build(void) {
         }
         ImGui::End();
     }
-    if (overlay && gUiPresentW > 0 && gUiPresentH > 0) {
+    if (overlay && !Port_HudHidden() && gUiPresentW > 0 && gUiPresentH > 0) {
         /* Each name's rectangle is in the game's 512x448 pixels: map it through the picture's rectangle in the
            window (the letterbox gs_gpu.c just blitted into). */
         float sx = (float)gUiPresentW / 512.0f;
