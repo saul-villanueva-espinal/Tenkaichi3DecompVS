@@ -11,7 +11,7 @@ extern "C" {
 #include "../include/port_fighters.h"
 
 /* plat_fighters.c: the settings, held to their ranges */
-int Port_ExtraCount(void);      /* the Experiments tab's switch: how many extra fighters every Duel / training fight gets */
+int Port_ExtraCount(void);      /* the Experiments tab's extra fighters for Training only; ordinary Duel stays separate */
 int Port_LocalPlayers(void);    /* 1..4 local players; in Raid all human players fight the CPU boss. */
 void Port_LocalPlayersSet(int n);
 int Port_ExtraChara(int index); /* extra fighter `index`: its character 0..160 */
@@ -40,6 +40,7 @@ typedef struct PortModesView { /* what the main menu shows now, for the code tha
 void Port_ModesView(PortModesView *out);
 int Port_ModesFight(void);     /* PORT_MODE_ the fights of now were chosen with on the main menu, 0: none (and none online) */
 int Port_ModesCount(void);     /* ... and how many of the Experiments tab's extra fighters such a fight gets besides */
+int Port_TeamDuplicatesAllowed(void); /* local team selection accepts repeated fighters */
 const char *Port_ModesName(int mode);
 const char *Port_ModesPlayersName(int n); /* "1 Player" .. "4 Players" */
 

@@ -54,6 +54,7 @@ extern int Port_Setting(const char *name, int def); /* plat_settings.c */
 extern void Port_SettingSave(const char *name, int value);
 extern void Port_SettingsWrite(void);
 extern int Port_FilePath(int ptid, int flid, const char *fname, char *out, int size); /* plat_file.c */
+extern int Port_NetSession(void);
 extern int Port_NetActive(void);                                    /* gs/net.c */
 extern int PortA11y_Utf8(char *out, int cap, const uint16_t *str); /* gs/a11y.c: the game's text as UTF-8 */
 
@@ -270,7 +271,7 @@ int Port_ExtraSetup(int mode, int members0, int members1, int split, int replay,
     sFightFrom = "";
     sFightSplit = split;
     sLast = EXTRA_NONE;
-    if (Port_NetActive()) {
+    if (Port_NetActive() || Port_NetSession()) {
         /* (nothing of this in an online match, whoever asks) */
         if (list != NULL || env != NULL || (roster ? members0 + members1 > 2 : page != PORT_MODE_NONE ? Port_ModesCount() > 0 : Port_ExtraCount() > 0)) {
             sLast = EXTRA_ONLINE;
@@ -312,11 +313,12 @@ int Port_ExtraSetup(int mode, int members0, int members1, int split, int replay,
                 return page;
             }
         }
-    } else if (page != PORT_MODE_NONE ? Port_ModesCount() > 0 : Port_ExtraCount() > 0) {
+    } else if ((page == PORT_MODE_TRAINING && Port_ModesCount() > 0) ||
+               (page == PORT_MODE_NONE && mode == 6 && Port_ExtraCount() > 0)) {
         int count = page != PORT_MODE_NONE ? Port_ModesCount() : Port_ExtraCount();
 
         asked = 1;
-        if (!forced && (page != PORT_MODE_NONE ? mode != 6 : mode != 0 && mode != 6)) {
+        if (!forced && mode != 6) {
             last = EXTRA_MODE; /* (the page's choice is for the kind of fight it led into, and no other) */
         } else if (script) {
             last = EXTRA_SCRIPT;

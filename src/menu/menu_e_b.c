@@ -4,6 +4,8 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 #ifdef PORT
+static TsCell sPortLargeGrid[TEAMSEL_SIDES][PORT_CHARA_GRID_CAPACITY];
+extern void ChrGrid_BuildPort(s32 *, TsCell *, s32 *, TsCell *, s32 *, TsCell *);
 #include "battle/col_c.h" /* FontStyle / FONT_ALIGN_* / FONT_SHADOW_*, for the names of added songs */
 #include "plat_songs.h"   /* the songs added from outside the disc (the music select) */
 /* The port's song-name overlay (port/src/gs/ui.cpp / gs_draw.c), as the duel's select uses it (menu_c_e.c). */
@@ -88,10 +90,14 @@ void TeamSel_SumCost(s32 side, s32 skipCur) {
     }
 }
 
-/* Returns 0 if another member of the side's team is the same person as `chara` (a form of the same character). */
+/* Local PC teams accept duplicates. Otherwise reject a fighter related to another team member. */
 s32 TeamSel_IsCharaFree(s32 side, s32 chara) {
     s32 ok = 1;
     s32 i;
+#ifdef PORT
+    extern int Port_TeamDuplicatesAllowed(void);
+    if (Port_TeamDuplicatesAllowed()) return 1;
+#endif
 
     for (i = 0; i < gTeamSel->side[side]->memberCount; i++) {
         if (i != gTeamSel->side[side]->cur) {
@@ -747,10 +753,19 @@ void TeamSel_Init(s32 section) {
     for (i = 0; i < TEAMSEL_SIDES; i++) {
         s32 cols = TS_COLS;
 
+#ifdef PORT
+        ChrGrid_BuildPort(&gTeamSel->cellCount[i], sPortLargeGrid[i], &gTeamSel->masterCount[i], gTeamSel->cells[i],
+                          &gTeamSel->customCount[i], gTeamSel->custom[i]);
+#else
         ChrGrid_Build(&gTeamSel->cellCount[i], gTeamSel->grid[i], &gTeamSel->masterCount[i], gTeamSel->cells[i],
                       &gTeamSel->customCount[i], gTeamSel->custom[i]);
+#endif
         gTeamSel->masterCount[i] = gTeamSel->cellCount[i];
+#ifdef PORT
+        gTeamSel->cells[i] = sPortLargeGrid[i];
+#else
         gTeamSel->cells[i] = gTeamSel->grid[i];
+#endif
         gTeamSel->rows[i] = gTeamSel->masterCount[i] / cols;
         if (gTeamSel->masterCount[i] % cols) {
             gTeamSel->rows[i]++;
@@ -1766,7 +1781,7 @@ f32 TeamSel_Input(s32 *result) {
                         } else if (TeamSel_IsCharaFree(CUR_N, CUR_SIDE->chara)) {
                             Flash_GotoLabel(&gTeamSel->flash[CUR_N + 5], "fl_custom_in", 1);
                             TeamSel_ClipGoto(CUR_N + 3, CUR_N, TEAMSEL_CLIP_CHIP, "fl_ok");
-                            gTeamSel->plateCount[CUR_N] = (gTeamSel->battleType == 2 || PORT_CHARA_ADDED(CUR_SIDE->chara)) ? 1 : 4;
+                            gTeamSel->plateCount[CUR_N] = (gTeamSel->battleType == 2 || !PORT_SAVE_CELL(PORT_GRID_SAVE_INDEX(CUR_SIDE->chara, CUR_MEMBER.row * TS_COLS + CUR_MEMBER.col))) ? 1 : 4;
                             if (!(CUR_MEMBER.plate < gTeamSel->plateCount[CUR_N])) {
                                 CUR_MEMBER.plate = 0;
                             }
@@ -1912,7 +1927,7 @@ f32 TeamSel_Input(s32 *result) {
                         if (CUR_CELL.id == TS_CUSTOM) {
                             ItemPanel_SetChara(CUR_N, CUR_SIDE->chara, CUR_MEMBER.customCol + CUR_MEMBER.customRow * TS_COLS, 0, 1);
                         } else {
-                            ItemPanel_SetChara(CUR_N, CUR_SIDE->chara, CUR_MEMBER.row * TS_COLS + CUR_MEMBER.col,
+                            ItemPanel_SetChara(CUR_N, CUR_SIDE->chara, PORT_GRID_SAVE_INDEX(CUR_SIDE->chara, CUR_MEMBER.row * TS_COLS + CUR_MEMBER.col),
                                           CUR_MEMBER.plate - 1, 0);
                         }
                         ItemPanel_Show(CUR_N);
@@ -2032,6 +2047,7 @@ f32 TeamSel_Input(s32 *result) {
                             CUR_MEMBER.chara = CUR_SIDE->chip[0][CUR_MEMBER.col];
                             idx = CUR_MEMBER.col + CUR_MEMBER.row * TS_COLS;
                         }
+                        idx = PORT_GRID_SAVE_INDEX(CUR_MEMBER.chara, idx);
                         if (CUR_MEMBER.plate != 0 && PORT_SAVE_CELL(idx)) {
                             CUR_ITEMS = TS_SAVE->custom[idx].set[CUR_MEMBER.plate - 1];
                         } else {

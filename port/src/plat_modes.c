@@ -65,6 +65,12 @@ static int online(void) {
     return Port_NetSession() || Port_NetActive();
 }
 
+/* Local teams may contain copies of the same fighter, each with its own costume/items.
+   Keep the existing online selection rule until both peers negotiate this rule. */
+int Port_TeamDuplicatesAllowed(void) {
+    return !online();
+}
+
 const char *Port_ModesName(int mode) {
     static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Modo Raid Boss", "Entrenamiento Extra"};
     return mode > PORT_MODE_NONE && mode < PORT_MODE_COUNT ? kNames[mode] : "";

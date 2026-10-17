@@ -1652,7 +1652,7 @@ static void experiments_tab(void) {
     static const char *const kTeams[] = {"Equipo 1 (Jugador 1)", "Equipo 2 (Jugador 2)", "Por su cuenta (Contra todos)"};
     static const char *const kLast[] = {NULL,
                                         "El Ãºltimo combate tuvo el tercer luchador activo.",
-                                        "El Ãºltimo combate fue original: solo Duelo y Entrenamiento pueden tener tercer luchador.",
+                                        "El Ãºltimo combate fue original: el luchador extra de esta opcion solo se aplica en Entrenamiento.",
                                         "El Ãºltimo combate fue original: un bando tenÃ­a mÃ¡s de un integrante.",
                                         "El Ãºltimo combate fue original: la pantalla ya estaba dividida para dos jugadores.",
                                         "El Ãºltimo combate fue original: era una repeticiÃ³n.",
@@ -1666,15 +1666,15 @@ static void experiments_tab(void) {
     bool on = count > 0;
     char label[96];
 
-    ImGui::TextWrapped("Funciones experimentales (Modo Tag Team, Multijugador hasta 4 y Tercer Luchador).");
+    ImGui::TextWrapped("Duelo y los modos extra son independientes. Elige Tag Team, Todos vs Todos o Raid desde el menu principal con SELECT.");
     ImGui::Spacing();
     ImGui::SeparatorText("Jugadores Locales (Multijugador en esta PC)");
     {
-        static const char *const kLocal[] = {"2 Jugadores (Original del juego)", "3 Jugadores", "4 Jugadores"};
-        int local = Port_LocalPlayers() - 2;
+        static const char *const kLocal[] = {"1 Jugador", "2 Jugadores", "3 Jugadores", "4 Jugadores"};
+        int local = Port_LocalPlayers() - 1;
         ImGui::SetNextItemWidth(260.0f);
-        if (ImGui::Combo("Jugadores en esta PC", &local, kLocal, 3)) {
-            Port_LocalPlayersSet(local + 2);
+        if (ImGui::Combo("Jugadores en esta PC", &local, kLocal, 4)) {
+            Port_LocalPlayersSet(local + 1);
         }
         ImGui::TextWrapped("Para Batalla por Equipos o Todos Contra Todos (pulsa SELECT en el MenÃº Principal), con "
                            "dos o mÃ¡s luchadores por equipo: el mando 3 controla al 2Âº luchador del Equipo 1, y el mando 4 al 2Âº del Equipo 2. "
@@ -1682,12 +1682,12 @@ static void experiments_tab(void) {
     }
     ImGui::Spacing();
     ImGui::SeparatorText("Luchador Extra en Combate (Tercer Luchador CPU)");
-    if (ImGui::Checkbox("Activar tercer luchador en Duelo / Entrenamiento", &on)) {
+    if (ImGui::Checkbox("Activar luchador extra solo en Entrenamiento", &on)) {
         count = on ? 1 : 0;
     }
-    ImGui::SetItemTooltip("Un tercer luchador, controlado por la CPU, se une a la siguiente pelea que inicies.\n"
-                          "Funciona en combates 1 contra 1 de Duelo (contra la mÃ¡quina) o de Entrenamiento.\n"
-                          "Historia, torneos, batallas por equipo originales y repeticiones se mantienen sin cambios.");
+    ImGui::SetItemTooltip("Un luchador CPU adicional para Entrenamiento.\n"
+                          "Duelo conserva sus reglas y sus equipos originales.\n"
+                          "Tag Team, Todos vs Todos y Raid se eligen por separado en el menu principal con SELECT.");
     if (Port_NetActive()) {
         ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Desactivado durante partidas online.");
     }

@@ -4,6 +4,8 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 #ifdef PORT
+static MChrCell sPortLargeGrid[CHARSEL_SIDES][PORT_CHARA_GRID_CAPACITY];
+extern void ChrGrid_BuildPort(s32 *, MChrCell *, s32 *, MChrCell *, s32 *, MChrCell *);
 #include "battle/col_c.h" /* FontStyle / FONT_ALIGN_* / FONT_SHADOW_*, for the names of added stages */
 #include "plat_stages.h"  /* the manifest of added stages: their ids, names and file aliases */
 #include "plat_songs.h"   /* the manifest of added songs (the music select) */
@@ -694,10 +696,19 @@ void CharSel_Init(s32 section) {
     gCharSel->cells[1] = gCharSel->cells[0];
     gCharSel->masterCount[1] = gCharSel->masterCount[0];
     for (i = 0, cols = MCHR_COLS; i < CHARSEL_SIDES; i++) {
+#ifdef PORT
+        ChrGrid_BuildPort(&gCharSel->cellCount[i], sPortLargeGrid[i], &gCharSel->masterCount[i], gCharSel->cells[i],
+                          &gCharSel->customCount[i], gCharSel->custom[i]);
+#else
         ChrGrid_Build(&gCharSel->cellCount[i], gCharSel->grid[i], &gCharSel->masterCount[i], gCharSel->cells[i],
                       &gCharSel->customCount[i], gCharSel->custom[i]);
+#endif
         gCharSel->masterCount[i] = gCharSel->cellCount[i];
+#ifdef PORT
+        gCharSel->cells[i] = sPortLargeGrid[i];
+#else
         gCharSel->cells[i] = gCharSel->grid[i];
+#endif
         gCharSel->rows[i] = gCharSel->masterCount[i] / cols;
         if (gCharSel->masterCount[i] % cols != 0) {
             gCharSel->rows[i]++;
@@ -1601,9 +1612,8 @@ void CharSel_Input(s32 *running) {
                     CharSel_ClipGoto(CS_N + 1, CS_N, CHARSEL_CLIP_CHIP, "fl_ok");
                     gCharSel->customRows[CS_N] = 4;
 #ifdef PORT
-                    /* PC build: an added character has no item sets. They are kept in the save by the cell's place
-                       in the grid, 97 places, and its cell is past them. */
-                    if (PORT_CHARA_ADDED(CS_SIDE->chara)) {
+                    /* Saved item sets keep their original grouped-cell index. */
+                    if (!PORT_SAVE_CELL(PORT_GRID_SAVE_INDEX(CS_SIDE->chara, CS_SIDE->col + CS_SIDE->row * 7))) {
                         gCharSel->customRows[CS_N] = 1;
                         CS_SIDE->customPlate = 0;
                     }
@@ -1725,7 +1735,7 @@ void CharSel_Input(s32 *running) {
                     if (CS_CELL.id == MCHR_CUSTOM) {
                         ItemPanel_SetChara(CS_N, CS_SIDE->chara, CS_SIDE->customCol + CS_SIDE->customRow * 7, 0, 1);
                     } else {
-                        ItemPanel_SetChara(CS_N, CS_SIDE->chara, CS_SIDE->col + CS_SIDE->row * 7, CS_SIDE->customPlate - 1, 0);
+                        ItemPanel_SetChara(CS_N, CS_SIDE->chara, PORT_GRID_SAVE_INDEX(CS_SIDE->chara, CS_SIDE->col + CS_SIDE->row * 7), CS_SIDE->customPlate - 1, 0);
                     }
                     ItemPanel_Show(CS_N);
                     CS_SIDE->flags |= CHARSEL_SIDE_ITEMS;
@@ -1840,6 +1850,7 @@ void CharSel_Input(s32 *running) {
                         CS_SIDE->picked = CS_SIDE->chip[CS_SIDE->col];
                         n = CS_SIDE->col + CS_SIDE->row * 7;
                     }
+                    n = PORT_GRID_SAVE_INDEX(CS_SIDE->picked, n);
                     if (CS_SIDE->customPlate != 0 && PORT_SAVE_CELL(n)) {
                         CS_SIDE->items = CSSAVE->custom[n].set[CS_SIDE->customPlate - 1];
                     } else {

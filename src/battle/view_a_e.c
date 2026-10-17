@@ -768,6 +768,14 @@ void StgGrid_MoveUp(s32 *ids, s32 *col, s32 *row, s32 rows) {
 #define CHRGRID_NO_RANDOM 4  /* the random cell (0xA1) becomes a filler */
 #define CHRGRID_NO_FORMS 8   /* a cell with several unlocked forms shows only the first */
 
+#ifdef PORT
+/* Legacy callers still supply the original 165-cell buffers. Only the PC
+   Duel/Team selectors opt in to the larger storage through ChrGrid_BuildPort. */
+static s32 sPortChrGridCapacity = 165;
+static s32 sPortChrGridIndependent;
+static s32 sPortChrGridSaveIndex[161];
+#endif
+
 /* Builds the character grid of the current menu screen (gProgress->mode) from the master list: locked
  * characters become CHRGRID_ID_LOCKED, a cell keeps only its unlocked forms, and the list is padded to a
  * multiple of seven with fillers. Then lists the saved custom characters (gSaveData->rec) in `custom`. */
@@ -881,15 +889,16 @@ void ChrGrid_Build(s32 *outCount, ChrGridCell *out, s32 *inCount, ChrGridCell *i
         while (n > 0 && out[n - 1].id == CHRGRID_ID_EMPTY) {
             n--;
         }
-        for (k = 0; k < Port_CharaCount() && n < 165 - CHRGRID_COLS; k++) {
+        for (k = 0; k < Port_CharaCount() &&
+                    n < (sPortChrGridCapacity > 165 ? sPortChrGridCapacity : 165 - CHRGRID_COLS); k++) {
             int forms[CHRGRID_FORM_MAX], count = Port_CharaForms(PORT_CHARA_FIRST + k, forms, CHRGRID_FORM_MAX), f;
-            if (count < 0 && !(flags & CHRGRID_NO_FORMS)) {
+            if (count < 0 && !(flags & CHRGRID_NO_FORMS) && !sPortChrGridIndependent) {
                 continue; /* a form: under its character's cell */
             }
             Port_CharaCellLog((int)n, PORT_CHARA_FIRST + (int)k, count < 1 ? 1 : count);
             memset(&out[n], 0, sizeof(out[n]));
             out[n].id = PORT_CHARA_FIRST + k;
-            if (count > 1 && !(flags & CHRGRID_NO_FORMS)) {
+            if (count > 1 && !(flags & CHRGRID_NO_FORMS) && !sPortChrGridIndependent) {
                 out[n].formCount = count;
                 for (f = 0; f < count; f++) {
                     out[n].form[f] = forms[f];
@@ -928,6 +937,54 @@ void ChrGrid_Build(s32 *outCount, ChrGridCell *out, s32 *inCount, ChrGridCell *i
 }
 #else
 INCLUDE_ASM("asm/nonmatchings/battle/view_a_e", ChrGrid_Build);
+#endif
+
+#ifdef PORT
+/* Item sets in the PS2 save are keyed by the original grouped grid cell.
+   Flattening a form must not change which three saved sets it inherits. */
+s32 ChrGrid_PortSaveIndex(s32 chara, s32 legacyIndex) {
+    if (Port_NetSession()) return legacyIndex;
+    return chara >= 0 && chara < 161 ? sPortChrGridSaveIndex[chara] : -1;
+}
+
+void ChrGrid_BuildPort(s32 *outCount, ChrGridCell *out, s32 *inCount, ChrGridCell *in,
+                       s32 *customCount, ChrGridCell *custom) {
+    ChrGridCell flat[163];
+    s32 seen[161] = {0};
+    s32 count = 0, i, j, id;
+    s32 previous = sPortChrGridCapacity;
+    /* Character-menu construction runs on the game thread and is not recursive. */
+    sPortChrGridCapacity = PORT_CHARA_GRID_CAPACITY;
+    if (Port_NetSession()) {
+        ChrGrid_Build(outCount, out, inCount, in, customCount, custom);
+    } else {
+        memset(flat, 0, sizeof(flat));
+        for (i = 0; i < 161; i++) sPortChrGridSaveIndex[i] = -1;
+        for (i = 0; i < *inCount; i++) {
+            s32 forms = in[i].formCount > 0 ? in[i].formCount : 1;
+            if (forms > CHRGRID_FORM_MAX) forms = CHRGRID_FORM_MAX;
+            for (j = 0; j < forms; j++) {
+                id = in[i].formCount > 0 ? in[i].form[j] : in[i].id;
+                if (id >= 0 && id < 161 && !seen[id]) {
+                    seen[id] = 1;
+                    sPortChrGridSaveIndex[id] = i;
+                    flat[count++].id = id;
+                }
+            }
+        }
+        /* All original forms get their own slot, even if a disc menu's master
+           list omitted one. The existing builder still applies unlock bits. */
+        for (id = 0; id < 161; id++) {
+            if (!seen[id]) flat[count++].id = id;
+        }
+        flat[count++].id = CHRGRID_ID_RANDOM;
+        flat[count++].id = CHRGRID_ID_CUSTOM;
+        sPortChrGridIndependent = 1;
+        ChrGrid_Build(outCount, out, &count, flat, customCount, custom);
+        sPortChrGridIndependent = 0;
+    }
+    sPortChrGridCapacity = previous;
+}
 #endif
 
 /* Marks the locked stages of a stage list: a stage whose bit in gSaveData->stageBits is clear becomes

@@ -8,20 +8,23 @@ typedef int s32;
 #define PORT
 #include "../../include/port_chara.h"
 
-static int mode, players = 2, online, missing, last_file;
+static int mode, players = 2, online, session, missing, last_file, extras, mode_extras;
 unsigned gGsFrame;
 int Port_Setting(const char *name, int def) {
     if (!strcmp(name, "modes_fight")) return mode;
     if (!strcmp(name, "local_players")) return players;
+    if (!strcmp(name, "extra_fighters")) return extras;
+    if (!strcmp(name, "modes_extras")) return mode_extras;
     return def;
 }
 void Port_SettingSave(const char *name, int value) {
     if (!strcmp(name, "modes_fight")) mode = value;
     if (!strcmp(name, "local_players")) players = value;
+    if (!strcmp(name, "modes_extras")) mode_extras = value;
 }
 void Port_SettingsWrite(void) {}
 int Port_NetActive(void) { return online; }
-int Port_NetSession(void) { return online; }
+int Port_NetSession(void) { return session; }
 int Port_FilePath(int part, int file, const char *name, char *out, int size) {
     (void)name;
     assert(part == 2); /* match File_OpenById's global-to-partition translation */
@@ -48,6 +51,17 @@ static void raid_players(int n) {
 int main(void) {
     int n;
     char why[160];
+    /* A saved training experiment must never add fighters to ordinary Duel. */
+    mode = PORT_MODE_NONE;
+    extras = 1;
+    assert(Port_TeamDuplicatesAllowed());
+    assert(!Port_ExtraSetup(0, 1, 1, 0, 0, 0));
+    assert(Port_FightExtras() == 0);
+    assert(!Port_ExtraSetup(0, 5, 5, 1, 0, 0));
+    assert(Port_FightExtras() == 0);
+    assert(!Port_ExtraSetup(6, 1, 1, 0, 0, 0));
+    assert(Port_FightExtras() == 1); /* the experiment remains available in Training */
+    extras = 0;
     Port_LocalPlayersSet(0);
     assert(Port_LocalPlayers() == 1);
     Port_LocalPlayersSet(5);
@@ -76,9 +90,12 @@ int main(void) {
     assert(Port_FightExtras() == PORT_EXTRA_MAX);
     assert(!Port_ExtraAdd(0, 1, 0, 0, 13));
     mode = PORT_MODE_TEAM;
-    assert(Port_ExtraSetup(0, 2, 2, 1, 0, 0) == PORT_MODE_TEAM);
-    assert(Port_ExtraAdd(1, 1, 1, 3, 13));
+    assert(Port_ExtraSetup(0, 2, 3, 1, 0, 0) == PORT_MODE_TEAM);
+    assert(Port_ExtraAdd(1, 1, 0, 3, 13));
+    assert(Port_ExtraAdd(1, 2, 0, 7, 13));
     assert(Port_FightTeam(0) == 1);
+    assert(Port_FightChara(0) == Port_FightChara(1));
+    assert(Port_FightCostume(0) == 3 && Port_FightCostume(1) == 7);
     mode = PORT_MODE_FFA;
     assert(Port_ExtraSetup(0, 2, 2, 1, 0, 0) == PORT_MODE_FFA);
     assert(Port_ExtraAdd(0, 1, 0, 0, 13));
@@ -88,9 +105,15 @@ int main(void) {
     assert(!Port_ExtraSetup(0, 4, 1, 1, 1, 0)); /* replay */
     assert(!Port_ExtraSetup(0, 4, 1, 1, 0, 1)); /* scripted fight */
     online = 1;
+    assert(!Port_TeamDuplicatesAllowed());
     assert(Port_ModesFight() == PORT_MODE_NONE);
     assert(!Port_ExtraSetup(0, 4, 1, 1, 0, 0));
     online = 0;
+    session = 1;
+    assert(!Port_TeamDuplicatesAllowed());
+    assert(!Port_ExtraSetup(6, 1, 1, 0, 0, 0));
+    assert(Port_FightExtras() == 0);
+    session = 0;
     assert(Port_ModesLeave() == 40);
     assert(Port_ModesFight() == PORT_MODE_NONE);
     puts("modes_test: all roster, controller, costume, package and isolation checks passed");

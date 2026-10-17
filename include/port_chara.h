@@ -25,6 +25,8 @@
 #define PORT_CHARA_MAX 129
 #define PORT_TOTAL_CHARAS 290
 #define PORT_CHARA_ID_LIMIT (PORT_CHARA_FIRST + PORT_CHARA_MAX)
+/* 290 character cells plus Random/Custom, rounded to complete rows of seven. */
+#define PORT_CHARA_GRID_CAPACITY (((PORT_TOTAL_CHARAS + 2 + 6) / 7) * 7)
 #define PORT_FILES_PER_CHARA 34
 
 #define PORT_CHARA_FILE_INDEX 80000
@@ -110,6 +112,8 @@ extern int Port_CharaFormLine(int chara);
 extern int Port_CharaPool(void);
 #define PORT_IN_POOL(id) ((s32)(id) < 0xA1 || (PORT_CHARA_ADDED(id) && Port_CharaPool()))
 #define PORT_SAVE_CELL(n) ((s32)(n) >= 0 && (s32)(n) < 97)
+extern s32 ChrGrid_PortSaveIndex(s32 chara, s32 legacyIndex);
+#define PORT_GRID_SAVE_INDEX(c, n) ChrGrid_PortSaveIndex((c), (n))
 /* PORT_CELL_IN: whether a remembered cursor lies inside this screen's grid. The selects share one remembered
    cursor; left on an added character's cell, it lies past the end of a grid without added cells (Evolution Z,
    online), where the cell read as character 0 and its "item sets" were whatever follows custom[97] in the save:
@@ -126,6 +130,7 @@ extern int Port_CharaPool(void);
 #define PORT_IS_CHARA(id) ((id) < 0xA1)
 #define PORT_IN_POOL(id) ((id) < 0xA1)
 #define PORT_SAVE_CELL(n) (1)
+#define PORT_GRID_SAVE_INDEX(c, n) (n)
 #define PORT_CELL_IN(n, count) (1)
 #define PORT_SAVE_CHARA(c) (c)
 #define CHARA_LINE_FILE(c, base, alt, line) ((base) + ((c) * 100 + (line)))
