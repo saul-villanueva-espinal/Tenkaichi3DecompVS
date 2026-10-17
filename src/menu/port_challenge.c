@@ -21,7 +21,7 @@ extern void ColorFade_Update(void);
 extern void ColorFade_Draw(void);
 extern void Bgm_Play(s32 bgm);
 extern void Adx_StopAll(void);
-extern s32 Rand_Range(s32 max);
+extern u32 Rand_Range(u32 n);
 extern void Font_FlushAll(void);
 extern s32 Port_Setting(const char *name, int def);
 extern void Port_SettingSave(const char *name, int val);
