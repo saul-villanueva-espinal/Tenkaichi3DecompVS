@@ -2,6 +2,8 @@
    so each call temporarily selects our separate Dialog and restores the screen's one before returning. */
 #include "types.h"
 #include "sys/dialog.h"
+#include "sys/gfxm_c.h"
+#include <string.h>
 #include "sys/file.h"
 #include "sys/heap.h"
 #include "sys/loading.h"
@@ -100,46 +102,72 @@ static int quit_init(void) {
     return sQuitDialog != NULL ? 1 : -1;
 }
 
-/* Keep the game's animated plates, replacing only their English artwork labels.
-   Other dialogs and their resources are untouched. Called after Flash_Advance. */
-void PortQuit_LocalizeDialog(void *dialog) {
+/* Render Spanish labels using the text quad's final animated screen coordinates.
+   Text instances have parent-relative transforms, so their local position alone
+   is insufficient. The movie and all unrelated dialogs keep their original art. */
+s32 PortQuit_DrawChoice(void *movie, void *instance, void *state) {
     static u16 yes[] = {'S', 0x00ED, 0};
     static u16 no[] = {'N', 'o', 0};
-    static char *plates[] = {"mc_menu_plate_1", "mc_menu_plate_2"};
-    extern void Flash_FindLabel(DialogFlash *, char *, char *, DialogFlashRef *);
-    extern void Flash_ClipSetFlags(DialogFlash *, DialogFlashRef *, s32, s32);
-    extern void Flash_ClipGetPos(DialogFlash *, DialogFlashRef *, s32 *, s32 *);
-    extern f32 Flash_ClipGetAlpha(DialogFlash *, DialogFlashRef *);
+    Flash *flash = movie;
+    FlashClip *clip = instance;
+    FlashProp *prop = state;
+    extern void FlashDraw_TransformQuad(FlashQuad *, FlashMtx *, FlashCxform *, FlashProp *, s32 *);
     extern void Font_PushStyle(void), Font_PopStyle(void);
     extern void Font_SetAlign(s32), Font_SetScaleXY(f32, f32);
     extern void Font_SetColorRGBA(s32, s32, s32, s32);
     extern void Font_SetShadowMode(s32), Font_SetShadowColor(u32), Font_SetShadowOffset(s32, s32);
     extern void Font_PrintAt(s32, s32, u16 *);
-    int i;
-    if (dialog != sQuitDialog || sQuitDialog == NULL || !sQuitDialog->choices) return;
-    for (i = 0; i < 2; i++) {
-        DialogFlashRef plate, off, on;
-        s32 x, y;
-        f32 alpha;
-        Flash_FindLabel(sQuitDialog->flash, NULL, plates[i], &plate);
-        Flash_FindLabel(sQuitDialog->flash, plates[i], "mc_menu_text_off", &off);
-        Flash_FindLabel(sQuitDialog->flash, plates[i], "mc_menu_text_on", &on);
-        if (plate.id < 0 || off.id < 0 || on.id < 0) continue;
-        alpha = Flash_ClipGetAlpha(sQuitDialog->flash, &plate);
-        Flash_ClipGetPos(sQuitDialog->flash, &off, &x, &y);
-        Flash_ClipSetFlags(sQuitDialog->flash, &off, 2, 0);
-        Flash_ClipSetFlags(sQuitDialog->flash, &on, 2, 0);
-        if (alpha <= 0.0f) continue;
+    extern s32 Font_GetGlyphHeight(void);
+    s32 i;
+    if (sQuitDialog == NULL || movie != (void *)sQuitDialog->flash || !sQuitDialog->choices) return 0;
+    if (strcmp(clip->name, "mc_menu_text_off") && strcmp(clip->name, "mc_menu_text_on")) return 0;
+    for (i = 0; i < clip->tl.depths; i++) {
+        FlashShape *shape = clip->tl.slots[i].shape;
+        FlashShapeQuad rec;
+        FlashQuad q;
+        u8 *data;
+        u16 count;
+        f32 left, right, top, bottom;
+        s32 j, side, alpha;
+        if (shape == NULL) continue;
+        data = Flash_GetRecord(flash->data, 4, shape->id);
+        memcpy(&count, data + 8, sizeof(count));
+        if (!count) continue;
+        memcpy(&rec, data + 10, sizeof(rec));
+        memset(&q, 0, sizeof(q));
+        q.pt[0][0] = q.pt[2][0] = rec.x0;
+        q.pt[1][0] = q.pt[3][0] = rec.x1;
+        q.pt[0][1] = q.pt[1][1] = rec.y0;
+        q.pt[2][1] = q.pt[3][1] = rec.y1;
+        q.rgba[0] = rec.rgba >> 24;
+        q.rgba[1] = (rec.rgba >> 16) & 255;
+        q.rgba[2] = (rec.rgba >> 8) & 255;
+        q.rgba[3] = rec.rgba & 255;
+        FlashDraw_TransformQuad(&q, &shape->mtx, &shape->cx, prop, flash->ofs);
+        alpha = q.rgba[3];
+        if (alpha <= 0) return 1;
+        if (alpha > 128) alpha = 128;
+        left = right = q.pt[0][0]; top = bottom = q.pt[0][1];
+        for (j = 1; j < 4; j++) {
+            if (q.pt[j][0] < left) left = q.pt[j][0];
+            if (q.pt[j][0] > right) right = q.pt[j][0];
+            if (q.pt[j][1] < top) top = q.pt[j][1];
+            if (q.pt[j][1] > bottom) bottom = q.pt[j][1];
+        }
+        /* Dialog_Draw assigns atlas row 0 to Yes and row 32 to No. */
+        side = q.uv.v0 >= 0x20 ? 1 : 0;
         Font_PushStyle();
         Font_SetAlign(1);
         Font_SetScaleXY(1.3f, 1.3f);
-        Font_SetColorRGBA(255, sQuitDialog->cursor == i ? 230 : 255, sQuitDialog->cursor == i ? 120 : 255, (s32)(alpha * 128.0f));
+        Font_SetColorRGBA(255, sQuitDialog->cursor == side ? 230 : 255, sQuitDialog->cursor == side ? 120 : 255, alpha);
         Font_SetShadowMode(2);
         Font_SetShadowOffset(1, 2);
-        Font_SetShadowColor(((u32)(alpha * 96.0f) << 24) | 0x202020);
-        Font_PrintAt(x + 64, y + 4, i == 0 ? yes : no);
+        Font_SetShadowColor(((u32)(alpha * 3 / 4) << 24) | 0x202020);
+        Font_PrintAt((s32)((left + right) * 0.5f), (s32)((top + bottom - Font_GetGlyphHeight() * 1.3f) * 0.5f), side == 0 ? yes : no);
         Font_PopStyle();
+        return 1;
     }
+    return 1;
 }
 
 /* Once per frame of the game (Gfx_EndFrame), which lasts `vsyncs` blanks: one in the menus, two in a fight. The

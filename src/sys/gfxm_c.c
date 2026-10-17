@@ -648,6 +648,12 @@ void FlashSlot_Draw(FlashSlot *slot, FlashProp *parent, Flash *flash) {
                 prop.cx.add[i] = ({ Flash_ClampAdd(prop.cx.add[i] + parent->cx.add[i]); });
             }
         }
+#ifdef PORT
+        {
+            extern s32 PortQuit_DrawChoice(void *movie, void *instance, void *state);
+            if (PortQuit_DrawChoice(flash, clip, &prop)) return;
+        }
+#endif
         if (clip->preDraw != NULL) {
             clip->preDraw(clip->preArg);
         }

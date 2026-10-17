@@ -311,12 +311,6 @@ rect.y0 = i * 0x20;
             Flash_ClipSetFlags(flash, &ref, 2, 0);
         }
     }
-#ifdef PORT
-    {
-        extern void PortQuit_LocalizeDialog(void *dialog);
-        PortQuit_LocalizeDialog(gDialog);
-    }
-#endif
     switch (gDialog->layout) {
     case 0:
         Dialog_DrawText();
