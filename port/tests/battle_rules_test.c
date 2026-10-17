@@ -45,7 +45,7 @@ int main(void){
     memset(&b,0,sizeof(b));b.mode=PC_RAID;b.rules.bossHp=162500;b.rules.bossDamagePct=200;b.rules.enragePct=50;
     b.rules.healthPct=25;b.rules.armorSides=2;
     Port_BattleRulesSet(&b);
-    for(i=0;i<3;i++)Port_BattleRulesGauge(fighters+i,BtlMember_GetActiveGauge(fighters+i),1);
+    for(i=0;i<3;i++){fighters[i].members[0].gauge.health=10000;Port_BattleRulesGauge(fighters+i,BtlMember_GetActiveGauge(fighters+i),1);}
     assert(fighters[1].members[0].gauge.health==162500);
     assert(fighters[2].members[0].gauge.healthMax==30000 && fighters[2].members[0].gauge.health==2500);
     assert(Port_BattleRulesArmor(2)==0 && Port_BattleRulesArmor(1)==1);
