@@ -6,7 +6,7 @@
 
 #ifdef PORT
 /*
- * PC only: Torneo Online con Cuadro en Vivo (Live Bracket Tournament)
+ * Local tournament with an entry to the synchronized direct UDP tournament
  * Soporta llaves interactivas de 8 participantes:
  * Cuartos de Final -> Semifinales -> Gran Final y Coronacion del Campeon del Mundo.
  */
@@ -379,9 +379,9 @@ static void Tr_DrawSpectator(void) {
         { char s[16]; sprintf(s, "%d", f1->wins); Ps_Text(370.0f, 194.0f, s, 0.45f, 50.0f, 2); }
 
         /* Tactical Preview */
-        Ps_Text(60.0f, 260.0f, "ANALISIS TACTICO DEL COMBATE", 0.50f, 200.0f, 1);
-        Ps_Text(60.0f, 285.0f, "Estilo de combate dinamico. Probabilidad de victoria equilibrada al 50%.", 0.42f, 400.0f, 0);
-        Ps_Text(60.0f, 305.0f, "El arbitro del Torneo vigila estrictamente las caidas fuera del ring.", 0.40f, 400.0f, 3);
+        Ps_Text(60.0f, 260.0f, "FICHA DE LOS PARTICIPANTES", 0.50f, 200.0f, 1);
+        Ps_Text(60.0f, 285.0f, "El espectador en vivo esta disponible en la sala online (L3).", 0.42f, 400.0f, 0);
+        Ps_Text(60.0f, 305.0f, "Esta ficha local no representa una retransmision de combate.", 0.40f, 400.0f, 3);
     } else {
         Ps_Text(60.0f, 160.0f, "Esperando definicion de los participantes anteriores.", 0.55f, 350.0f, 4);
     }
@@ -414,12 +414,16 @@ s32 PortTournament_Run(void) {
             Ps_Prompt(0, "Luchar / Avanzar");
             Ps_Prompt(1, "Simular CPU");
             Ps_Prompt(2, "Volver");
-            Ps_Prompt(3, "Espectador");
+            Ps_Prompt(3, "Ficha / L3: Online");
         } else {
             Ps_Prompt(2, "Volver al Cuadro");
         }
 
         if (live) {
+            if(pad->gamePressed & PADG_L3) {
+                extern s32 PortTournamentOnline_Run(void);
+                if(PortTournamentOnline_Run()) return 1;
+            }
             /* Tab navigation */
             if (pad->gamePressed & PADG_TRIANGLE) {
                 sTr->tab = (sTr->tab == 0) ? 1 : 0;
@@ -496,7 +500,7 @@ s32 PortTournament_Run(void) {
                       Ps_Rgba(6, 10, 18, 255), Ps_Rgba(12, 18, 30, 255));
 
         /* Header */
-        Ps_Heading(24.0f, 32.0f, "TORNEO LOCAL | CUADRO", 1.0f, 400.0f, 0x80);
+        Ps_Heading(24.0f, 32.0f, "TORNEO LOCAL | L3: SALA ONLINE", 1.0f, 400.0f, 0x80);
         Ps_Text(24.0f, 52.0f, "8 Luchadores Legendarios  |  Arena Torneo Mundial  |  Eliminatoria Directa", 0.40f, 450.0f, 3);
 
         if (sTr->tab == 0) {

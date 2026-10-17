@@ -15,6 +15,7 @@
 #include "namefont.h"
 #include "../port_release.h"
 #include "../plat_fighters.h"
+#include "../../include/port_tournament.h"
 #include "menu_text.h"
 #include "menu_translation.h"
 #include "../quit_dialog.h"
@@ -2474,6 +2475,11 @@ static void Port_DrawFeatureHints(ImDrawList *dl) {
         char text[100] = "";
         if (a || b) snprintf(text, sizeof(text), "RELEVOS  Equipo 1: %d restantes  |  Equipo 2: %d restantes", a, b);
         if (Port_CoopEnabled()) snprintf(text, sizeof(text), "RAID ONLINE  Jugador %d (mando local 1)", Port_CoopMe() + 1);
+        if(Port_TourneyEnabled()) {
+            PortTourney t;int a,b;
+            if(Port_TourneyCopy(&t) && Port_TourneyPair(&t,t.current,&a,&b))
+                snprintf(text,sizeof(text),"TORNEO %d | %d vs %d | %s (puesto %d)",t.count,a+1,b+1,Port_TourneySpectating()?"ESPECTADOR":"TU COMBATE",Port_CoopMe()+1);
+        }
         if (text[0]) dl->AddText(font, 11.0f * sy, ImVec2(gUiPresentX + 8 * sx, gUiPresentY + 22 * sy), IM_COL32(245,220,150,255), text);
     }
     for (const FormHint &h : hints) {

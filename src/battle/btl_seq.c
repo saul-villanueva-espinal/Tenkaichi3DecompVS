@@ -1681,6 +1681,7 @@ s32 BtlSeqFinish_Enter(BtlSeqWaitCtx *ctx) {
     { extern void PortChallenge_RecordResult(s32),PortTournament_RecordResult(s32);
       s32 won=BattleResult_IsPlayerWin();
       PortChallenge_RecordResult(won);PortTournament_RecordResult(won); }
+    {extern void Port_TourneyResult(s32);Port_TourneyResult(Battle_GetResult()->winner);}
 #endif
 
     Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;

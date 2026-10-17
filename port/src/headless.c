@@ -14,6 +14,8 @@
 #include "plat_stages.h"
 #include "plat_songs.h"
 #include "port_addr.h"
+#include "../include/port_tournament.h"
+#include "../include/port_coop.h"
 
 extern void Battle_ClearWork(void);
 extern int BattleReplay_Load(void *buf, int size);
@@ -133,11 +135,26 @@ int __wrap_Progress_Main(int arg) {
             extern void Save_UnlockAll(void *);
             Port_Srand(0x42543343u); Rand_Seed(0x42543343u);
             Save_UnlockAll(gSaveData);
+            if(Port_TourneyEnabled()) {
+                PortTourney state;
+                if(Port_TourneyCopy(&state) && state.champion>=0) {
+                    extern int PortTournamentOnline_Card(void);
+                    fprintf(stderr,"bt3: torneo: CAMPEON %d; torneo completo\n",state.champion+1);
+                    if(getenv("BT3_TOURNAMENT_TEST_BOTS")) {Port_TourneyLeave();exit(0);}
+                    PortTournamentOnline_Card(); /* closes the completed session */
+                    gProgress->mode=4;
+                    goto tournament_finished;
+                }
+            }
             if (!Port_PcBattleBuild()) exit(2);
+            if(Port_TourneyEnabled() && !getenv("BT3_TOURNAMENT_TEST_BOTS")) {
+                extern int PortTournamentOnline_Card(void);PortTournamentOnline_Card();
+            }
             sFromMenu = 1;
             return 0;
         }
     }
+tournament_finished:
     path = getenv("BT3_REPLAY");
 
     if (path == NULL && getenv("BT3_DEMO") == NULL) {
@@ -318,6 +335,15 @@ void Port_Trace(unsigned vblanks) {
     int *clock;
     int i;
 
+    /* Tournament results are automatic: nobody waiting as a spectator can
+       choose a rematch or accidentally change the other participants' menu. */
+    if(Port_TourneyEnabled()) {
+        static unsigned resultSince;
+        if(gBtlSeq!=NULL && !gPortMenuMode && gBtlSeq->state==6) {
+            if(!resultSince) resultSince=vblanks;
+            if(vblanks-resultSince==180) {extern void BattleResult_Set(int,int);BattleResult_Set(8,8);}
+        } else resultSince=0;
+    }
     /* Opt-in regression harness: use the result menu's own action after a full
        ten-member battle, then let normal fade, teardown and menu loading run.
        "retry" first asks for one rematch; no effect in an ordinary game. */
