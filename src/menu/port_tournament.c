@@ -68,6 +68,7 @@ typedef struct {
 
 static TourneySystem sTrData;
 static TourneySystem *sTr = &sTrData;
+static s32 sTournamentReady,sTournamentBattle=-1;
 
 static const char *sRivalPoolNames[] = {
     "Goku (Fin)", "Vegeta", "Gohan Definitivo", "Piccolo", 
@@ -77,7 +78,7 @@ static const char *sRivalPoolNames[] = {
 };
 
 static const s32 sRivalPoolIds[] = {
-    3, 31, 21, 23, 41, 147, 160, 170, 186, 50, 52, 53, 126, 155, 114, 112
+    3, 31, 21, 23, 41, 94, 107, 117, 132, 50, 52, 53, 73, 102, 61, 59
 };
 
 static void Tr_InitTournament(void) {
@@ -195,6 +196,11 @@ static void Tr_AdvanceBracket(s32 matchIdx, s32 winnerChoice) {
             sTr->selectedMatch = sTr->currentMatch;
         }
     }
+}
+
+void PortTournament_RecordResult(s32 won) {
+    if(sTournamentBattle>=0)Tr_AdvanceBracket(sTournamentBattle,won?0:1);
+    sTournamentBattle=-1;
 }
 
 static void Tr_SimulateCpuMatches(void) {
@@ -345,7 +351,7 @@ static void Tr_DrawBracketView(void) {
 static void Tr_DrawSpectator(void) {
     TourneyMatch *m = &sTr->matches[sTr->selectedMatch];
     Ps_Panel(TBO_KIT_WINDOW, 40.0f, 80.0f, 480.0f, 360.0f, 0x85);
-    Ps_Heading(60.0f, 96.0f, "MODO ESPECTADOR & ANALISIS", 0.85f, 300.0f, 0x80);
+    Ps_Heading(60.0f, 96.0f, "VISTA DEL COMBATE & ANALISIS", 0.85f, 300.0f, 0x80);
 
     if (m->f0 >= 0 && m->f1 >= 0) {
         TourneyFighter *f0 = &sTr->fighters[m->f0];
@@ -384,8 +390,8 @@ static void Tr_DrawSpectator(void) {
 s32 PortTournament_Run(void) {
     s32 result = 0;
 
-    memset(sTr, 0, sizeof(TourneySystem));
-    Tr_InitTournament();
+    if(!sTournamentReady) {Tr_InitTournament();sTournamentReady=1;}
+    sTr->leaving=sTr->launchBattle=sTr->frames=0;
 
     Bgm_Play(0x10B16 + 2); /* High energy online/tournament music */
     ColorFade_StartIn(0, 0, 0, 0x14);
@@ -397,6 +403,8 @@ s32 PortTournament_Run(void) {
         Job_Run();
         Gfx_BeginFrame();
         Pad_Update();
+        { extern int Port_RosterTestMode(void);extern unsigned Port_RosterTestInput(unsigned);
+          if(Port_RosterTestMode()==12)pad->gamePressed|=Port_RosterTestInput(sTr->frames+1); }
         Snd_Update();
         ColorFade_Update();
         live = !sTr->leaving && ColorFade_IsInDone();
@@ -446,7 +454,8 @@ s32 PortTournament_Run(void) {
                             battle.fighter[1][0].costume = 0;
                             battle.stage = sTr->stage;
 
-                            Port_PcRosterQueue(&battle);
+                            if(!Port_PcRosterQueue(&battle)) {Snd_PlaySe(1,7);continue;}
+                            sTournamentBattle=sTr->currentMatch;
                             Port_PcNativeRules(1, 0, 16); /* Tournament rules */
                             sTr->launchBattle = 1;
                             sTr->leaving = 1;
@@ -487,7 +496,7 @@ s32 PortTournament_Run(void) {
                       Ps_Rgba(6, 10, 18, 255), Ps_Rgba(12, 18, 30, 255));
 
         /* Header */
-        Ps_Heading(24.0f, 32.0f, "TORNEO ONLINE | CUADRO EN VIVO", 1.0f, 400.0f, 0x80);
+        Ps_Heading(24.0f, 32.0f, "TORNEO LOCAL | CUADRO", 1.0f, 400.0f, 0x80);
         Ps_Text(24.0f, 52.0f, "8 Luchadores Legendarios  |  Arena Torneo Mundial  |  Eliminatoria Directa", 0.40f, 450.0f, 3);
 
         if (sTr->tab == 0) {

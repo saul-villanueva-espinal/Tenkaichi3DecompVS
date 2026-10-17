@@ -198,6 +198,11 @@ s32 Battle_Init(void) {
 
 /* Stores the result and destroys every battle subsystem. */
 s32 Battle_Term(void) {
+#ifdef PORT
+    /* An aborted challenge must not award a later, unrelated fight. */
+    { extern void PortChallenge_RecordResult(s32),PortTournament_RecordResult(s32);
+      PortChallenge_RecordResult(0);PortTournament_RecordResult(0); }
+#endif
     BattleResult_Finish();
     Adx_StopAll();
     BtlChar_FreeAll();

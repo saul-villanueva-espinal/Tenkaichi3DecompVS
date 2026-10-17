@@ -1677,6 +1677,12 @@ s32 BtlSeqEnd_Exit(BtlSeqWaitCtx *ctx) {
 s32 BtlSeqFinish_Enter(BtlSeqWaitCtx *ctx) {
     BtlSeqTimer *timer;
 
+#ifdef PORT
+    { extern void PortChallenge_RecordResult(s32),PortTournament_RecordResult(s32);
+      s32 won=BattleResult_IsPlayerWin();
+      PortChallenge_RecordResult(won);PortTournament_RecordResult(won); }
+#endif
+
     Battle_GetWork()->flags |= BATTLE_FLAG_DEMO;
     timer = &ctx->timer;
     Ramp_Start(timer, 3.5f, 0.0f, 1.0f);

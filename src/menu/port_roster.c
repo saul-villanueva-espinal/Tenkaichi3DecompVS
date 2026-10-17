@@ -12,8 +12,8 @@
 #include "port_chara.h"
 #include "plat_songs.h"
 
-/* Authentic HD Budokai Tenkaichi 3 Roster with simultaneous 2-Player (J1 vs J2) selection,
-   290 character grid, sagas tabs, and interactive transformation forms. */
+/* Native classic selection: two large portraits and independent seven-card
+   carousels, with 290 browsable character/form positions and ten relay slots. */
 extern s32 Port_ModesFight(void), Port_LocalPlayers(void), Port_NetActive(void), Port_NetSession(void);
 extern s32 Port_ExtraCostumeOk(s32,s32,char *,s32), ChrTbl_GetCost(s32);
 extern void Port_LocalPlayersSet(s32);
@@ -27,14 +27,14 @@ extern void Sprite_DrawList(void *,s32,s32,LoadSprite *);
 extern f32 sinf(f32),cosf(f32);
 extern void Ps_PageSet(void), Font_FlushAll(void);
 
-#define NR_COLS 12
-#define NR_ROWS 3
-#define NR_PAGE 36
-#define NR_CX 16
-#define NR_CY 228
-#define NR_CARD_W 37
-#define NR_CARD_H 42
-#define NR_DX 40
+#define NR_COLS 7
+#define NR_ROWS 1
+#define NR_PAGE 7
+#define NR_CX 70
+#define NR_CY 27
+#define NR_CARD_W 56
+#define NR_CARD_H 44
+#define NR_DX 61
 #define NR_DY 46
 
 enum {
@@ -132,13 +132,21 @@ static s32 Nr_Id(s32 side) {
     if(sNrCursor[side]>=sNrCount) sNrCursor[side]=sNrCount-1;
     return Port_PcRosterId(sNrList[sNrCursor[side]]);
 }
+static void Nr_PageShift(s32 side,s32 direction) {
+    s32 cur,page;
+    if(side<0 || side>1 || sNrCount<=NR_PAGE)return;
+    cur=sNrCursor[side];
+    page=Ps_Wrap(cur/NR_PAGE+direction,0,(sNrCount-1)/NR_PAGE);
+    cur=page*NR_PAGE+cur%NR_PAGE;
+    if(cur>=sNrCount)cur=sNrCount-1;
+    sNrCursor[side]=cur;sNrCostume[side]=0;sNrMessage[0]=0;
+}
 static void Nr_Face(void) {
     s32 s;
     for(s=0;s<2;s++) {
         s32 curId=Nr_Id(s);
-        s32 slot=sNrSlot[s];
-        s32 target=sNrFilled[s][slot]?sNr.fighter[s][slot].chara:curId;
-        s32 color=sNrFilled[s][slot]?sNr.fighter[s][slot].costume:sNrCostume[s];
+        s32 target=curId;
+        s32 color=sNrCostume[s];
         s32 changed;
         if(sNrKind==3 && s==1) target=-1;
         changed=target!=gTeamSel->side[s]->chara || color!=gTeamSel->side[s]->member[0].color;
@@ -157,7 +165,7 @@ static s32 Nr_Complete(void) {
 }
 static void Nr_Selected(s32 side) {
     s32 slot=sNrSlot[side],id=Nr_Id(side),next;char why[160];
-    if(id<0) {Ps_Copy(sNrMessage,"Casilla reservada: instala un personaje para usarla.",160);Snd_PlaySe(1,7);return;}
+    if(id<0) {Ps_Copy(sNrMessage,"Casilla disponible: falta instalar el personaje y sus archivos.",160);Snd_PlaySe(1,7);return;}
     if(sNrDp>0 && Nr_Cost(side)-(sNrFilled[side][slot]?ChrTbl_GetCost(sNr.fighter[side][slot].chara):0)+ChrTbl_GetCost(id)>sNrDp) {
         Ps_Copy(sNrMessage,"El personaje supera los puntos disponibles del equipo.",160);Snd_PlaySe(1,7);return;
     }
@@ -222,170 +230,91 @@ static void Nr_SelectForm(s32 side,s32 targetId) {
     }
 }
 static void Nr_Background(void) {
-    s32 i;
-    if(gTeamSel->bg[0] && (gTeamSel->flags&TEAMSEL_STAGE_READY)) Sprite_DrawPicture(gTeamSel->bg[0],0,0,96);
-    else if(gTeamSel->bg[1]) Sprite_DrawPicture(gTeamSel->bg[1],0,0,96);
-    /* Clean dark cinematic background */
-    Ps_Rect(0,0,512,448,Ps_Rgba(8,16,32,180),Ps_Rgba(4,8,18,215));
-    /* Ambient diagonal beams */
-    Ps_Quad(0,0,240,0,0,240,120,120,Ps_Rgba(0,180,255,20),Ps_Rgba(0,180,255,0),Ps_Rgba(0,180,255,0),Ps_Rgba(0,180,255,0));
-    Ps_Quad(272,448,512,250,512,448,390,448,Ps_Rgba(255,100,20,18),Ps_Rgba(255,100,20,0),Ps_Rgba(255,100,20,0),Ps_Rgba(255,100,20,0));
-    /* Top sleek golden accent */
-    Ps_Rect(14,33,498,35,Ps_Rgba(255,196,56,180),Ps_Rgba(255,120,20,180));
+    if(gTeamSel->bg[0] && (gTeamSel->flags&TEAMSEL_STAGE_READY)) Sprite_DrawPicture(gTeamSel->bg[0],0,0,128);
+    else if(gTeamSel->bg[1]) Sprite_DrawPicture(gTeamSel->bg[1],0,0,128);
+    else Ps_Rect(0,0,512,448,Ps_Rgba(70,168,219,128),Ps_Rgba(45,95,48,128));
+    Ps_Rect(0,0,512,23,Ps_Rgba(8,12,18,100),Ps_Rgba(8,12,18,100));
+    Ps_Rect(252,23,260,403,Ps_Rgba(118,64,4,128),Ps_Rgba(118,64,4,128));
+    Ps_Rect(254,23,258,403,Ps_Rgba(255,245,86,128),Ps_Rgba(255,196,10,128));
+}
+
+static void Nr_YellowBand(f32 x,f32 y,f32 w,f32 h) {
+    u32 black=Ps_Rgba(6,7,3,128),gold=Ps_Rgba(236,175,0,128);
+    Ps_Rect(x,y,x+w,y+h,black,black);
+    Ps_Rect(x+2,y+2,x+w-2,y+h-2,gold,gold);
+    Ps_Rect(x+4,y+4,x+w-4,y+h-4,Ps_Rgba(255,255,81,128),Ps_Rgba(160,160,0,128));
+    Ps_Quad(x+3,y+3,x+27,y+3,x+3,y+h-3,x+14,y+h-3,Ps_Rgba(255,67,14,128),Ps_Rgba(255,178,0,128),Ps_Rgba(255,67,14,128),Ps_Rgba(255,178,0,128));
 }
 
 static void Nr_DrawFighterPanels(void) {
-    s32 s,i,k,forms[8],fCount;char line[160];
-    u32 gold=Ps_Rgba(255,204,50,255);
-
-    /* Dual Fighter Panels: Player 1 (Left: 14..248) and Player 2 (Right: 264..498) */
-    for(s=0;s<2;s++) {
-        f32 x=s?264.0f:14.0f,w=234.0f;
-        s32 active=(sNr.players==2)?1:(sNrSide==s);
-        s32 charaId=gTeamSel->side[s]->chara>=0?gTeamSel->side[s]->chara:sNr.fighter[s][sNrSlot[s]].chara;
-        u32 teamCol=s?Ps_Rgba(255,60,60,240):Ps_Rgba(0,195,255,240);
-
-        /* Panel Glass Frame */
-        Ps_Rect(x-1,37,x+w+1,199,active?gold:Ps_Rgba(50,75,115,160),active?gold:Ps_Rgba(30,45,75,170));
-        Ps_Rect(x,38,x+w,198,Ps_Rgba(8,16,30,225),Ps_Rgba(4,8,18,240));
-        Ps_Rect(x,38,x+w,40,teamCol,teamCol);
-
-        if(sNrKind==3 && s==1) {
-            Nr_Text(x+14,80,"RIVAL DEL MODO",.68f,206,1);
-            Nr_Text(x+14,108,"Las reglas y el rival se conservan.",.42f,206,0);
-            continue;
+    s32 side,i,id;char line[160];
+    for(side=0;side<2;side++) {
+        f32 x=side?261.0f:0.0f,w=251.0f;
+        id=Nr_Id(side);
+        if(sNrKind==3 && side==1) {
+            Nr_Text(x+18,155,"RIVAL DEL DESAFIO",.70f,w-34,1);
+            Nr_Text(x+18,185,"Equipo y reglas del modo",.43f,w-34,0);
+        } else if(id>=0 && (gTeamSel->side[side]->flags&(TEAMSEL_SIDE_FACE_READY|TEAMSEL_SIDE_NO_FACE))==TEAMSEL_SIDE_FACE_READY) {
+            Nr_Image(gTeamSel->faceRes[side],0,x+1,76,w-2,210,side,128);
+        } else {
+            Nr_Text(x+108,142,"+",1.8f,40,1);
+            Nr_Text(x+24,202,"CASILLA DISPONIBLE",.57f,w-44,1);
+            Nr_Text(x+24,225,"Instala aqui un nuevo personaje",.39f,w-44,0);
         }
-
-        /* Player Badge Header */
-        Ps_Rect(x+6,42,x+82,55,teamCol,teamCol);
-        sprintf(line,sNr.mode==PC_RAID?(s?"JEFE CPU":"ALIADOS"):s?"JUGADOR 2":"JUGADOR 1");
-        Nr_Text(x+9,43,line,0.34f,70,1);
-
-        /* Costume & DP badges */
-        sprintf(line,"Traje %d/8",(sNrFilled[s][sNrSlot[s]]?sNr.fighter[s][sNrSlot[s]].costume:sNrCostume[s])+1);
-        Nr_Text(x+88,43,line,0.32f,64,0);
-        sprintf(line,"PD: %d%s",sNrDp>0?Nr_Cost(s):ChrTbl_GetCost(charaId),sNrDp>0?"/20":"");
-        Nr_Text(x+156,43,line,0.32f,72,1);
-
-        /* Full Character Portrait */
-        if((gTeamSel->side[s]->flags&(TEAMSEL_SIDE_FACE_READY|TEAMSEL_SIDE_NO_FACE))==TEAMSEL_SIDE_FACE_READY) {
-            f32 px=s?(x+92.0f):(x+6.0f);
-            Nr_Image(gTeamSel->faceRes[s],0,px,56,136,104,s,128);
+        /* The original two portraits remain the focus. Small team tiles keep
+           all ten relay positions visible without replacing the carousel. */
+        if(sNr.count[side]>1 && !(sNrKind==3&&side==1)) for(i=0;i<sNr.count[side];i++) {
+            f32 sx=x+9+i*23.0f;
+            Nr_Box(sx,263,20,19,i==sNrSlot[side],side);
+            if(sNrFilled[side][i]) Nr_Chip(sNr.fighter[side][i].chara,sx+1,264,18,17,128);
+            else {sprintf(line,"%d",i+1);Nr_Text(sx+4,265,line,.31f,15,1);}
         }
-
-        /* Available Transformation Forms Track */
-        fCount=Nr_GetForms(charaId,forms,6);
-        for(k=0;k<fCount;k++) {
-            f32 fx=s?(x+18.0f+(k%3)*25.0f):(x+154.0f+(k%3)*25.0f);
-            f32 fy=72.0f+(k/3)*26.0f;
-            s32 activeForm=(forms[k]==charaId);
-            if(activeForm) Ps_Disc(fx,fy,11,gold,Ps_Rgba(255,140,0,255));
-            else Ps_Disc(fx,fy,9,Ps_Rgba(50,70,100,180),Ps_Rgba(25,35,55,190));
-            Ps_Disc(fx,fy,8,Ps_Rgba(8,14,24,255),Ps_Rgba(4,7,14,255));
-            Nr_Chip(forms[k],fx-7,fy-7,14,14,128);
-        }
-
-        /* Name Banner */
-        Ps_Rect(x,160,x+w,178,Ps_Rgba(6,10,20,220),Ps_Rgba(4,7,14,240));
-        if(charaId<0) Ps_Copy(line,"CASILLA RESERVADA",160);
-        else Port_RosterName(line,160,charaId);
-        Nr_Text(x+8,162,line,0.48f,w-16,1);
-
-        /* Dragon Stars */
-        for(k=0;k<5;k++) Nr_Star(x+w-58+k*11.0f,169,2.5f);
-
-        /* Team Member Slot Capsules */
-        for(i=0;i<sNr.count[s];i++) {
-            f32 sw=sNr.count[s]<=5?24.0f:18.0f;
-            f32 sx=x+6.0f+i*(sw+3.0f);
-            s32 isSlotActive=(sNrSlot[s]==i);
-            Nr_Box(sx,181,sw,15,isSlotActive,s);
-            if(sNrFilled[s][i]) Nr_Chip(sNr.fighter[s][i].chara,sx+1,182,sw-2,13,128);
-            else {sprintf(line,"%d",i+1);Nr_Text(sx+sw*0.5f-3.0f,182,line,0.30f,12,isSlotActive?1:0);}
-        }
+        Nr_YellowBand(x,290,w,25);
+        if(sNrKind==3&&side==1) Ps_Copy(line,"Rival del modo",160);
+        else if(id>=0) Port_RosterName(line,160,id);
+        else sprintf(line,"Casilla %03d",sNrCount?sNrList[sNrCursor[side]]+1:1);
+        Nr_Text(x+31,293,line,.62f,w-39,0);
+        Nr_YellowBand(x,320,w,23);
+        if(sNrKind==3&&side==1) Ps_Copy(line,"Reglas conservadas",160);
+        else if(id<0) Ps_Copy(line,"Disponible para ampliar el roster",160);
+        else if(sNrDp>0) sprintf(line,"Traje %d   PD %d / %d",sNrCostume[side]+1,Nr_Cost(side),sNrDp);
+        else sprintf(line,"Traje %d   Posicion %d / %d",sNrCostume[side]+1,sNrSlot[side]+1,sNr.count[side]);
+        Nr_Text(x+31,323,line,.41f,w-39,0);
     }
-
-    /* Central Iconic VS Emblem */
-    Ps_Disc(256,116,14,gold,Ps_Rgba(230,100,10,240));
-    Ps_Disc(256,116,11,Ps_Rgba(16,24,44,255),Ps_Rgba(8,12,24,255));
-    Nr_Text(249,110,"VS",0.42f,16,1);
+    Ps_Rect(224,180,288,215,Ps_Rgba(8,7,2,110),Ps_Rgba(8,7,2,110));
+    Nr_Text(230,182,"DRAGON BALL",.42f,54,1);
+    Nr_Text(246,198,"VS",.58f,22,1);
 }
 
 static void Nr_DrawGrid(void) {
-    s32 page=sNrCursor[sNrSide]/NR_PAGE,k,idx,id,i;char text[100];
-    u32 gold=Ps_Rgba(255,204,50,255);
-    u32 p1Col=Ps_Rgba(0,210,255,255),p2Col=Ps_Rgba(255,60,60,255);
-
-    /* 1. Sagas Filter Bar (x: 14..498, y: 202..222) */
-    {
-        f32 tabW=484.0f/NR_SAGA_COUNT;
-        for(i=0;i<NR_SAGA_COUNT;i++) {
-            f32 tx=14+i*tabW;
-            s32 activeTab=(i==sNrSaga);
-            if(activeTab) {
-                Ps_Rect(tx,202,tx+tabW-2,222,gold,Ps_Rgba(220,120,10,240));
-                Nr_Text(tx+2,205,(char *)sSagaTabs[i],0.30f,tabW-4,1);
-            } else {
-                Ps_Rect(tx,203,tx+tabW-2,221,Ps_Rgba(20,30,50,160),Ps_Rgba(10,16,28,190));
-                Nr_Text(tx+2,205,(char *)sSagaTabs[i],0.28f,tabW-4,0);
+    s32 side,k,idx,id,page;char line[100];
+    for(side=0;side<2;side++) {
+        f32 y=side?355.0f:27.0f;
+        s32 active=sNr.players==2 || sNrSide==side;
+        Nr_YellowBand(1,y,63,NR_CARD_H);
+        Nr_Text(12,y+9,sNr.mode==PC_RAID?(side?"JEFE":"1P"):(side?(sNr.players==2?"2P":"COM"):"1P"),.84f,48,1);
+        page=sNrCursor[side]/NR_PAGE;
+        if(sNrKind==3&&side==1) continue;
+        Ps_Rect(65,y+18,510,y+27,Ps_Rgba(9,8,2,128),Ps_Rgba(9,8,2,128));
+        for(k=0;k<NR_PAGE;k++) {
+            f32 x=NR_CX+k*NR_DX;
+            idx=page*NR_PAGE+k;
+            if(idx>=sNrCount)break;
+            id=Port_PcRosterId(sNrList[idx]);
+            if(idx==sNrCursor[side]) {
+                Ps_Rect(x-3,y-3,x+NR_CARD_W+3,y+NR_CARD_H+3,active?Ps_Rgba(255,255,90,128):Ps_Rgba(255,181,20,128),Ps_Rgba(255,203,30,128));
             }
+            Ps_Rect(x,y,x+NR_CARD_W,y+NR_CARD_H,Ps_Rgba(4,5,1,128),Ps_Rgba(4,5,1,128));
+            Ps_Rect(x+2,y+2,x+NR_CARD_W-2,y+NR_CARD_H-2,Ps_Rgba(255,218,15,128),Ps_Rgba(169,157,0,128));
+            if(id>=0) Nr_Chip(id,x+3,y+3,NR_CARD_W-6,NR_CARD_H-6,128);
+            else {sprintf(line,"%03d",sNrList[idx]+1);Nr_Text(x+9,y+5,line,.45f,42,0);Nr_Text(x+23,y+21,"+",.60f,18,0);}
+            if(id>=0&&sNrFavorite[id])Nr_Star(x+NR_CARD_W-7,y+7,3);
         }
     }
-
-    /* 2. Character Grid: 12 Columns x 3 Rows = 36 cards per page */
-    for(k=0;k<NR_PAGE;k++) {
-        f32 x=NR_CX+(k%NR_COLS)*NR_DX,y=NR_CY+(k/NR_COLS)*NR_DY;
-        idx=page*NR_PAGE+k;if(idx>=sNrCount) break;id=Port_PcRosterId(sNrList[idx]);
-        s32 isP1=(idx==sNrCursor[0]);
-        s32 isP2=(sNrKind!=3 && idx==sNrCursor[1]);
-
-        if(isP1 && isP2) {
-            /* Both players hovering on same card */
-            Ps_Rect(x-2,y-2,x+NR_CARD_W+2,y+NR_CARD_H+2,p1Col,p2Col);
-            Ps_Rect(x,y,x+NR_CARD_W,y+NR_CARD_H,Ps_Rgba(45,30,60,230),Ps_Rgba(20,10,30,240));
-        } else if(isP1) {
-            /* Player 1 cursor */
-            Ps_Rect(x-2,y-2,x+NR_CARD_W+2,y+NR_CARD_H+2,p1Col,Ps_Rgba(0,140,230,255));
-            Ps_Rect(x,y,x+NR_CARD_W,y+NR_CARD_H,Ps_Rgba(10,45,75,220),Ps_Rgba(5,20,35,240));
-        } else if(isP2) {
-            /* Player 2 cursor */
-            Ps_Rect(x-2,y-2,x+NR_CARD_W+2,y+NR_CARD_H+2,p2Col,Ps_Rgba(200,30,30,255));
-            Ps_Rect(x,y,x+NR_CARD_W,y+NR_CARD_H,Ps_Rgba(75,15,15,220),Ps_Rgba(35,8,8,240));
-        } else {
-            /* Standard card */
-            Ps_Rect(x-1,y-1,x+NR_CARD_W+1,y+NR_CARD_H+1,Ps_Rgba(35,50,75,150),Ps_Rgba(18,28,45,160));
-            Ps_Rect(x,y,x+NR_CARD_W,y+NR_CARD_H,Ps_Rgba(12,18,30,210),Ps_Rgba(6,10,18,230));
-        }
-
-        if(id>=0) Nr_Chip(id,x+2,y+2,33,28,128);
-        else {Ps_Rect(x+2,y+2,x+35,y+30,Ps_Rgba(16,22,34,160),Ps_Rgba(8,12,20,180));Nr_Text(x+13,y+9,"+",.55f,20,3);}
-
-        /* Card bottom number tag */
-        Ps_Rect(x,y+31,x+NR_CARD_W,y+NR_CARD_H,Ps_Rgba(5,8,16,220),Ps_Rgba(5,8,16,240));
-        sprintf(text,"%03d",sNrList[idx]+1);
-        Nr_Text(x+3,y+31,text,0.28f,30,(isP1||isP2)?1:0);
-
-        /* Dual Cursor badges */
-        if(isP1) Nr_Text(x+2,y+2,"1P",0.28f,14,1);
-        if(isP2) Nr_Text(x+22,y+2,"2P",0.28f,14,2);
-
-        if(id>=0 && sNrFavorite[id]) Nr_Star(x+28,y+6,2.5f);
-    }
-    if(!sNrCount) Nr_Text(140,280,"No hay luchadores en esta saga.",0.52f,240,0);
-
-    /* Page Navigation Bar */
-    sprintf(text,"Pagina %d / %d   (%d personajes en %s)",page+1,(sNrCount+NR_PAGE-1)/NR_PAGE,sNrCount,sSagaTitles[sNrSaga]);
-    Nr_Text(16,370,text,0.34f,480,0);
-
-    /* Bottom Control Bar */
-    Nr_Box(14,404,180,26,0,0);
-    Nr_Text(22,408,"X  CONFIRMAR LUCHADOR",0.42f,168,0);
-
-    Nr_Box(200,404,70,26,0,0);
-    Nr_Text(208,408,"O  VOLVER",0.42f,56,0);
-
-    Nr_Box(276,404,222,26,Nr_Complete(),1);
-    Nr_Text(284,408,sNrKind==3?"START  CONFIRMAR EQUIPO":"START  ELEGIR ESCENARIO",0.42f,206,1);
+    sprintf(line,"%03d / %03d   %s",sNrCount?sNrList[sNrCursor[sNrSide]]+1:0,PORT_TOTAL_CHARAS,sSagaTabs[sNrSaga]);
+    Nr_Text(10,403,line,.34f,266,1);
+    Nr_Box(284,402,218,21,Nr_Complete(),1);
+    Nr_Text(293,404,sNrKind==3?"START: CONFIRMAR EQUIPO":"START: ELEGIR ESCENARIO",.37f,202,1);
 }
 
 static void Nr_DrawStage(void) {
@@ -420,11 +349,11 @@ static void Nr_Draw(void) {
     char title[120];static char *titles[]={"DUELO","ENTRENAMIENTO","TAG TEAM SIMULT\303\201NEO","RAID COOPERATIVO","RELEVOS 10 CONTRA 10","TODOS CONTRA TODOS"};
     Ps_PageSet();Nr_Background();
     sprintf(title,"%s  |  SELECCI\303\223N DE PERSONAJES",sNrKind==3?"BATALLA DEFINITIVA":titles[sNr.mode]);
-    Nr_Text(16,8,title,0.72f,400,1);
+    Nr_Text(10,3,title,0.43f,490,1);
     if(sNrPhase==0) {Nr_DrawFighterPanels();Nr_DrawGrid();}
     else if(sNrPhase==1) Nr_DrawStage();else Nr_DrawNetwork();
     if(sNrMessage[0]) {Ps_Rect(12,430,500,447,Ps_Rgba(63,17,8,128),Ps_Rgba(25,8,7,128));Nr_Text(17,431,sNrMessage,.36f,476,1);}
-    else Nr_Text(16,432,"Cruceta: elegir  |  X: a\303\261adir  |  O: deshacer  |  Cuadrado: traje  |  R3: forma  |  L1/R1: sagas  |  L2/R2: paginas",.33f,480,3);
+    else Nr_Text(10,430,"Cruceta: personaje  X: elegir  O: volver  L1/R1: paginas  L2/R2: posicion",.33f,480,3);
 }
 
 /* kind: 0 individual duel, 1 relay teams, 2 training, 3 the mode's player-only team. */
@@ -441,6 +370,9 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     Port_PcBattleDefault(&sNr);sNr.mode=kind==2?PC_TRAINING:kind==1||kind==3?PC_RELAY:PC_DUEL;
     if(kind==1) {if(mode==PORT_MODE_TEAM) sNr.mode=PC_TAG;else if(mode==PORT_MODE_FFA) sNr.mode=PC_FFA;else if(mode==PORT_MODE_RAID) sNr.mode=PC_RAID;}
     sNr.players=(kind==2||kind==3)?1:mode?Port_LocalPlayers():savedPlayers==1?2:1;
+    if(kind==3 && out!=NULL && out->count[1]>0) {
+        sNr.mode=out->mode;sNr.players=out->players;
+    }
     max=sNr.mode==PC_RELAY?10:(sNr.mode==PC_TAG||sNr.mode==PC_FFA)?5:sNr.mode==PC_RAID?4:1;
     sNr.count[0]=sNr.count[1]=max;if(sNr.mode==PC_RAID) {sNr.count[0]=sNr.players;sNr.count[1]=1;}
     remembered=Port_RosterRecall(sNr.mode,&last);
@@ -455,24 +387,23 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
         }
         if(out->count[0]>0) sNr.count[0] = out->count[0] > 10 ? 10 : out->count[0];
         if(out->stage>=0 && out->stage<35) sNr.stage = out->stage;
-        if(out->mode>0) sNr.mode = out->mode;
     } else if(kind==3) {
         sNr.count[1]=1;
         sNrFilled[1][0]=1;
     }
     sNrCostume[0]=sNr.fighter[0][0].costume;sNrCostume[1]=sNr.fighter[1][0].costume;
-    memset(sNrSlot,0,sizeof(sNrSlot));sNrCursor[0]=0;sNrCursor[1]=sNrCount>1?1:0;sNrSide=0;sNrKind=kind;sNrDp=dp;sNrPhase=sNrAge=sNrConnection=sNrField=sNrSaga=0;sNrMessage[0]=0;
+    memset(sNrSlot,0,sizeof(sNrSlot));sNrCursor[0]=0;sNrCursor[1]=0;sNrSide=0;sNrKind=kind;sNrDp=dp;sNrPhase=sNrAge=sNrConnection=sNrField=sNrSaga=0;sNrMessage[0]=0;
     for(i=0;i<PORT_CHARA_ID_LIMIT;i++) sNrFavorite[i]=0;
     for(i=0;i<Port_PcRosterCount();i++) {s32 id=Port_PcRosterId(i);sNrFavorite[id]=Port_RosterFavorite(id,0);}
     TeamSel_Init(2);gPortNativeRosterActive=1;
     {extern volatile s32 gPortPcTeamReady;gPortPcTeamReady=0;}
-    Nr_List();Nr_Face();Nr_StageRequest();Port_RosterLog(0,kind,sNr.mode,Port_PcRosterCount(),PORT_TOTAL_CHARAS);
+    Nr_List();sNrCursor[1]=sNrCount>4?4:0;Nr_Face();Nr_StageRequest();Port_RosterLog(0,kind,sNr.mode,Port_PcRosterCount(),PORT_TOTAL_CHARAS);
     ColorFade_StartIn(0,0,0,20);
     while(1) {
         u32 p0,r0,p1=0,r1=0; s32 x,y,click;
         Gfx_BeginFrame();Pad_Update();Snd_Update();ColorFade_Update();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();
         p0=gPad[0].gamePressed|Port_RosterTestInput((unsigned)++sNrAge);r0=gPad[0].gameRepeat|p0;
-        if(sNr.players==2) {
+        if(sNr.players==2 && kind!=3) {
             p1=gPad[1].gamePressed;r1=gPad[1].gameRepeat|p1;
         }
         if(gProgress->flags&MPROG_FREEZE) p0=r0=p1=r1=0;
@@ -481,42 +412,27 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
         /* Mouse / Pointer Interaction */
         if(click) {
             if(sNrPhase==0) {
-                s32 page=sNrCursor[sNrSide]/NR_PAGE;
-                /* Click on Sagas Tabs (y: 202..222) */
-                if(y>=Ps_Y(202)&&y<Ps_Y(222)&&x>=Ps_X(14)&&x<Ps_X(498)) {
-                    s32 tab=(s32)((x-Ps_X(14))*NR_SAGA_COUNT/(Ps_X(498)-Ps_X(14)));
-                    if(tab>=0&&tab<NR_SAGA_COUNT) {sNrSaga=tab;sNrCursor[0]=0;sNrCursor[1]=0;Nr_List();Nr_Face();Snd_PlaySe(1,0);}
-                }
-                /* Click on Panels to switch active side */
-                if(y>=Ps_Y(38)&&y<Ps_Y(198)) {
-                    if(x>=Ps_X(14)&&x<Ps_X(248)) sNrSide=0;
-                    else if(x>=Ps_X(264)&&x<Ps_X(498)&&kind!=3) sNrSide=1;
-                }
-                /* Click on Form Nodes */
                 for(s=0;s<2;s++) {
-                    s32 fId=Nr_Id(s),forms[8],fCount=Nr_GetForms(fId,forms,6),k;
-                    f32 px=s?264.0f:14.0f;
-                    for(k=0;k<fCount;k++) {
-                        f32 fx=s?(px+18.0f+(k%3)*25.0f):(px+154.0f+(k%3)*25.0f),fy=72.0f+(k/3)*26.0f;
-                        if(x>=Ps_X(fx-10)&&x<Ps_X(fx+10)&&y>=Ps_Y(fy-10)&&y<Ps_Y(fy+10)) {
-                            Nr_SelectForm(s,forms[k]);
+                    f32 yy=s?355.0f:27.0f;
+                    s32 page=sNrCursor[s]/NR_PAGE;
+                    if(kind==3&&s==1)continue;
+                    if(y>=Ps_Y(yy)&&y<Ps_Y(yy+NR_CARD_H)) {
+                        sNrSide=s;
+                        for(i=0;i<NR_PAGE;i++) {
+                            f32 xx=NR_CX+i*NR_DX;
+                            if(x>=Ps_X(xx)&&x<Ps_X(xx+NR_CARD_W)&&page*NR_PAGE+i<sNrCount) {
+                                if(sNrCursor[s]==page*NR_PAGE+i)Nr_Selected(s);
+                                else {sNrCostume[s]=0;sNrCursor[s]=page*NR_PAGE+i;Snd_PlaySe(1,0);}
+                            }
                         }
                     }
-                }
-                /* Click on Grid Cards */
-                for(i=0;i<NR_PAGE;i++) {
-                    f32 xx=NR_CX+(i%NR_COLS)*NR_DX,yy=NR_CY+(i/NR_COLS)*NR_DY;
-                    if(x>=Ps_X(xx)&&x<Ps_X(xx+NR_CARD_W)&&y>=Ps_Y(yy)&&y<Ps_Y(yy+NR_CARD_H)&&page*NR_PAGE+i<sNrCount) {
-                        if(sNrCursor[sNrSide]==page*NR_PAGE+i) Nr_Selected(sNrSide);
-                        else {sNrCostume[sNrSide]=0;sNrCursor[sNrSide]=page*NR_PAGE+i;Snd_PlaySe(1,0);}
+                    for(i=0;i<sNr.count[s];i++) {
+                        f32 xx=(s?261.0f:0.0f)+9+i*23.0f;
+                        if(y>=Ps_Y(263)&&y<Ps_Y(282)&&x>=Ps_X(xx)&&x<Ps_X(xx+20)){sNrSide=s;sNrSlot[s]=i;}
                     }
                 }
-                /* Click on Bottom Action Buttons */
-                if(y>=Ps_Y(404)&&y<Ps_Y(430)) {
-                    if(x<Ps_X(194)) Nr_Selected(sNrSide);
-                    else if(x<Ps_X(270)) p0|=PADG_CIRCLE;
-                    else p0|=PADG_START;
-                }
+                if(y>=Ps_Y(402)&&y<Ps_Y(423)&&x>=Ps_X(284))p0|=PADG_START;
+
             } else if(sNrPhase==1) {
                 for(i=0;i<35;i++){f32 xx=16+(i%7)*69.0f,yy=83+(i/7)*54.0f;if(x>=Ps_X(xx)&&x<Ps_X(xx+64)&&y>=Ps_Y(yy)&&y<Ps_Y(yy+48)){sNr.stage=i;Nr_StageRequest();p0|=PADG_CROSS;}}
                 if(y>=Ps_Y(403)&&y<Ps_Y(427)&&x>=Ps_X(280))p0|=PADG_CROSS;
@@ -528,7 +444,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
 
         if(sNrPhase==0) {
             /* Input processing for Player 0 (Pad 0) */
-            s32 p0Side=(sNr.players==2)?0:sNrSide;
+            s32 p0Side=(sNr.players==2 && kind!=3)?0:sNrSide;
             s32 old0=sNrCursor[p0Side],cur0=old0;
             if(r0&(PADG_LEFT|PADG_LEFT2)) cur0--;
             else if(r0&(PADG_RIGHT|PADG_RIGHT2)) cur0++;
@@ -542,16 +458,17 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             if(cur0!=old0) {sNrCostume[p0Side]=0;Snd_PlaySe(1,0);sNrMessage[0]=0;}
 
             /* Page cycling via L2 / R2 */
-            if(sNrCount>NR_PAGE && (p0&(PADG_L2|PADG_R2))) {
-                s32 pg=Ps_Wrap(cur0/NR_PAGE+((p0&PADG_L2)?-1:1),0,(sNrCount-1)/NR_PAGE);
-                cur0=pg*NR_PAGE+cur0%NR_PAGE;if(cur0>=sNrCount)cur0=sNrCount-1;
-                sNrCursor[p0Side]=cur0;Snd_PlaySe(1,0);
+            if(sNrCount>NR_PAGE && (p0&(PADG_L1|PADG_R1))) {
+                Nr_PageShift(p0Side,(p0&PADG_L1)?-1:1);Snd_PlaySe(1,0);
             }
 
-            /* Sagas tab cycling via L1 / R1 */
-            if(p0&(PADG_L1|PADG_R1)) {
-                sNrSaga=Ps_Wrap(sNrSaga+((p0&PADG_L1)?-1:1),0,NR_SAGA_COUNT-1);
-                sNrCursor[0]=0;sNrCursor[1]=0;Nr_List();Snd_PlaySe(1,0);
+            if(p0&PADG_L2)sNrSlot[p0Side]=Ps_Wrap(sNrSlot[p0Side]-1,0,sNr.count[p0Side]-1);
+            if(p0&PADG_R2)sNrSlot[p0Side]=Ps_Wrap(sNrSlot[p0Side]+1,0,sNr.count[p0Side]-1);
+            if((p0&PADG_SELECT)&&max>1&&sNr.mode!=PC_RAID) {
+                static s32 counts[]={1,3,5,10};s32 n=0;
+                while(n<4&&counts[n]<=sNr.count[p0Side])n++;
+                sNr.count[p0Side]=n<4&&counts[n]<=max?counts[n]:1;
+                if(sNrSlot[p0Side]>=sNr.count[p0Side])sNrSlot[p0Side]=0;
             }
 
             /* Costume Cycling for Player 0 */
@@ -594,7 +511,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             }
 
             /* Input processing for Player 1 (Pad 1) when in 2-Player mode */
-            if(sNr.players==2) {
+            if(sNr.players==2 && kind!=3) {
                 s32 old1=sNrCursor[1],cur1=old1;
                 if(r1&(PADG_LEFT|PADG_LEFT2)) cur1--;
                 else if(r1&(PADG_RIGHT|PADG_RIGHT2)) cur1++;
@@ -607,15 +524,11 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
                 }
                 if(cur1!=old1) {sNrCostume[1]=0;Snd_PlaySe(1,0);sNrMessage[0]=0;}
 
-                if(sNrCount>NR_PAGE && (p1&(PADG_L2|PADG_R2))) {
-                    s32 pg=Ps_Wrap(cur1/NR_PAGE+((p1&PADG_L2)?-1:1),0,(sNrCount-1)/NR_PAGE);
-                    cur1=pg*NR_PAGE+cur1%NR_PAGE;if(cur1>=sNrCount)cur1=sNrCount-1;
-                    sNrCursor[1]=cur1;Snd_PlaySe(1,0);
+                if(sNrCount>NR_PAGE && (p1&(PADG_L1|PADG_R1))) {
+                    Nr_PageShift(1,(p1&PADG_L1)?-1:1);Snd_PlaySe(1,0);
                 }
-                if(p1&(PADG_L1|PADG_R1)) {
-                    sNrSaga=Ps_Wrap(sNrSaga+((p1&PADG_L1)?-1:1),0,NR_SAGA_COUNT-1);
-                    sNrCursor[0]=0;sNrCursor[1]=0;Nr_List();Snd_PlaySe(1,0);
-                }
+                if(p1&PADG_L2)sNrSlot[1]=Ps_Wrap(sNrSlot[1]-1,0,sNr.count[1]-1);
+                if(p1&PADG_R2)sNrSlot[1]=Ps_Wrap(sNrSlot[1]+1,0,sNr.count[1]-1);
                 if(p1&PADG_SQUARE) {
                     s32 id1=Nr_Id(1),c=sNrCostume[1],n;char why[160];
                     if(id1>=0) {

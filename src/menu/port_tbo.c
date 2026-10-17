@@ -722,6 +722,7 @@ static void Tb_QuickUpdate(s32 live) {
 }
 
 /* ---------------------------------------------------------------------------------------------- the hub */
+static s32 sTbExtraBattle;
 static void Tb_HubUpdate(s32 live) {
     Pad *pad = &gPad[0];
 
@@ -743,6 +744,7 @@ static void Tb_HubUpdate(s32 live) {
             extern s32 PortRaid_Run(void);
             Snd_PlaySe(1, 1);
             if (PortRaid_Run()) {
+                sTbExtraBattle=1;
                 sTb->leaving = 1;
                 ColorFade_StartOut(0, 0, 0, 0x14);
             }
@@ -752,6 +754,7 @@ static void Tb_HubUpdate(s32 live) {
             extern s32 PortTournament_Run(void);
             Snd_PlaySe(1, 1);
             if (PortTournament_Run()) {
+                sTbExtraBattle=1;
                 sTb->leaving = 1;
                 ColorFade_StartOut(0, 0, 0, 0x14);
             }
@@ -1938,6 +1941,7 @@ static void Tb_WinTerm(void) {
 
 s32 PortTbo_Run(void) {
     s32 train;
+    sTbExtraBattle=0;
 
     sTb = Heap_Alloc(sizeof(TboScreen), 0x20, 0, 2);
     memset(sTb, 0, sizeof(TboScreen));
@@ -2048,7 +2052,7 @@ s32 PortTbo_Run(void) {
     Heap_Free(sTb);
     sTb = NULL;
     Dma_ResetBuffers();
-    return train;
+    return sTbExtraBattle ? 2 : train;
 }
 /* The sign over the sparring fight (battle/hud_a.c, Hud_Draw, every frame): how long it has searched, what for, and
    how to go back. Nothing when the fight is not Train While Waiting's or the search is over. */

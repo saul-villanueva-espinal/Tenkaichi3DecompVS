@@ -2,6 +2,7 @@
 #include "menu/menu_a.h"
 #ifdef PORT
 #include "sys/save.h"
+#include "menu/port_screen.h"
 #endif
 
 /* The menu archives, one per group of modes (overlay .data, 0x3B0E84..0x3B0EB8); see menu_a.h. */
@@ -85,8 +86,14 @@ s32 Progress_Main(s32 arg) {
         static s32 tested;
         s32 test=Port_RosterTestMode();
         if(test && !tested) {
+            if(test>=10 && test<=12) {
+                tested=1;Save_UnlockAll(gSaveData);
+                gPortScreen=test==10?PORT_SCREEN_CHALLENGE:test==11?PORT_SCREEN_RAID:PORT_SCREEN_TOURNAMENT;
+                gProgress->mode=MPROG_MODE_PORT_SCREEN;
+            } else {
             tested=1;Save_UnlockAll(gSaveData);gProgress->mode=test==2?45:test==3?39:40;
             return Port_NativeRosterBattle(test==2?2:test==3?0:1);
+            }
         }
     }
 #endif

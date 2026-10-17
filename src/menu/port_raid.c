@@ -150,8 +150,7 @@ static void Rd_Init(void) {
 static void Rd_DrawBossCard(f32 x, f32 y, f32 w, f32 h) {
     const RaidBossDef *b = &sBosses[sRd->bossIndex];
     char hpBuf[32];
-    f32 mult = (sRd->difficulty == 0) ? 1.0f : (sRd->difficulty == 1) ? 1.5f : 2.5f;
-    s32 actualHp = (s32)(b->hp * mult);
+    s32 actualHp = 60000; /* The battle engine's supported raid health. */
 
     Ps_Panel(TBO_KIT_WINDOW, x, y, x + w, y + h, 0x85);
     Ps_Heading(x + 16, y + 16, (char *)b->name, 0.85f, w - 32, 0x80);
@@ -247,6 +246,8 @@ s32 PortRaid_Run(void) {
         Snd_Update();
         ColorFade_Update();
         live = !sRd->leaving && ColorFade_IsInDone();
+        { extern int Port_RosterTestMode(void);extern unsigned Port_RosterTestInput(unsigned);
+          if(Port_RosterTestMode()==11) {sRd->connectionMode=0;pad->gamePressed|=Port_RosterTestInput(sRd->frames+1);} }
 
         Ps_PromptsClear();
         Ps_Prompt(0, "Elegir Equipo & Iniciar");
@@ -321,7 +322,7 @@ s32 PortRaid_Run(void) {
                 PcBattle battle;
                 memset(&battle, 0, sizeof(battle));
                 battle.mode = PC_RAID;
-                battle.players = sRd->numPlayers;
+                battle.players = sRd->connectionMode==0 ? 1 : sRd->numPlayers;
                 battle.count[0] = sRd->numPlayers;
                 battle.count[1] = 1;
                 battle.fighter[1][0].chara = boss->chara;
@@ -338,15 +339,15 @@ s32 PortRaid_Run(void) {
                 if (Port_NativeRosterPick(&battle, 3, 0)) {
                     if (sRd->connectionMode == 0) {
                         /* Local Raid battle */
-                        Port_PcRosterQueue(&battle);
-                        Port_PcNativeRules(sRd->numPlayers, 0, boss->bgm);
+                        if(!Port_PcRosterQueue(&battle)) {Snd_PlaySe(1,7);continue;}
+                        Port_PcNativeRules(1, 0, boss->bgm);
                         sRd->launchBattle = 1;
                         result = 1;
                     } else {
                         /* Online 4-Player UDP Coop Launch! */
                         char addr[80];
                         sprintf(addr, "%d.%d.%d.%d", sRd->ip[0], sRd->ip[1], sRd->ip[2], sRd->ip[3]);
-                        Port_CoopLaunch(sRd->connectionMode == 1, addr, sRd->ip[4], &battle);
+                        if(!Port_CoopLaunch(sRd->connectionMode == 1, addr, sRd->ip[4], &battle)) {Snd_PlaySe(1,7);continue;}
                         result = 1;
                     }
                     sRd->leaving = 1;

@@ -63,7 +63,7 @@ static const ChallengeFloorDef sFloors[CHALLENGE_FLOORS] = {
         "Derrota a los Saibaman, Raditz, Nappa y al principe Vegeta.",
         "Carga de Ki Veloz (+50%) | Sin limite de tiempo",
         2, 0, 0, 5,
-        { 132, 130, 133, 82, 83 },
+        { 79, 77, 80, 29, 30 },
         { 0, 0, 0, 0, 0 }
     },
     {
@@ -74,7 +74,7 @@ static const ChallengeFloorDef sFloors[CHALLENGE_FLOORS] = {
         "Supera a Recoome, Burter, Jeice, Ginyu y las formas de Freezer.",
         "Danio de combate aumentado (x1.25) | Atmosfera agonizante",
         3, 3, 1, 7,
-        { 140, 141, 142, 139, 144, 147, 148 },
+        { 87, 88, 89, 86, 91, 94, 95 },
         { 0, 0, 0, 0, 0, 0, 0 }
     },
     {
@@ -85,7 +85,7 @@ static const ChallengeFloorDef sFloors[CHALLENGE_FLOORS] = {
         "Enfrenta al ejercito de la Red Ribbon y al bio-androide supremo.",
         "Regeneracion Bio-Androide | IA Celular Ultra Agresiva",
         4, 6, 10, 9,
-        { 156, 157, 154, 155, 153, 158, 159, 160, 161 },
+        { 100, 101, 102, 103, 104, 105, 106, 107, 108 },
         { 0, 0, 0, 0, 0, 0, 0, 0, 0 }
     },
     {
@@ -96,7 +96,7 @@ static const ChallengeFloorDef sFloors[CHALLENGE_FLOORS] = {
         "Erradica a Babidi, Dabura y todas las absorciones de Majin Buu.",
         "Frenesi de Ki Infinito en Kid Buu | Caos Dimensional",
         5, 7, 5, 8,
-        { 163, 164, 165, 166, 167, 168, 169, 170 },
+        { 110, 111, 112, 113, 114, 115, 116, 117 },
         { 0, 0, 0, 0, 0, 0, 0, 0 }
     },
     {
@@ -107,7 +107,7 @@ static const ChallengeFloorDef sFloors[CHALLENGE_FLOORS] = {
         "Vence a Broly LSS, Janemba, Baby Simio, Omega Shenron y Vegito.",
         "Super Armadura Titanica | Nivel de IA Maximo Z-Master (29)",
         5, 16, 18, 5,
-        { 186, 191, 196, 200, 105 },
+        { 133, 138, 143, 147, 52 },
         { 0, 0, 0, 0, 0 }
     }
 };
@@ -134,41 +134,24 @@ static const char *const sBgmNames[20] = {
 };
 
 static const char *Challenge_CharaName(s32 id) {
-    static const char *const sFighterNames[] = {
-        "Goku (Inicio)", "Goku (Medio)", "Goku SSJ", "Goku (Fin)", "Goku SSJ",
-        "Goku SSJ2", "Goku SSJ3", "Goku GT", "Goku GT SSJ", "Goku GT SSJ3",
-        "Goku GT SSJ4", "Goku Nino", "Mono Gigante", "Gohan Nino", "Gohan Joven",
-        "Gohan Joven SSJ", "Gohan Joven SSJ2", "Gohan", "Gohan SSJ", "Gohan SSJ2",
-        "Gran Saiyaman", "Gohan Definitivo", "Piccolo (Inicio)", "Piccolo (Fin)",
-        "Nail", "Krillin", "Yamcha", "Ten Shin Han", "Chaos", "Vegeta (Scouter)",
-        "Vegeta Simio Gigante", "Vegeta", "Vegeta SSJ", "Super Vegeta", "Vegeta 2da",
-        "Vegeta 2da SSJ", "Vegeta 2da SSJ2", "Majin Vegeta", "Vegeta SSJ4",
-        "Trunks Espada", "Trunks Espada SSJ", "Trunks Combate", "Trunks SSJ",
-        "Super Trunks", "Trunks Nino", "Trunks Nino SSJ", "Goten", "Goten SSJ",
-        "Gotenks", "Gotenks SSJ", "Gotenks SSJ3", "Vegetto", "Super Vegetto",
-        "Super Gogeta", "Gogeta SSJ4", "Mr. Satan", "Videl", "Gran Saiyaman 2",
-        "Kaio Shin", "Kibito Shin", "Yajirobe", "Paikuhan", "Tapion", "Pan",
-        "Uub", "Majuub", "Mutenroshi", "Mutenroshi Max", "Abuelo Gohan", "Nam",
-        "Androide 8", "Rey Vegeta", "Rey Vegeta Simio", "Bardock", "Bardock Simio",
-        "Fasha", "Fasha Simio", "Raditz", "Raditz Simio", "Saibaman", "Nappa",
-        "Nappa Simio", "Zarbon", "Zarbon Monstruo", "Dodoria", "Cui", "Capitan Ginyu",
-        "Recoome", "Burter", "Jeice", "Guldo", "Freezer 1a Forma", "Freezer 2a Forma",
-        "Freezer 3a Forma", "Freezer Forma Final", "Freezer 100% Maximo", "Mecha Freezer",
-        "Rey Cold", "Appule", "Soldado Freezer", "Androide 16", "Androide 17",
-        "Androide 18", "Androide 19", "Dr. Gero (A20)", "Cell 1a Forma", "Cell 2a Forma",
-        "Cell Perfecto", "Super Cell Perfecto", "Cell Jr.", "Babidi", "Dabura",
-        "Majin Buu Gordo", "Evil Buu", "Super Buu", "Gotenks Buu", "Gohan Buu",
-        "Kid Buu", "Garlic Jr.", "Super Garlic Jr.", "Dr. Wheelo", "Turles",
-        "Turles Simio", "Slug", "Slug Gigante", "Salza", "Cooler", "Cooler Final",
-        "Metal Cooler", "Androide 13", "Fusion Androide 13", "Broly", "Broly SSJ",
-        "Broly SSJ Legendario", "Zangya", "Bojack", "Bojack Max", "Janemba",
-        "Super Janemba", "Hildegarn", "Baby Vegeta", "Super Baby 1", "Super Baby 2",
-        "Super Baby Simio", "Super 17", "Nuova Shenron", "Syn Shenron", "Omega Shenron"
-    };
-    if (id >= 0 && id < (s32)(sizeof(sFighterNames) / sizeof(sFighterNames[0]))) {
-        return sFighterNames[id];
+    static char name[96];
+    extern void Port_RosterName(char *,s32,s32);
+    Port_RosterName(name,sizeof(name),id);
+    return name;
+}
+
+static s32 sChallengeFloor=-1,sChallengeSurvival;
+void PortChallenge_RecordResult(s32 won) {
+    if(won && sChallengeFloor>=0) {
+        s32 clears=Port_Setting("challenge_cleared",0);
+        Port_SettingSave("challenge_cleared",clears|(1<<sChallengeFloor));
+        Port_SettingsWrite();
     }
-    return Port_PcRosterName(id);
+    if(won && sChallengeSurvival) {
+        Port_SettingSave("challenge_best_waves",Port_Setting("challenge_best_waves",0)+1);
+        Port_SettingsWrite();
+    }
+    sChallengeFloor=-1;sChallengeSurvival=0;
 }
 
 /* Custom Battle Options State */
@@ -250,16 +233,16 @@ static void Challenge_GenerateSurvivalEnemies(PcFighter *outFighters, s32 count)
     s32 i;
     for (i = 0; i < count && i < 10; i++) {
         outFighters[i].chara = Rand_Range(PORT_DISC_CHARAS);
-        outFighters[i].costume = Rand_Range(2);
+        outFighters[i].costume = 0;
     }
 }
 
 static void Challenge_GenerateCustomEnemies(PcFighter *outFighters, s32 count, s32 archetype) {
     s32 i;
     static const s32 sZWarriors[] = { 0, 3, 14, 17, 21, 23, 25, 26, 27, 31, 39, 41, 48, 51, 53 };
-    static const s32 sVillains[] = { 82, 130, 133, 139, 147, 160, 161, 167, 170, 174, 180, 186, 191 };
-    static const s32 sAndroids[] = { 153, 154, 155, 156, 157, 158, 159, 160, 161, 182, 183, 197 };
-    static const s32 sGods[] = { 186, 191, 196, 200, 105, 107, 52, 6, 10, 21, 59, 111, 112 };
+    static const s32 sVillains[] = { 82, 91, 94, 95, 107, 108, 111, 114, 117, 126, 128, 133, 138 };
+    static const s32 sAndroids[] = { 100, 101, 102, 103, 104, 105, 106, 107, 108, 129, 130 };
+    static const s32 sGods[] = { 133, 138, 143, 147, 108, 107, 52, 6, 10, 21, 59, 111, 112 };
 
     for (i = 0; i < count && i < 10; i++) {
         s32 chara = 0;
@@ -297,7 +280,8 @@ s32 PortChallenge_Run(void) {
         Snd_Update();
         ColorFade_Update();
 
-        p0 = gPad[0].gamePressed;
+        { extern int Port_RosterTestMode(void);extern unsigned Port_RosterTestInput(unsigned);
+          p0 = gPad[0].gamePressed | (Port_RosterTestMode()==10?Port_RosterTestInput(frameAge+1):0); }
         r0 = gPad[0].gameRepeat | p0;
         if (gProgress->flags & MPROG_FREEZE) p0 = r0 = 0;
 
@@ -363,10 +347,8 @@ s32 PortChallenge_Run(void) {
                 Snd_PlaySe(1, 1);
                 /* Launch team selection with preset enemies (kind == 3) */
                 if (Port_NativeRosterPick(&battle, 3, 0)) {
-                    clears |= (1 << floorCur);
-                    Port_SettingSave("challenge_cleared", clears);
-                    Port_SettingsWrite();
-                    Port_PcRosterQueue(&battle);
+                    if(!Port_PcRosterQueue(&battle)) {Snd_PlaySe(1,7);continue;}
+                    sChallengeFloor=floorCur;sChallengeSurvival=0;
                     result = 1;
                     done = 1;
                     break;
@@ -386,10 +368,8 @@ s32 PortChallenge_Run(void) {
 
                 Snd_PlaySe(1, 1);
                 if (Port_NativeRosterPick(&battle, 3, 0)) {
-                    bestSurvival++;
-                    Port_SettingSave("challenge_best_waves", bestSurvival);
-                    Port_SettingsWrite();
-                    Port_PcRosterQueue(&battle);
+                    if(!Port_PcRosterQueue(&battle)) {Snd_PlaySe(1,7);continue;}
+                    sChallengeFloor=-1;sChallengeSurvival=1;
                     result = 1;
                     done = 1;
                     break;
@@ -437,12 +417,12 @@ s32 PortChallenge_Run(void) {
                 battle.players = 1;
                 battle.stage = sCustomStage;
                 battle.count[0] = (sCustomFormat == 2) ? 1 : (sCustomFormat == 1) ? 5 : 10;
-                battle.count[1] = (sCustomFormat == 2) ? 1 : sCustomEnemyNum;
+                battle.count[1] = (sCustomFormat == 2) ? 1 : (sCustomFormat == 1 && sCustomEnemyNum>5) ? 5 : sCustomEnemyNum;
                 Challenge_GenerateCustomEnemies(battle.fighter[1], battle.count[1], sCustomArchetype);
 
                 Snd_PlaySe(1, 1);
                 if (Port_NativeRosterPick(&battle, 3, 0)) {
-                    Port_PcRosterQueue(&battle);
+                    if(!Port_PcRosterQueue(&battle)) {Snd_PlaySe(1,7);continue;}
                     result = 1;
                     done = 1;
                     break;
@@ -558,14 +538,14 @@ s32 PortChallenge_Run(void) {
             Ps_Text(24, 268, "- Relevos continuos de 10 luchadores.", 0.31f, 186, 0);
             Ps_Text(24, 286, "- La salud de tu equipo se conserva.", 0.31f, 186, 0);
             Ps_Text(24, 304, "- La CPU aumenta su nivel progresivo.", 0.31f, 186, 0);
-            Ps_Text(24, 322, "- Roster completo de 290 guerreros.", 0.31f, 186, 0);
+            Ps_Text(24, 322, "- 290 casillas para ampliar el roster.", 0.31f, 186, 0);
             Ps_Text(24, 350, "Triangulo: Reiniciar record personal.", 0.30f, 186, 3);
 
             /* Right Action Box */
             Ps_Rect(228, 82, 498, 398, Ps_Rgba(0, 210, 255, 180), Ps_Rgba(0, 120, 220, 180));
             Ps_Rect(230, 84, 496, 396, Ps_Rgba(10, 18, 36, 250), Ps_Rgba(5, 9, 18, 255));
 
-            Ps_Text(244, 100, "DESAFIO DE RESISTENCIA INFINITA 10v10", 0.52f, 240, 1);
+            Ps_Text(244, 100, "DESAFIO DE RESISTENCIA 10v10", 0.52f, 240, 1);
             Ps_Text(244, 124, "Lleva al limite tus habilidades en el modo definitivo.", 0.36f, 240, 0);
             Ps_Text(244, 142, "Elige a tus diez mejores combatientes y resiste", 0.36f, 240, 0);
             Ps_Text(244, 160, "el embate de escuadrones rivales implacables.", 0.36f, 240, 0);

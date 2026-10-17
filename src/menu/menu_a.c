@@ -689,7 +689,7 @@ void MainMenu_Input(s32 *result) {
         MainMenu_PlateGoto(0, "fl_ok");
         Snd_PlaySe(1, 1);
 #ifdef PORT
-    } else if (gPad[0].gamePressed & 0x1000) {
+    } else if (gPad[0].gamePressed & PADG_SQUARE) {
         /* Direct shortcut to Torre de Desafios & Batallas Personalizadas! */
         gPortScreen = PORT_SCREEN_CHALLENGE;
         MAINMENU_COUNT();
