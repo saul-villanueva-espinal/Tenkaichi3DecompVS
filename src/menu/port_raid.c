@@ -64,7 +64,7 @@ static const RaidBossDef sBosses[] = {
         "Teletransporte de humo espectral, rafagas de fuego y fuerza bruta."
     },
     {
-        "Super Janemba (Demonio Cósmico)",
+        "Super Janemba (Demonio Cosmico)",
         "El soberano de la corrupcion y el desorden dimensional",
         138, /* Super Janemba */
         26,  /* Hell */
@@ -73,7 +73,7 @@ static const RaidBossDef sBosses[] = {
         "Cortes dimensionales, apertura de portales y disparo de espadas."
     },
     {
-        "Dr. Wheelo (Fortaleza Mecánica)",
+        "Dr. Wheelo (Fortaleza Mecanica)",
         "El cerebro cientifico con cuerpo de acorazado gigante",
         120, /* Wheelo */
         24,  /* Glacier */
@@ -101,7 +101,7 @@ static const RaidBossDef sBosses[] = {
     },
     {
         "Slug Gigante (Monarca Namekiano)",
-        "El namekiano corrompido con el poder del tamano titánico",
+        "El namekiano corrompido con el poder del tamano titanico",
         124, /* Slug Giant */
         12,  /* Namek */
         9,   /* BGM */
@@ -368,7 +368,7 @@ s32 PortRaid_Run(void) {
 
         /* Header */
         Ps_Heading(24.0f, 30.0f, "RAID BOSS ONLINE COOPERATIVO (4v1)", 0.95f, 400.0f, 0x80);
-        Ps_Text(24.0f, 50.0f, "4 Guerreros Z en tiempo real vs 1 Jefe Colosal Titánico  |  UDP Direct LAN / Online", 0.38f, 460.0f, 3);
+        Ps_Text(24.0f, 50.0f, "4 Guerreros Z en tiempo real vs 1 Jefe Colosal Titanico  |  UDP Direct LAN / Online", 0.38f, 460.0f, 3);
 
         /* Tabs indicator */
         {
