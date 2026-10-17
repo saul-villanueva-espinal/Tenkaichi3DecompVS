@@ -104,6 +104,12 @@ void File_WaitPartitionTimeout(s32 pt) {
 void File_Init(void) {
     File_InitAdx();
     File_LoadPartition1();
+#ifdef PORT
+    /* Independent costume files use virtual ids in partition 2, including in the
+       demo/replay paths that skip FirstRun_Main's partition load. */
+    File_LoadPartitionNw(2);
+    File_WaitPartition(2);
+#endif
 }
 
 /* Sets up the CRI file system and players, loads partition 0 and resets the request queue. */
