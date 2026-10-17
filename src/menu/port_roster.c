@@ -62,7 +62,17 @@ static void Nr_Image(void *resource,s32 tex,f32 x,f32 y,f32 w,f32 h,s32 flip,s32
     Sprite_DrawList(res,0,0,list);
 }
 static void Nr_Chip(s32 chara,f32 x,f32 y,f32 w,f32 h,s32 alpha) {
-    if(chara>=0) Nr_Image(PORT_CHIP(gTeamSel->chipPack,chara),0,x,y,w,h,0,alpha);
+    MTexRes *res;
+    if(chara<0)return;
+    /* Keep host and game pointers in separate assignments. A mixed-pointer
+       conditional used directly as an argument can become poison in LLVM. */
+    if(PORT_CHARA_ADDED(chara)) {
+        res=(MTexRes *)PortChips_Get(chara);
+        if(res) {Nr_Image(res,0,x,y,w,h,0,alpha);return;}
+        chara=Port_CharaBase(chara);
+    }
+    res=(MTexRes *)MPACK_AT(gTeamSel->chipPack,chara+1);
+    Nr_Image(res,0,x,y,w,h,0,alpha);
 }
 static void Nr_List(void) {
     s32 i,id;sNrCount=0;
