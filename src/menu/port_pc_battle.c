@@ -18,8 +18,8 @@ extern int Port_NetActive(void), Port_NetSession(void);
 static PcBattle sBattle;
 static s32 sRelay, sNext[2], sLevel[2], sRelayMask = 3;
 static volatile s32 sRemaining[2];
-static s32 sNativeRules,sNativeCpuCpu,sNativeTraining;
-void Port_PcNativeRules(s32 players,s32 training) {sNativeRules=1;sNativeCpuCpu=players==2;sNativeTraining=training;}
+static s32 sNativeRules,sNativeCpuCpu,sNativeTraining,sNativeBgm;
+void Port_PcNativeRules(s32 players,s32 training,s32 bgm) {sNativeRules=1;sNativeCpuCpu=players==2;sNativeTraining=training;sNativeBgm=bgm;}
 
 /* Keep the window responsive while verifying assets or waiting for the party.
    This advances presentation only; battle objects and clocks do not exist yet. */
@@ -117,7 +117,7 @@ int Port_PcBattleBuild(void) {
     Port_SettingSave("modes_extras", sNativeRules && sNativeTraining ? 1 : 0);
     Port_LocalPlayersSet(b.players);
     BattleSetup_SetRule(b.players > 1, b.mode == PC_TRAINING ? 6 : 0, 0, sRelay || b.mode == PC_RAID || b.mode == PC_TRAINING ? 0 : 3, 0, b.stage, 0);
-    if(sNativeRules) BattleSetup_SetRule(b.players>1,b.mode==PC_TRAINING?6:0,0,b.mode==PC_TRAINING||b.mode==PC_RAID?0:gSaveData->rule[0]==4?0:gSaveData->rule[0]+1,gSaveData->rule[2],b.stage,gSaveData->rule[5]^1);
+    if(sNativeRules) BattleSetup_SetRule(b.players>1,b.mode==PC_TRAINING?6:0,sNativeBgm,b.mode==PC_TRAINING||b.mode==PC_RAID?0:gSaveData->rule[0]==4?0:gSaveData->rule[0]+1,gSaveData->rule[2],b.stage,gSaveData->rule[5]^1);
     for (s = 0; s < 2; s++) {
         s32 count = b.count[s] > 5 ? 5 : b.count[s];
         s32 cpu = (s == 1 && (b.players == 1 || b.mode == PC_RAID || b.mode == PC_TRAINING)) || (sNativeRules && sNativeCpuCpu && mode==PORT_MODE_NONE && b.mode!=PC_TRAINING);

@@ -9,6 +9,7 @@
 #include "port_pc_battle.h"
 #include "port_coop.h"
 #include "port_fighters.h"
+#include "plat_songs.h"
 
 /* Game-thread roster. Every panel, portrait and tile is submitted through the
    game's sprite/font/DMA path; this screen never opens the settings overlay. */
@@ -18,7 +19,7 @@ extern void Port_LocalPlayersSet(s32);
 extern void Port_SettingSave(const char *,s32);
 extern void Port_RosterLog(s32,s32,s32,s32,s32);
 extern void Port_RosterName(char *,s32,s32);
-extern void Port_PcNativeRules(s32,s32);
+extern void Port_PcNativeRules(s32,s32,s32);
 extern void TeamSel_Init(s32), TeamSel_Term(void), TeamSel_UpdateFaceLoad(void), TeamSel_UpdateStageLoad(void);
 extern void TeamSel_RequestFace(s32), TeamSel_RequestStage(void);
 extern void Sprite_DrawList(void *,s32,s32,LoadSprite *);
@@ -37,6 +38,7 @@ static s32 sNrFavorite[PORT_CHARA_ID_LIMIT],sNrList[PORT_TOTAL_CHARAS],sNrCount,
 static s32 sNrConnection,sNrField,sNrIp[5]={127,0,0,1,29740};
 static char sNrMessage[160];
 static s32 sNrCostume[2];
+static s32 sNrBgm;
 
 static void Nr_Text(f32 x,f32 y,char *text,f32 size,f32 width,s32 style) {
     Ps_Align(0);Ps_Text(x,y,text,size,width,style);
@@ -76,8 +78,9 @@ static void Nr_Face(void) {
     for(s=0;s<2;s++) {
         s32 target=s==sNrSide?id:sNr.fighter[s][sNrSlot[s]].chara;
         s32 color=s==sNrSide?sNrCostume[s]:sNr.fighter[s][sNrSlot[s]].costume;
-        s32 changed=target!=gTeamSel->side[s]->chara || color!=gTeamSel->side[s]->member[0].color;
+        s32 changed;
         if(sNrKind==3 && s==1) target=-1;
+        changed=target!=gTeamSel->side[s]->chara || color!=gTeamSel->side[s]->member[0].color;
         gTeamSel->side[s]->cur=0;
         gTeamSel->side[s]->member[0].color=color;
         if(changed) {gTeamSel->side[s]->chara=target;TeamSel_RequestFace(s);}
@@ -167,9 +170,9 @@ static void Nr_DrawGrid(void) {
         sprintf(text,"%03d",sNrList[idx]+1);Nr_Text(x+3,y+23,text,.3f,28,idx==sNrCursor[sNrSide]?1:0);
         if(id>=0 && sNrFavorite[id]) Nr_Star(x+30,y+6,3);
     }
-    if(!sNrCount) Nr_Text(46,295,"Todavía no tienes favoritos. Pulsa R3 para ver todos.",.54f,420,0);
-    Nr_Text(16,370,"Cruceta: elegir   X: añadir   Círculo: deshacer   Triángulo: equipo",.38f,480,0);
-    Nr_Text(16,384,"Cuadrado: traje   L2/R2: posición   SELECT: tamaño   L3: favorito   R3: filtrar",.34f,480,3);
+    if(!sNrCount) Nr_Text(46,295,"Todav\303\255a no tienes favoritos. Pulsa R3 para ver todos.",.54f,420,0);
+    Nr_Text(16,370,"Cruceta: elegir   X: a\303\261adir   C\303\255rculo: deshacer   Tri\303\241ngulo: equipo",.38f,480,0);
+    Nr_Text(16,384,"Cuadrado: traje   L2/R2: posici\303\263n   SELECT: tama\303\261o   L3: favorito   R3: filtrar",.34f,480,3);
     Nr_Box(16,403,206,24,0,0);Nr_Text(25,406,"X  CONFIRMAR PERSONAJE",.46f,189,0);
     Nr_Box(280,403,216,24,Nr_Complete(),1);Nr_Text(290,406,sNrKind==3?"START  CONFIRMAR EQUIPO":"START  ELEGIR ESCENARIO",.46f,198,1);
 }
@@ -181,7 +184,8 @@ static void Nr_DrawStage(void) {
         Nr_Box(x,y,64,48,sNr.stage==i,0);Nr_Image(res,0,x+2,y+2,60,44,0,128);
         if(sNr.stage==i) {sprintf(text,"%d",i+1);Nr_Text(x+3,y+32,text,.38f,52,1);}
     }
-    Nr_Text(16,363,"Cruceta: escenario   X / START: continuar   Círculo: personajes",.4f,480,0);
+    Nr_Text(16,363,"Cruceta: escenario   X / START: continuar   C\303\255rculo: personajes",.4f,480,0);
+    sprintf(text,"L1 / R1: musica  %d / %d",gTeamSel->stage->bgm+1,gTeamSel->bgmCount);Nr_Text(16,382,text,.42f,480,1);
     Nr_Box(280,403,216,24,1,1);Nr_Text(290,406,sNr.mode==PC_RAID&&sNr.players>1?"X  SALA COOPERATIVA":"X  COMENZAR COMBATE",.46f,198,1);
 }
 static void Nr_DrawNetwork(void) {
@@ -190,15 +194,16 @@ static void Nr_DrawNetwork(void) {
     sprintf(line,"%d aliados humanos contra un jefe CPU",sNr.players);Nr_Text(26,94,line,.55f,460,0);
     for(i=0;i<3;i++) {Nr_Box(30,135+i*43,450,34,sNrConnection==i,1);Nr_Text(45,141+i*43,choices[i],.68f,420,sNrConnection==i?1:0);}
     if(sNrConnection) {
-        Nr_Text(30,278,"DIRECCIÓN DEL ANFITRIÓN Y PUERTO",.48f,440,0);
+        Nr_Text(30,278,"DIRECCI\303\223N DEL ANFITRI\303\223N Y PUERTO",.48f,440,0);
         for(i=0;i<5;i++) {f32 x=30+i*91.0f;Nr_Box(x,306,84,38,sNrField==i,0);sprintf(line,"%d",sNrIp[i]);Nr_Text(x+9,314,line,.65f,70,1);}
         Nr_Text(30,354,"L1/R1: campo   Arriba/abajo: valor   Cuadrado: +10",.43f,450,0);
         Nr_Text(30,374,"Mismos datos y paquetes. El puerto UDP debe ser accesible.",.4f,450,3);
     }
+    Nr_Text(30,386,"SELECT: conexion   Triangulo: crear / unirse",.34f,450,3);
     Nr_Box(280,403,216,24,1,1);Nr_Text(290,406,"START  CONFIRMAR",.5f,198,1);
 }
 static void Nr_Draw(void) {
-    char title[100];static char *titles[]={"DUELO","ENTRENAMIENTO","TAG TEAM SIMULTÁNEO","RAID COOPERATIVO","RELEVOS 10 CONTRA 10","TODOS CONTRA TODOS"};
+    char title[100];static char *titles[]={"DUELO","ENTRENAMIENTO","TAG TEAM SIMULT\303\201NEO","RAID COOPERATIVO","RELEVOS 10 CONTRA 10","TODOS CONTRA TODOS"};
     Ps_PageSet();Nr_Background();
     Ps_Copy(title,sNrKind==3?"BATALLA DEFINITIVA":titles[sNr.mode],100);Nr_Text(16,6,title,.83f,325,1);
     if(sNrPhase==0) {Nr_Portraits();Nr_DrawGrid();}
@@ -249,9 +254,14 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
                 for(i=0;i<NR_PAGE;i++) {f32 xx=NR_CX+(i%NR_COLS)*NR_DX,yy=NR_CY+(i/NR_COLS)*NR_DY;
                     if(x>=Ps_X(xx)&&x<Ps_X(xx+37)&&y>=Ps_Y(yy)&&y<Ps_Y(yy+34)&&page*NR_PAGE+i<sNrCount){if(sNrCursor[sNrSide]!=page*NR_PAGE+i)sNrCostume[sNrSide]=0;sNrCursor[sNrSide]=page*NR_PAGE+i;p|=PADG_CROSS;}}
                 for(s=0;s<(kind==3?1:2);s++) for(i=0;i<sNr.count[s];i++) {f32 xx=(s?266:16)+i*23.0f;if(x>=Ps_X(xx)&&x<Ps_X(xx+21)&&y>=Ps_Y(207)&&y<Ps_Y(229)){sNrSide=s;sNrSlot[s]=i;Nr_List();}}
+                if(y>=Ps_Y(233)&&y<Ps_Y(247)) {if(x>=Ps_X(385)&&x<Ps_X(432))p|=PADG_L1;else if(x>=Ps_X(451))p|=PADG_R1;}
                 if(y>=Ps_Y(403)&&y<Ps_Y(427)) {if(x<Ps_X(230)) p|=PADG_CROSS;else p|=PADG_START;}
             } else if(sNrPhase==1) {
                 for(i=0;i<35;i++){f32 xx=16+(i%7)*69.0f,yy=83+(i/7)*54.0f;if(x>=Ps_X(xx)&&x<Ps_X(xx+64)&&y>=Ps_Y(yy)&&y<Ps_Y(yy+48)){sNr.stage=i;Nr_StageRequest();p|=PADG_CROSS;}}
+                if(y>=Ps_Y(403)&&y<Ps_Y(427)&&x>=Ps_X(280))p|=PADG_CROSS;
+            } else {
+                for(i=0;i<3;i++)if(x>=Ps_X(30)&&x<Ps_X(480)&&y>=Ps_Y(135+i*43)&&y<Ps_Y(169+i*43))sNrConnection=i;
+                if(y>=Ps_Y(403)&&y<Ps_Y(427)&&x>=Ps_X(280))p|=PADG_START;
             }
         }
         if(sNrPhase==0) {
@@ -266,7 +276,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             if(p&(PADG_L2|PADG_R2)) {sNrCostume[sNrSide]=sNr.fighter[sNrSide][sNrSlot[sNrSide]].chara==Nr_Id()?sNr.fighter[sNrSide][sNrSlot[sNrSide]].costume:0;gTeamSel->side[sNrSide]->chara=-1;}
             id=Nr_Id();
             if((p&PADG_SQUARE)&&id>=0) {s32 c=sNrCostume[sNrSide],n;for(n=0;n<8;n++){c=(c+1)%8;if(Port_ExtraCostumeOk(id,c,why,sizeof(why)))break;}sNrCostume[sNrSide]=c;gTeamSel->side[sNrSide]->chara=-1;Snd_PlaySe(1,0);}
-            if((p&PADG_L3)&&id>=0) {sNrFavorite[id]=Port_RosterFavorite(id,1);Snd_PlaySe(1,1);}
+            if((p&PADG_L3)&&id>=0) {sNrFavorite[id]=Port_RosterFavorite(id,1);if(sNrFavoriteOnly)Nr_List();Snd_PlaySe(1,1);}
             if(p&PADG_R3) {sNrFavoriteOnly^=1;sNrCursor[sNrSide]=0;Nr_List();}
             if((p&PADG_SELECT)&&max>1&&sNr.mode!=PC_RAID) {static s32 counts[]={1,3,5,10};s32 n=0;while(n<4&&counts[n]<=sNr.count[sNrSide])n++;sNr.count[sNrSide]=n<4&&counts[n]<=max?counts[n]:1;if(sNrSlot[sNrSide]>=sNr.count[sNrSide])sNrSlot[sNrSide]=0;Snd_PlaySe(1,0);}
             if(p&PADG_CROSS)Nr_Selected();
@@ -275,6 +285,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             Nr_Face();
         } else if(sNrPhase==1) {
             s32 old=sNr.stage;
+            if(p&(PADG_L1|PADG_R1)) {s32 song;gTeamSel->stage->bgm=Ps_Wrap(gTeamSel->stage->bgm+((p&PADG_L1)?-1:1),0,gTeamSel->bgmCount-1);song=gTeamSel->bgmIds[gTeamSel->stage->bgm];if(song==TS_BGM_RANDOM)song=Rand_Range(9)+8;Bgm_Play(PORT_BGM_FILE(song));Snd_PlaySe(1,0);}
             if(r&(PADG_LEFT|PADG_LEFT2))sNr.stage--;else if(r&(PADG_RIGHT|PADG_RIGHT2))sNr.stage++;else if(r&(PADG_UP|PADG_UP2))sNr.stage-=7;else if(r&(PADG_DOWN|PADG_DOWN2))sNr.stage+=7;
             sNr.stage=Ps_Wrap(sNr.stage,0,34);if(old!=sNr.stage){Nr_StageRequest();Snd_PlaySe(1,0);}
             if(p&PADG_CIRCLE){sNrPhase=0;Snd_PlaySe(1,2);}
@@ -297,7 +308,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     while(gTeamSel->faceState!=TEAMSEL_LOAD_IDLE || gTeamSel->stageState!=TEAMSEL_LOAD_IDLE) {
         Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();Nr_Draw();Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
     }
-    if(result) {*out=sNr;Port_RosterRemember(&sNr);Port_RosterLog(2,kind,sNr.count[0],sNr.count[1],sNr.stage);}
+    if(result) {*out=sNr;sNrBgm=gTeamSel->bgmIds[gTeamSel->stage->bgm];if(sNrBgm==TS_BGM_RANDOM)sNrBgm=Rand_Range(9)+8;Port_RosterRemember(&sNr);Port_RosterLog(2,kind,sNr.count[0],sNr.count[1],sNr.stage);}
     gPortNativeRosterActive=0;TeamSel_Term();Dma_ResetBuffers();
     gTsProgress->team[0]=saved[0];gTsProgress->team[1]=saved[1];gTsProgress->players=savedPlayers;gTsProgress->battleType=savedType;gTsProgress->dpLevel=savedDp;gTsProgress->stageCell=savedStage;gTsProgress->bgm=savedBgm;
     return result;
@@ -307,7 +318,7 @@ s32 Port_NativeRosterBattle(s32 kind) {
     if(kind==1&&gTsProgress->battleType==2) dp=(gTsProgress->dpLevel+2)*5;
     if(!Port_NativeRosterPick(&chosen,kind,dp))return 0;
     if(!Port_PcRosterQueue(&chosen))return 0;
-    Port_PcNativeRules(gTsProgress->players,kind==2 && Port_ModesFight()==PORT_MODE_TRAINING);
+    Port_PcNativeRules(gTsProgress->players,kind==2 && Port_ModesFight()==PORT_MODE_TRAINING,sNrBgm);
     if(!Port_PcBattleBuild())return 0;
     gProgress->mode=mode;return 1;
 }
