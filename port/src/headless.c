@@ -146,7 +146,15 @@ int __wrap_Progress_Main(int arg) {
                     goto tournament_finished;
                 }
             }
-            if (!Port_PcBattleBuild()) exit(2);
+            if (!Port_PcBattleBuild()) {
+                if(Port_TourneyEnabled() && Port_TourneyFailed()) {
+                    extern int PortTournamentOnline_Error(void);
+                    if(getenv("BT3_TOURNAMENT_TEST_BOTS")) exit(2);
+                    gPortMenuMode=1;PortTournamentOnline_Error();gPortMenuMode=0;
+                    gProgress->mode=4;goto tournament_finished;
+                }
+                exit(2);
+            }
             if(Port_TourneyEnabled()) {
                 extern int PortTournamentOnline_Card(void);
                 gPortMenuMode=1;PortTournamentOnline_Card();gPortMenuMode=0;
@@ -340,6 +348,7 @@ void Port_Trace(unsigned vblanks) {
        choose a rematch or accidentally change the other participants' menu. */
     if(Port_TourneyEnabled()) {
         static unsigned resultSince;
+        if(Port_TourneyFailed() && !gPortMenuMode) {extern void BattleResult_Set(int,int);BattleResult_Set(8,8);}
         if(gBtlSeq!=NULL && !gPortMenuMode && gBtlSeq->state==6) {
             if(!resultSince) resultSince=vblanks;
             if(vblanks-resultSince==180) {extern void BattleResult_Set(int,int);BattleResult_Set(8,8);}

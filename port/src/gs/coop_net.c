@@ -22,6 +22,7 @@ typedef int socklen_t;
 #include "../../include/port_coop.h"
 #include "../../include/port_tournament.h"
 #include <pthread.h>
+#include <setjmp.h>
 enum { CMAGIC = 0x42543343, CVERSION = 4, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
        CRING = 4096, CPAD = 18, CREDUNDANT = 16, CDELAY = 3, CHEAD = 48 };
 _Static_assert(sizeof(PcBattle) == 228, "Update the co-op protocol when PcBattle changes");
@@ -30,7 +31,9 @@ static uint32_t sNonce, sTick, sStartTick, sSampled;
 static PcBattle sBattle;
 static PcFighter sMyHero;
 static uint32_t sEpoch = 1;
-static int sTournament,sActive[2]={0,1},sRecorded;
+static int sTournament,sActive[2]={0,1},sRecorded,sFailed,sJumpActive,sCancel;
+static jmp_buf sFailureJump;
+static char sFailureText[160];
 static PortTourney sTourney;
 static pthread_mutex_t sTourneyLock=PTHREAD_MUTEX_INITIALIZER;
 static struct sockaddr_in sPeer[PORT_TOURNEY_MAX];
@@ -94,8 +97,13 @@ static void control(int type,int who) {
 static void fail(const char *why) {
     int i;
     fprintf(stderr,"bt3: coop: ERROR: %s\n",why); fflush(stderr);
-    if(sHost) for(i=1;i<sPlayers;i++) if(sKnown[i]) control(C_ERROR,i);
-    if(sSock>=0) closesocket(sSock);
+    if(sHost) for(i=1;i<sPlayers && i<PORT_TOURNEY_MAX;i++) if(sKnown[i]) control(C_ERROR,i);
+    if(sSock>=0) {closesocket(sSock);sSock=-1;}
+    if(sTournament && sJumpActive) {
+        snprintf(sFailureText,sizeof(sFailureText),"%s",why);sFailed=1;
+        __atomic_store_n(&sLobbyPhase,0,__ATOMIC_RELEASE);
+        longjmp(sFailureJump,1);
+    }
     exit(2);
 }
 int Port_CoopEnabled(void) {
@@ -143,16 +151,20 @@ int Port_CoopConfig(PcBattle *out) {
     uint64_t begun,last=0; unsigned long long base=0;
     char why[160]; int i;
     if(!Port_CoopEnabled()) return 0;
+    sTournament=Port_TourneyEnabled();
+    if(sFailed) return 0;
+    if(setjmp(sFailureJump)) {sJumpActive=0;return 0;}
+    sJumpActive=1;
     if(sReady) {
         if(sTournament) {
             int a,b;
-            if(!Port_TourneyPair(&sTourney,sTourney.current,&a,&b)) return 0;
+            if(!Port_TourneyPair(&sTourney,sTourney.current,&a,&b)) {sJumpActive=0;return 0;}
             pthread_mutex_lock(&sTourneyLock);
             sActive[0]=a;sActive[1]=b;sRecorded=0;
             sBattle.fighter[0][0]=sTourney.fighters[a];sBattle.fighter[1][0]=sTourney.fighters[b];
             pthread_mutex_unlock(&sTourneyLock);
         }
-        *out=sBattle;return 1;
+        *out=sBattle;sJumpActive=0;return 1;
     }
     __atomic_store_n(&sLobbyPhase,1,__ATOMIC_RELEASE);
     Port_VerifyStart();PortCharas_Init();
@@ -189,6 +201,7 @@ int Port_CoopConfig(PcBattle *out) {
     begun=millis();
     for(;;) {
         unsigned char p[1400];struct sockaddr_in from; int len=packet(p,&from),type,who=-1,all;
+        if(__atomic_load_n(&sCancel,__ATOMIC_ACQUIRE)) fail("Sala cancelada");
         if(millis()-begun>120000) fail("Tiempo de espera de la sala agotado");
         if(millis()-last>100) {
             if(!sHost) control(sMe<0?C_HELLO:C_ACK,0);
@@ -257,7 +270,7 @@ int Port_CoopConfig(PcBattle *out) {
     *out=sBattle;
     __atomic_store_n(&sLobbyPhase,0,__ATOMIC_RELEASE);
     fprintf(stderr,"bt3: coop: conectado jugador %d/%d, entradas sincronizadas sin prediccion\n",sMe+1,sPlayers);
-    return 1;
+    sJumpActive=0;return 1;
 }
 static uint64_t digest(void) {
     uint64_t h=Port_NetDigest();int i,j;
@@ -307,7 +320,9 @@ static void receive_inputs(void) {
 }
 void Port_CoopBeginTick(unsigned tick) {
     uint64_t begun,last=0;int i,j,all;
-    if(!sReady) return;
+    if(!sReady || sFailed) return;
+    if(setjmp(sFailureJump)) {sJumpActive=0;return;}
+    sJumpActive=1;
     if(sStartTick==UINT32_MAX) sStartTick=tick;
     sTick=tick-sStartTick;
     if(sSampled!=sTick) {
@@ -328,11 +343,12 @@ void Port_CoopBeginTick(unsigned tick) {
         if(!all) pause_ms();
     } while(!all);
     if(sHost) for(i=1;i<sPlayers;i++) for(j=0;j<sPlayers;j++) if(i!=j) inputs(j,i);
+    sJumpActive=0;
     if(sTick%120==0) fprintf(stderr,"bt3: coop: frame %u, %d/%d entradas confirmadas, HP %d/%d\n",sTick,sPlayers,sPlayers,BtlCharApi_GetHp(0),BtlCharApi_GetHp(1));
 }
 void Port_CoopInput(int player,unsigned char *data) {
     int source=player;
-    if(sTournament && sRecorded) {memcpy(data,kIdle,CPAD);return;}
+    if(sTournament && (sRecorded || sFailed)) {memcpy(data,kIdle,CPAD);return;}
     if(sTournament) source=player>=0&&player<2?sActive[player]:-1;
     memcpy(data,sReady&&source>=0&&source<sPlayers&&sTag[source][sTick%CRING]==sTick?sInput[source][sTick%CRING]:kIdle,CPAD);
 }
@@ -380,7 +396,7 @@ void Port_TourneyResult(int resultBits) {
 void Port_TourneyLeave(void) {
     if(!sTournament) return;
     if(sSock>=0) {closesocket(sSock);sSock=-1;}
-    sReady=sTournament=0;
+    sReady=sTournament=sFailed=sCancel=0;
 #ifdef _WIN32
     SetEnvironmentVariableA("BT3_COOP_HOST",NULL);_putenv_s("BT3_COOP_HOST","");
     SetEnvironmentVariableA("BT3_COOP_JOIN",NULL);_putenv_s("BT3_COOP_JOIN","");
@@ -412,3 +428,7 @@ int Port_TourneyLaunch(int host,const char *address,int port,int count,const PcF
 }
 
 int Port_TourneyTestBots(void) {return Port_TourneyEnabled() && getenv("BT3_TOURNAMENT_TEST_BOTS")!=NULL;}
+
+int Port_TourneyFailed(void) {return sFailed;}
+void Port_TourneyErrorText(char *out,int size) {if(size>0)snprintf(out,(size_t)size,"%s",sFailureText);}
+void Port_TourneyCancel(void) {__atomic_store_n(&sCancel,1,__ATOMIC_RELEASE);}

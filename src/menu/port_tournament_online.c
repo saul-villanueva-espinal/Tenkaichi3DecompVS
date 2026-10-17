@@ -122,4 +122,20 @@ s32 PortTournamentOnline_Run(void) {
     }
     Dma_ResetBuffers();return result;
 }
+
+s32 PortTournamentOnline_Error(void) {
+    char reason[160];s32 age=0;
+    Port_TourneyErrorText(reason,sizeof(reason));Port_TourneyLeave();
+    for(;;) {
+        Gfx_BeginFrame();Pad_Update();Snd_Update();
+        Tn_Background("TORNEO | SALA FINALIZADA");
+        Ps_Text(24,130,reason,.65f,460,1);
+        Ps_Text(24,204,"El cuadro se detuvo. No se asigno una victoria por sorteo.",.42f,460,0);
+        Ps_Text(24,245,"Comprueba conexion, misma compilacion y mismos paquetes.",.42f,460,0);
+        Ps_Text(24,360,"X / Circulo: volver al menu principal",.5f,460,3);
+        Gfx_EndFrame(1);Dma_Flush();age++;
+        if(age>15 && (gPad[0].gamePressed&(PADG_CROSS|PADG_CIRCLE))) break;
+    }
+    Dma_ResetBuffers();return 0;
+}
 #endif

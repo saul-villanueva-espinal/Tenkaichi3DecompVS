@@ -3064,7 +3064,8 @@ static bool frame_build(void) {
             if (coopLobby==1) ImGui::TextUnformatted("Comprobando datos del juego y paquetes...");
             else ImGui::Text("Esperando jugadores: %d / %d",coopKnown,coopTotal);
             ImGui::TextUnformatted("La partida comienza cuando todos estan conectados.");
-            ImGui::TextDisabled("Cierra la ventana del juego para cancelar.");
+            if(Port_TourneyEnabled()) {if(ImGui::Button("Cancelar sala")) Port_TourneyCancel();}
+            else ImGui::TextDisabled("Cierra la ventana del juego para cancelar.");
         }
         ImGui::End();
     }

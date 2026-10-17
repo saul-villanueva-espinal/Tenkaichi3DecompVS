@@ -7,7 +7,7 @@ with tempfile.TemporaryDirectory() as tmp:
     subprocess.run([shutil.which('cc') or shutil.which('gcc'),'-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra',
                     '-Iport/include','port/tests/tournament_peer_test.c','port/src/gs/coop_net.c','port/src/plat_pc_battle.c',
                     'port/src/plat_tournament.c','-lpthread']+(['-lws2_32'] if os.name=='nt' else [])+['-o',exe],cwd=root,check=True)
-    for count in [4,8,16]:
+    for count,drop in [(4,False),(8,False),(16,False),(4,True)]:
         with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as sock:
             sock.bind(('127.0.0.1',0));port=sock.getsockname()[1]
         base={k:v for k,v in os.environ.items() if not k.startswith('BT3_COOP') and not k.startswith('BT3_TOURNAMENT')}
@@ -17,15 +17,22 @@ with tempfile.TemporaryDirectory() as tmp:
                 config=[0,2,4,1,1]+sum(([i*2 if s==0 else 4,0] for s in range(2) for j in range(10)),[])
                 env=base|{'BT3_TOURNAMENT':str(count),'BT3_COOP_CONFIG':','.join(map(str,config)),
                           'BT3_COOP_HOST' if i==0 else 'BT3_COOP_JOIN':str(port) if i==0 else f'127.0.0.1:{port}'}
+                if drop:env['FIXTURE_DROP']='1'
                 peers.append(subprocess.Popen([exe],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True))
-                if i==0:time.sleep(.1)
+                if i==0:
+                    time.sleep(.1)
+                    bad=subprocess.run([exe],env=base|{'BT3_TOURNAMENT':str(count),'BT3_COOP_JOIN':f'127.0.0.1:{port}',
+                                       'BT3_COOP_CONFIG':','.join(map(str,config)),'FIXTURE_BAD_ASSET':'1'},capture_output=True,text=True,timeout=10)
+                    assert bad.returncode==0 and 'rejection recovered' in bad.stdout,bad
             champions=[]
             for p in peers:
                 out,err=p.communicate(timeout=90)
                 assert p.returncode==0,out+err
-                assert 'spectators isolated' in out,out+err
-                champions.append(out.split('champion ')[-1].split(',')[0])
-            assert len(set(champions))==1,champions
+                if drop:assert 'disconnect recovered' in out or 'intentional peer departure' in out,out+err
+                else:
+                    assert 'spectators isolated' in out,out+err
+                    champions.append(out.split('champion ')[-1].split(',')[0])
+            if not drop:assert len(set(champions))==1,champions
             print(f'tournament_test: {count} UDP peers, complete bracket, role changes, duplicate result guard and spectator isolation pass')
         finally:
             for p in peers:

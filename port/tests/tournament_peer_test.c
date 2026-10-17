@@ -9,7 +9,7 @@ void Port_VerifyStart(void){}
 void Port_CoopWaitFrame(void){}
 void PortCharas_Init(void){}
 int Port_DataFingerprint(unsigned long long *p){*p=123456;return 1;}
-unsigned long long Port_CharacterFingerprint(void){return 456789;}
+unsigned long long Port_CharacterFingerprint(void){return getenv("FIXTURE_BAD_ASSET")?0:456789;}
 unsigned long long Port_NetDigest(void){return frame+1;}
 int BtlCharApi_GetHp(int id){return 30000-id;}
 void BtlCharApi_GetPos(int id,float *p){p[0]=id;p[1]=p[2]=p[3]=0;}
@@ -25,6 +25,7 @@ void Port_CoopRelaunch(void){}
 int main(void){
     PcBattle b;PortTourney t,before;int match,n=atoi(getenv("BT3_TOURNAMENT"));unsigned total=0;
     {PortTourney invalid;assert(!Port_TourneyInit(&invalid,17));assert(Port_TourneyInit(&invalid,4));assert(!Port_TourneyAdvance(&invalid,-1));assert(!Port_TourneyAdvance(&invalid,2));}
+    if(getenv("FIXTURE_BAD_ASSET")) {assert(!Port_CoopConfig(&b) && Port_TourneyFailed());Port_TourneyLeave();puts("tournament rejection recovered");return 0;}
     assert(Port_CoopConfig(&b));
     assert(Port_TourneyCopy(&t) && t.count==n);
     {int i,j;for(i=0;i<n;i++){int found=0;for(j=0;j<n;j++)found+=t.fighters[j].chara==i*2;assert(found==1);}}
@@ -36,7 +37,9 @@ int main(void){
         assert(Port_TourneySpectating()==(Port_CoopMe()!=a && Port_CoopMe()!=bseed));
         for(k=0;k<64;k++,total++){
             unsigned char p[18];int side;
+            if(getenv("FIXTURE_DROP") && Port_CoopMe()==3 && total==20) {puts("intentional peer departure");return 0;}
             frame=total;Port_CoopBeginTick(total);
+            if(Port_TourneyFailed()) {assert(getenv("FIXTURE_DROP"));Port_TourneyLeave();puts("tournament disconnect recovered");return 0;}
             for(side=0;side<2;side++){
                 int source=side?bseed:a;Port_CoopInput(side,p);
                 /* Inputs sampled three frames before a role change can belong
