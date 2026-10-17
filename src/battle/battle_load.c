@@ -2369,6 +2369,10 @@ s32 BattleSide_IsCharaUsable(s32 side, s32 chara) {
         if (PORT_CHARA_ADDED(chara)) {
             return Port_CharaCostumes(chara) > 0;
         }
+        /* All Goku forms (0..6) are always usable for transformations in battle */
+        if (chara <= 6) {
+            return 1;
+        }
     }
 #endif
 

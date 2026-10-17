@@ -1345,11 +1345,6 @@ s32 BtlParam_GetUnk2(BtlTechChr *chr) {
     return BtlChar_GetObj(chr)->param->unk2;
 }
 
-/* Parameter +0xAC: the transformation slot a neutral input picks. */
-s32 BtlParam_GetUnkAC(BtlTechChr *chr) {
-    return BtlChar_GetObj(chr)->param->transDefault;
-}
-
 #ifdef PORT
 /* PC build: the forms of a character of a package (an added character, or a disc character a folder replaces).
    Its parameter table names them by the numbers of whoever made the pack; the links of its manifest say which
@@ -1370,6 +1365,19 @@ static s32 BtlParam_PortTarget(BtlTechChr *chr, s32 slot, s32 own) {
 #define BtlParam_PortTarget(chr, slot, own) (own)
 #endif
 
+/* Parameter +0xAC: the transformation slot a neutral input picks. */
+s32 BtlParam_GetUnkAC(BtlTechChr *chr) {
+    s32 def = BtlChar_GetObj(chr)->param->transDefault;
+#ifdef PORT
+    if (def < 0 || def >= 4 || BtlParam_PortTarget(chr, def, 0xFF) == 0xFF) {
+        if (BtlParam_PortTarget(chr, 1, 0xFF) != 0xFF) return 1; /* Up */
+        if (BtlParam_PortTarget(chr, 0, 0xFF) != 0xFF) return 0; /* Left */
+        if (BtlParam_PortTarget(chr, 2, 0xFF) != 0xFF) return 2; /* Right */
+    }
+#endif
+    return def;
+}
+
 /* Parameter +0x98 + slot: transformation target, 0xFF = none. */
 s32 BtlParam_GetSlotId(BtlTechChr *chr, s32 slot) {
     return BtlParam_PortTarget(chr, slot, BtlChar_GetObj(chr)->param->transTarget[slot]);
@@ -1377,7 +1385,14 @@ s32 BtlParam_GetSlotId(BtlTechChr *chr, s32 slot) {
 
 /* Parameter +0x9C + slot, times 100000: blast gauge a transformation costs. */
 s32 BtlParam_GetSlotCost(BtlTechChr *chr, s32 slot) {
-    return BtlChar_GetObj(chr)->param->transCost[slot] * 100000;
+    s32 cost = BtlChar_GetObj(chr)->param->transCost[slot] * 100000;
+#ifdef PORT
+    s32 chara = *(s32 *)((u8 *)BtlChar_GetObj(chr) + 0xC);
+    if (slot >= 0 && slot < 3 && cost <= 0 && Port_CharaFormTarget(chara, slot) >= 0) {
+        cost = 100000; /* 1 blast stock */
+    }
+#endif
+    return cost;
 }
 
 /* Parameter +0xA0 + slot. */
