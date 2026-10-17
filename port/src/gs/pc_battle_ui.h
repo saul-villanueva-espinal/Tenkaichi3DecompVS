@@ -74,7 +74,7 @@ static void pc_battle_ui(void) {
     if (gPortPcTeamDp > 0) ImGui::Text("Limite DP del modo actual: %d por equipo", gPortPcTeamDp);
     ImGui::BeginDisabled(!gPortPcTeamReady || Port_ModesFight() != PORT_MODE_NONE || (b.mode != PC_RELAY && b.mode != PC_DUEL) || Port_NetActive() || Port_CoopEnabled());
     if (ImGui::Button("Usar estos equipos en el modo actual")) {
-        if (!Port_PcBattleValidate(&b, message, sizeof(message))) {}
+        if (!Port_PcBattleValidate(&b, message, sizeof(message))) { snprintf(message, sizeof(message), "%s", package_issue_es(message)); }
         else if (Port_PcTeamsRequest(&b)) snprintf(message, sizeof(message), "Equipos guardados para este selector. Confirma el combate para aplicarlos.");
         else snprintf(message, sizeof(message), "El equipo supera el limite DP o el modo no admite relevos.");
     }
@@ -82,7 +82,7 @@ static void pc_battle_ui(void) {
     if (gPortPcTeamReady) ImGui::TextWrapped("Puedes aplicar hasta diez integrantes por equipo en Duelo y Ultimate Battle. Entraran por relevos; se mantienen las reglas de este modo.");
     ImGui::BeginDisabled(!gPortPcHubReady || Port_NetActive() || Port_CoopEnabled());
     if (ImGui::Button("Iniciar combate local")) {
-        if (!Port_PcBattleValidate(&b, message, sizeof(message))) {}
+        if (!Port_PcBattleValidate(&b, message, sizeof(message))) { snprintf(message, sizeof(message), "%s", package_issue_es(message)); }
         else if (Port_PcBattleRequest(&b)) snprintf(message, sizeof(message), "Combate preparado. Cierra F1 para jugar.");
         else snprintf(message, sizeof(message), "Vuelve al menu principal para iniciar.");
     }

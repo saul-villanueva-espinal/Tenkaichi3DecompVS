@@ -45,7 +45,6 @@ const char *Port_ModesName(int mode);
 const char *Port_ModesPlayersName(int n); /* "1 Player" .. "4 Players" */
 
 /* Floating Damage Popups (Sparking! Zero style) */
-void Port_AddDamagePopup(int side, int damage, float x, float y, float z);
 
 /* Cinematic Photo Mode 360 & HUD Toggle */
 extern int gPortPhotoMode;

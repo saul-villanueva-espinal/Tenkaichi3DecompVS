@@ -7,7 +7,7 @@
 typedef struct MatchStatus {
     int state;                      /* 0 idle, 1 working, 2 the room is made (code), 3 the other player is known, -1 failed */
     char code[8];
-    char error[96];                 /* for the window, when state is -1 */
+    char error[256];                 /* for the window, when state is -1 */
     char peerName[20];
     char peerAddr[MATCH_ADDRS][64]; /* "ip:port", best first */
     int peerCount;

@@ -342,8 +342,8 @@ static void fonts_apply(void) {
 
 // A combo of the game's fonts; the choice is loaded before the next frame.
 static void font_picker(const char *label, PanelFont &pf, const char *tip) {
-    if (ImGui::BeginCombo(label, pf.choice > 0 ? MenuText_FontName(pf.choice) : "Default")) {
-        if (ImGui::Selectable("Default", pf.choice == 0)) {
+    if (ImGui::BeginCombo(label, pf.choice > 0 ? MenuText_FontName(pf.choice) : "Predeterminada")) {
+        if (ImGui::Selectable("Predeterminada", pf.choice == 0)) {
             pf.pending = 0;
         }
         for (int i = 1; i < MenuText_FontCount(); i++) {
@@ -456,7 +456,7 @@ int Ui_Init(SDL_Window *window, SDL_GPUDevice *device, void *gl_context, const c
     };
     ImGui_ImplSDLGPU3_InitInfo info;
 
-    snprintf(sGpuName, sizeof(sGpuName), "%s", gpu_name && gpu_name[0] ? gpu_name : "Unavailable");
+    snprintf(sGpuName, sizeof(sGpuName), "%s", gpu_name && gpu_name[0] ? gpu_name : "No disponible");
 
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
@@ -566,9 +566,9 @@ int Ui_QuitAsk(void) {
     sQuit = true;
     PortQuit_Request();
     input_owner();
-    PortA11y_Say(PortA11y_Label("Close the game? Progress that was not saved is lost."), 1);
+    PortA11y_Say(PortA11y_Label("¿Cerrar el juego? Se perderá el progreso que no hayas guardado."), 1);
     say_quit_button(1, 0);
-    PortA11y_Say(PortA11y_Label("Left and right choose, Enter confirms, Escape goes back to the game"), 0);
+    PortA11y_Say(PortA11y_Label("Izquierda y derecha para elegir, Intro para confirmar, Esc para volver al juego"), 0);
     return 1;
 }
 
@@ -576,8 +576,8 @@ int Ui_QuitAsk(void) {
 // so the question, the button under the keyboard's focus and the keys are said here. Nothing while it is off.
 static void say_quit_button(int which, int flags) {
     char text[128], pos[32];
-    snprintf(pos, sizeof(pos), PortA11y_Label(", %d of %d"), which + 1, 2);
-    snprintf(text, sizeof(text), "%s%s", PortA11y_Label(which == 0 ? "Exit" : "Cancel"), pos);
+    snprintf(pos, sizeof(pos), PortA11y_Label(", %d de %d"), which + 1, 2);
+    snprintf(text, sizeof(text), "%s%s", PortA11y_Label(which == 0 ? "Salir" : "Cancelar"), pos);
     PortA11y_Say(text, flags);
 }
 
@@ -588,12 +588,12 @@ static void build_quit(void) {
     int focus = -1;
 
     sQuitNo = false;
-    if (!ImGui::IsPopupOpen("Exit game")) {
-        ImGui::OpenPopup("Exit game");
+    if (!ImGui::IsPopupOpen("Salir del juego")) {
+        ImGui::OpenPopup("Salir del juego");
     }
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
-    if (ImGui::BeginPopupModal("Exit game", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
-        static const char *const kAsk = "Close the game? Progress that was not saved is lost.";
+    if (ImGui::BeginPopupModal("Salir del juego", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings)) {
+        static const char *const kAsk = "¿Cerrar el juego? Se perderá el progreso que no hayas guardado.";
         // the two buttons under the middle of the question (the window is as wide as its text)
         float line = ImGui::CalcTextSize(kAsk).x, pair = 140.0f * 2.0f + ImGui::GetStyle().ItemSpacing.x;
         ImGui::TextUnformatted(kAsk);
@@ -601,12 +601,12 @@ static void build_quit(void) {
         if (line > pair) {
             ImGui::SetCursorPosX(ImGui::GetCursorPosX() + (line - pair) * 0.5f);
         }
-        if (ImGui::Button("Exit", ImVec2(140.0f, 0.0f))) {
+        if (ImGui::Button("Salir", ImVec2(140.0f, 0.0f))) {
             exit(0);
         }
         focus = ImGui::IsItemFocused() ? 0 : focus;
         ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(140.0f, 0.0f)) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
+        if (ImGui::Button("Cancelar", ImVec2(140.0f, 0.0f)) || ImGui::IsKeyPressed(ImGuiKey_GamepadFaceRight, false)) {
             stay = true;
         }
         focus = ImGui::IsItemFocused() ? 1 : focus;
@@ -614,7 +614,7 @@ static void build_quit(void) {
             ImGui::SetItemDefaultFocus(); // (on Cancel: a second press of the same button does not close the game)
             PortA11y_Say(PortA11y_Label(kAsk), 1);
             say_quit_button(1, 0);
-            PortA11y_Say(PortA11y_Label("Left and right choose, Enter confirms, Escape goes back to the game"), 0);
+            PortA11y_Say(PortA11y_Label("Izquierda y derecha para elegir, Intro para confirmar, Esc para volver al juego"), 0);
             said = 1;
         } else if (focus >= 0 && focus != said) {
             say_quit_button(focus, 1);
@@ -629,7 +629,7 @@ static void build_quit(void) {
         sQuit = false;
         PortQuit_Dismiss();
         input_owner();
-        PortA11y_Say(PortA11y_Label("Back to the game"), 1);
+        PortA11y_Say(PortA11y_Label("Volver al juego"), 1);
     }
 }
 
@@ -662,12 +662,12 @@ static void quick_status(int state, int &lastState, const char *name) {
         state = 0;
     }
     if (state == 3 || state == 1) {
-        ImGui::TextUnformatted(state == 1 ? "Found a player. Connecting..." : "Searching for a player in this queue...");
+        ImGui::TextUnformatted(state == 1 ? "Jugador encontrado. Conectando..." : "Buscando un jugador en esta cola...");
         if (state == 3 && since != 0) {
             Uint64 left = kSearchMs - (SDL_GetTicks() - since);
-            ImGui::TextDisabled("Searching for %d:%02d more. Leave the window open.", (int)(left / 60000), (int)(left / 1000 % 60));
+            ImGui::TextDisabled("Buscando durante %d:%02d más. Deja la ventana abierta.", (int)(left / 60000), (int)(left / 1000 % 60));
         }
-        if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f))) {
+        if (ImGui::Button("Cancelar", ImVec2(120.0f, 0.0f))) {
             Port_LobbyCancel();
             lastState = 0;
         }
@@ -676,13 +676,13 @@ static void quick_status(int state, int &lastState, const char *name) {
     if (lastState == -3) {
         ImGui::TextWrapped("%s", Port_LobbyError());
     } else if (lastState == -4) {
-        ImGui::TextWrapped("The two games could not reach each other, directly or through the relay. Search again for another player.");
+        ImGui::TextWrapped("Los juegos no pudieron conectarse, ni directamente ni mediante el servidor intermediario. Busca otro jugador.");
     } else if (lastState == -2) {
-        ImGui::TextWrapped("The other player's game is a different version. Search again.");
+        ImGui::TextWrapped("El otro jugador tiene una versión diferente. Vuelve a buscar.");
     } else if (lastState == -5) {
-        ImGui::TextWrapped("Nobody was searching this queue in the last three minutes. Search again, or try another queue.");
+        ImGui::TextWrapped("No se encontraron jugadores en esta cola durante los últimos tres minutos. Vuelve a buscar o elige otra cola.");
     }
-    if (ImGui::Button(lastState == -5 ? "Search again" : "Search for a match", ImVec2(200.0f, 0.0f))) {
+    if (ImGui::Button(lastState == -5 ? "Volver a buscar" : "Buscar partida", ImVec2(200.0f, 0.0f))) {
         since = SDL_GetTicks() + 1;
         // The same for everyone in a quick match, whoever turns out to be the host: rollback of up to 8 frames and
         // the input delay measured from the connection. (The Host tab's own choices are for matches with someone
@@ -700,7 +700,7 @@ static void quick_status(int state, int &lastState, const char *name) {
 }
 
 static void build_net(void) {
-    static char name[17] = "Player", address[64] = "", port[8] = "7000";
+    static char name[17] = "Jugador", address[64] = "", port[8] = "7000";
     static int tab, roll = -1, delay = 1, battle = -1, timeLimit = 3, speed = -1;
     static bool useCode = true;       // host with a room code (no port forwarding) or on a port
     static char roomCode[8] = "";     // the code to join with
@@ -713,48 +713,48 @@ static void build_net(void) {
     if (pad_pressed(ImGuiKey_GamepadFaceRight)) { // Circle / B: out of the window, as its close button
         open = false;
     }
-    if (ImGui::Begin("Dragon Net Battle", &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
+    if (ImGui::Begin("Batalla Dragón en línea", &open, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_AlwaysAutoResize)) {
         {
             int min = 0, latest = 0, mine = Port_LobbyRelease(&min, &latest);
             if (min > mine) {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.55f, 0.35f, 1.0f));
-                ImGui::TextWrapped("Update available. Online servers are unreachable until you update.");
+                ImGui::TextWrapped("Actualización disponible. Actualiza para acceder a los servidores en línea.");
                 ImGui::PopStyleColor();
-                ImGui::TextDisabled("You have 0.%d.%d; 0.%d.%d or newer is needed. github.com/z3xox/Tenkaichi3Decomp/releases", mine / 100, mine % 100, min / 100, min % 100);
+                ImGui::TextDisabled("Tienes 0.%d.%d; se necesita 0.%d.%d o posterior. github.com/z3xox/Tenkaichi3Decomp/releases", mine / 100, mine % 100, min / 100, min % 100);
                 ImGui::Separator();
             } else if (latest > mine) {
-                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Update available: release 0.%d.%d.", latest / 100, latest % 100);
+                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Actualización disponible: versión 0.%d.%d.", latest / 100, latest % 100);
                 ImGui::TextDisabled("github.com/z3xox/Tenkaichi3Decomp/releases");
                 ImGui::Separator();
             }
         }
-        ImGui::TextWrapped("Fight a player on another computer. One of you hosts, the other joins with the host's address.");
+        ImGui::TextWrapped("Combate contra un jugador en otra PC. Uno crea la partida y el otro se une con la dirección del anfitrión.");
         ImGui::Spacing();
         ImGui::SetNextItemWidth(260.0f);
         {
             static bool read;
             if (!read) { // the name used last time
                 read = true;
-                Port_SettingText("net_name", "Player", name, sizeof(name));
+                Port_SettingText("net_name", "Jugador", name, sizeof(name));
             }
         }
-        ImGui::InputText("Player name", name, sizeof(name));
+        ImGui::InputText("Nombre del jugador", name, sizeof(name));
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             Port_SettingTextSave("net_name", name);
             Port_SettingsWrite();
         }
         ImGui::Spacing();
         if (ImGui::BeginTabBar("net")) {
-            if (ImGui::BeginTabItem("Host")) {
-                static const char *const kRoll[] = {"Off (wait for each other)", "Up to 2 frames", "Up to 4 frames", "Up to 6 frames", "Up to 8 frames"};
+            if (ImGui::BeginTabItem("Crear partida")) {
+                static const char *const kRoll[] = {"Desactivado (esperar al otro jugador)", "Hasta 2 cuadros", "Hasta 4 cuadros", "Hasta 6 cuadros", "Hasta 8 cuadros"};
                 tab = 0;
-                ImGui::Checkbox("Use a room code (no port forwarding needed)", &useCode);
-                ImGui::SetItemTooltip("You get a short code to tell the other player, and the two games find each other through a\n"
-                                      "small matchmaking service. Works with most home routers. Without it you host on a port,\n"
-                                      "which must be reachable from the other player (port forwarding or a virtual network).");
+                ImGui::Checkbox("Usar código de sala (sin abrir puertos)", &useCode);
+                ImGui::SetItemTooltip("Obtienes un código corto para compartir con el otro jugador. Ambos juegos se encuentran mediante un\n"
+                                      "servicio de búsqueda de partidas. Funciona con la mayoría de routers domésticos. Sin él, usas un puerto\n"
+                                      "que debe ser accesible para el otro jugador (apertura de puertos o una red virtual).");
                 ImGui::BeginDisabled(useCode);
                 ImGui::SetNextItemWidth(120.0f);
-                ImGui::InputText("Port", port, sizeof(port), ImGuiInputTextFlags_CharsDecimal);
+                ImGui::InputText("Puerto", port, sizeof(port), ImGuiInputTextFlags_CharsDecimal);
                 ImGui::EndDisabled();
                 if (roll < 0) { // the choices of last time (new names: the first ones' defaults were 4 frames and delay 1)
                     roll = Port_RollCan() ? Port_Setting("net_rollback2", 8) / 2 : 0;
@@ -764,28 +764,28 @@ static void build_net(void) {
                 }
                 ImGui::BeginDisabled(!Port_RollCan());
                 ImGui::SetNextItemWidth(260.0f);
-                ImGui::Combo("Rollback", &roll, kRoll, 5);
+                ImGui::Combo("Corrección predictiva (rollback)", &roll, kRoll, 5);
                 ImGui::EndDisabled();
                 if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled)) {
-                    ImGui::SetTooltip("With rollback your own moves come out at once and the game corrects itself when the\n"
-                                      "other player's buttons arrive. More frames cope with a slower connection and cost\n"
-                                      "more processor time. Off: both games wait for each other every frame.");
+                    ImGui::SetTooltip("Con rollback, tus movimientos se ejecutan al instante y el juego corrige el estado cuando llegan\n"
+                                      "las entradas del otro jugador. Más cuadros permiten conexiones más lentas, pero requieren\n"
+                                      "más procesamiento. Desactivado: ambos juegos se esperan en cada cuadro.");
                 }
                 ImGui::SetNextItemWidth(260.0f);
                 {
-                    static const char *const kDelay[] = {"Automatic (from the connection)", "0 frames", "1 frame", "2 frames", "3 frames",
-                                                         "4 frames", "5 frames", "6 frames"};
-                    ImGui::Combo("Input delay", &delay, kDelay, 8);
+                    static const char *const kDelay[] = {"Automático (según la conexión)", "0 cuadros", "1 cuadro", "2 cuadros", "3 cuadros",
+                                                         "4 cuadros", "5 cuadros", "6 cuadros"};
+                    ImGui::Combo("Retardo de entrada", &delay, kDelay, 8);
                 }
                 if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip("How long after a press your own move comes out. A slow connection needs more, or the game\n"
-                                      "has to guess too far ahead and stutters. Automatic measures the connection when the match\n"
-                                      "starts: 1 frame on a good one, more on a slow one.");
+                    ImGui::SetTooltip("Tiempo entre pulsar un botón y ejecutar el movimiento. Una conexión lenta necesita más retardo;\n"
+                                      "de lo contrario, el juego predice demasiado y puede dar tirones. El ajuste automático mide la conexión\n"
+                                      "al iniciar: 1 cuadro con una buena conexión y más con una lenta.");
                 }
                 {
                     // The match's rules: the game's own versus menu is not shown online, so they are chosen here.
-                    static const char *const kBattle[] = {"Single battle", "Team battle", "DP battle (10 DP)", "DP battle (15 DP)", "DP battle (20 DP)"};
-                    static const char *const kTime[] = {"60 seconds", "90 seconds", "180 seconds", "240 seconds", "No limit"};
+                    static const char *const kBattle[] = {"Combate individual", "Combate por equipos", "Combate PD (10 PD)", "Combate PD (15 PD)", "Combate PD (20 PD)"};
+                    static const char *const kTime[] = {"60 segundos", "90 segundos", "180 segundos", "240 segundos", "Sin límite"};
                     if (battle < 0) {
                         battle = Port_Setting("net_battle", 0);
                         timeLimit = Port_Setting("net_time", 3);
@@ -794,27 +794,27 @@ static void build_net(void) {
                     }
                     ImGui::Spacing();
                     ImGui::SetNextItemWidth(260.0f);
-                    ImGui::Combo("Battle", &battle, kBattle, 5);
+                    ImGui::Combo("Combate", &battle, kBattle, 5);
                     ImGui::SetNextItemWidth(260.0f);
-                    ImGui::Combo("Time limit", &timeLimit, kTime, 5);
+                    ImGui::Combo("Límite de tiempo", &timeLimit, kTime, 5);
                     {
                         if (speed < 0) {
                             speed = Port_Setting("net_speed_host", Port_NetSpeedStandard()) /* (a new name with 0.1.31: the standard went from 120 to 114) */;
                         }
                         ImGui::SetNextItemWidth(260.0f);
-                        ImGui::SliderInt("Game speed", &speed, 100, 150, "%d%%", ImGuiSliderFlags_AlwaysClamp);
-                        ImGui::SetItemTooltip("How fast the match runs, for both players; the sound keeps its pitch.\n"
-                                              "100%% is the game's own speed. %d%% is the competitive standard, and what\n"
-                                              "quick matches run at.\n"
-                                              "With a player on 0.1.29 only 100%% and 120%% are possible, with an older\n"
-                                              "release only 100%%.", Port_NetSpeedStandard());
+                        ImGui::SliderInt("Velocidad del juego", &speed, 100, 150, "%d%%", ImGuiSliderFlags_AlwaysClamp);
+                        ImGui::SetItemTooltip("Velocidad del combate para ambos jugadores; el sonido conserva su tono.\n"
+                                              "100%% es la velocidad original. %d%% es el estándar competitivo y la velocidad\n"
+                                              "de las partidas rápidas.\n"
+                                              "Con un jugador en la versión 0.1.29 solo se admite 100%% o 120%%; con versiones anteriores,\n"
+                                              "solo 100%%.", Port_NetSpeedStandard());
                     }
                 }
-                ImGui::TextDisabled("The host's choices apply to both players.");
+                ImGui::TextDisabled("Las opciones del anfitrión se aplican a ambos jugadores.");
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Quick match")) {
-                static const char *const kQueue[] = {"Single battle", "Team battle", "DP battle (10 DP)", "DP battle (15 DP)", "DP battle (20 DP)"};
+            if (ImGui::BeginTabItem("Partida rápida")) {
+                static const char *const kQueue[] = {"Combate individual", "Combate por equipos", "Combate PD (10 PD)", "Combate PD (15 PD)", "Combate PD (20 PD)"};
                 static Uint64 asked;
                 bool busy = sNetBusy; // (a search is under way: the queue is not changed under it)
                 tab = 2;
@@ -839,7 +839,7 @@ static void build_net(void) {
                         Port_LobbyQueuesAsk();
                     }
                 }
-                ImGui::TextWrapped("Be matched with whoever is searching the same queue. All quick matches have no time limit and run at %d%% speed.", Port_NetSpeedStandard());
+                ImGui::TextWrapped("Juega con alguien que busque en la misma cola. Todas las partidas rápidas son sin límite de tiempo y a %d%% de velocidad.", Port_NetSpeedStandard());
                 ImGui::BeginDisabled(busy);
                 for (int i = 0; i < 5; i++) {
                     char label[80];
@@ -847,21 +847,21 @@ static void build_net(void) {
                     if (n < 0) {
                         snprintf(label, sizeof(label), "%s", kQueue[i]);
                     } else {
-                        snprintf(label, sizeof(label), "%s   (%d searching)###q%d", kQueue[i], n, i);
+                        snprintf(label, sizeof(label), "%s   (%d buscando)###q%d", kQueue[i], n, i);
                     }
                     ImGui::RadioButton(label, &sQueue, i);
                 }
                 ImGui::EndDisabled();
-                ImGui::TextDisabled("The two games connect to each other directly when they can, as in most online fighting");
-                ImGui::TextDisabled("games: a player who inspects their own network traffic can see the other's address.");
+                ImGui::TextDisabled("Ambos juegos se conectan directamente cuando es posible, como en otros juegos de lucha en línea.");
+                ImGui::TextDisabled("Un jugador que inspeccione su tráfico de red puede ver la dirección del otro.");
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Join")) {
+            if (ImGui::BeginTabItem("Unirse")) {
                 tab = 1;
                 ImGui::SetNextItemWidth(120.0f);
-                ImGui::InputText("Room code", roomCode, sizeof(roomCode), ImGuiInputTextFlags_CharsUppercase | ImGuiInputTextFlags_CharsNoBlank);
+                ImGui::InputText("Código de sala", roomCode, sizeof(roomCode), ImGuiInputTextFlags_CharsUppercase | ImGuiInputTextFlags_CharsNoBlank);
                 ImGui::SameLine();
-                if (ImGui::Button("Paste")) { // the letters and digits of what was copied, as capitals
+                if (ImGui::Button("Pegar")) { // the letters and digits of what was copied, as capitals
                     char *clip = SDL_GetClipboardText();
                     size_t n = 0;
                     for (const char *c = clip; c != NULL && *c != '\0' && n + 1 < sizeof(roomCode); c++) {
@@ -872,12 +872,12 @@ static void build_net(void) {
                     roomCode[n] = '\0';
                     SDL_free(clip);
                 }
-                ImGui::TextDisabled("or, without a code, the host's address and port:");
+                ImGui::TextDisabled("O, sin código, la dirección y el puerto del anfitrión:");
                 ImGui::BeginDisabled(roomCode[0] != '\0');
                 ImGui::SetNextItemWidth(260.0f);
-                ImGui::InputText("Host's address", address, sizeof(address));
+                ImGui::InputText("Dirección del anfitrión", address, sizeof(address));
                 ImGui::SetNextItemWidth(120.0f);
-                ImGui::InputText("Port", port, sizeof(port), ImGuiInputTextFlags_CharsDecimal);
+                ImGui::InputText("Puerto", port, sizeof(port), ImGuiInputTextFlags_CharsDecimal);
                 ImGui::EndDisabled();
                 ImGui::EndTabItem();
             }
@@ -900,7 +900,7 @@ static void build_net(void) {
                 quick_status(state, lastState, name);
             } else if (state == 3 || (state == 1 && byCode)) { // a room code: asking the service, then reaching the other player
                 if (tab == 0 && Port_LobbyCode()[0] != '\0') {
-                    ImGui::TextUnformatted("Room code:");
+                    ImGui::TextUnformatted("Código de sala:");
                     ImGui::SameLine();
                     ImGui::SetWindowFontScale(1.8f);
                     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", Port_LobbyCode());
@@ -908,45 +908,45 @@ static void build_net(void) {
                     {
                         static Uint64 copiedAt;
                         ImGui::SameLine();
-                        if (ImGui::Button("Copy")) {
+                        if (ImGui::Button("Copiar")) {
                             copiedAt = SDL_SetClipboardText(Port_LobbyCode()) ? SDL_GetTicks() : 0;
                         }
-                        ImGui::SetItemTooltip("Copy the code, to paste it to the other player.");
+                        ImGui::SetItemTooltip("Copia el código para compartirlo con el otro jugador.");
                         if (copiedAt != 0 && SDL_GetTicks() - copiedAt < 2000) {
                             ImGui::SameLine();
-                            ImGui::TextDisabled("Copied");
+                            ImGui::TextDisabled("Copiado");
                         }
                     }
-                    ImGui::TextUnformatted(state == 3 ? "Tell the other player this code. Waiting for them to join..." : "The other player has joined. Connecting...");
+                    ImGui::TextUnformatted(state == 3 ? "Comparte este código con el otro jugador. Esperando a que se una..." : "El otro jugador se ha unido. Conectando...");
                 } else {
-                    ImGui::TextUnformatted(state == 1 ? "Found the room. Connecting to the host..." : tab == 0 ? "Getting a room code..." : "Looking for the room...");
+                    ImGui::TextUnformatted(state == 1 ? "Sala encontrada. Conectando con el anfitrión..." : tab == 0 ? "Obteniendo un código de sala..." : "Buscando la sala...");
                 }
-                if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f))) {
+                if (ImGui::Button("Cancelar", ImVec2(120.0f, 0.0f))) {
                     Port_LobbyCancel();
                     lastState = 0;
                 }
             } else if (state == 1) {
                 if (tab == 0) {
-                    ImGui::Text("Waiting for the other player on port %s...", port);
+                    ImGui::Text("Esperando al otro jugador en el puerto %s...", port);
                     if (Port_LobbyOther()) {
-                        ImGui::TextWrapped("A player with a different version of the game is trying to join. Both need the same release.");
+                        ImGui::TextWrapped("Un jugador con otra versión intenta unirse. Ambos necesitan la misma versión.");
                     }
                 } else {
-                    ImGui::Text("Looking for %s...", address);
+                    ImGui::Text("Buscando %s...", address);
                 }
-                if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f))) {
+                if (ImGui::Button("Cancelar", ImVec2(120.0f, 0.0f))) {
                     Port_LobbyCancel();
                 }
             } else {
                 if (lastState == -3) {
                     ImGui::TextWrapped("%s", Port_LobbyError());
                 } else if (lastState == -4) {
-                    ImGui::TextWrapped("The two games could not reach each other, directly or through the relay. "
-                                       "Hosting on a port (with port forwarding or a virtual network such as Tailscale) still works.");
+                    ImGui::TextWrapped("Los juegos no pudieron conectarse, ni directamente ni mediante el servidor intermediario. "
+                                       "Puedes crear la partida abriendo un puerto o usando una red virtual como Tailscale.");
                 }
                 bool can = byCode ? (tab == 0 || strlen(roomCode) == 6) : atoi(port) > 0 && (tab == 0 || address[0] != '\0');
                 ImGui::BeginDisabled(!can);
-                if (ImGui::Button(tab == 0 ? "Host a match" : "Join the match", ImVec2(200.0f, 0.0f))) {
+                if (ImGui::Button(tab == 0 ? "Crear partida" : "Unirse a la partida", ImVec2(200.0f, 0.0f))) {
                     if (tab == 0 && roll >= 0) {
                         Port_NetOptions(roll * 2, delay == 0 ? -2 : delay - 1);
                         if (battle >= 0) {
@@ -974,20 +974,20 @@ static void build_net(void) {
                 }
                 ImGui::EndDisabled();
                 ImGui::SameLine();
-                if (ImGui::Button("Back", ImVec2(120.0f, 0.0f))) {
+                if (ImGui::Button("Volver", ImVec2(120.0f, 0.0f))) {
                     open = false;
                 }
                 if (state == -2) {
-                    ImGui::TextWrapped("The host's game is a different version. Both players need the same release.");
+                    ImGui::TextWrapped("El anfitrión tiene otra versión. Ambos jugadores necesitan la misma versión.");
                 } else if (state < 0) {
-                    ImGui::TextWrapped(tab == 0 ? "That port cannot be used (another program has it?)." : "That address is not known.");
+                    ImGui::TextWrapped(tab == 0 ? "No se puede usar ese puerto. Es posible que otro programa lo esté usando." : "No se reconoce esa dirección.");
                 }
             }
         }
         ImGui::Spacing();
-        ImGui::TextDisabled("When you are connected the game switches to the match: both players get the same roster,");
-        ImGui::TextDisabled("with everything unlocked, and your own save is left alone. Leaving the match brings you");
-        ImGui::TextDisabled("back to where you were. The host's controls also work the menus.");
+        ImGui::TextDisabled("Al conectarse, el juego inicia la partida: ambos jugadores reciben la misma plantilla,");
+        ImGui::TextDisabled("con todo desbloqueado. Tu guardado se conserva. Al salir de la partida, vuelves");
+        ImGui::TextDisabled("al punto donde estabas. El anfitrión también controla los menús.");
     }
     ImGui::End();
     if (!open) {
@@ -1154,17 +1154,49 @@ int Ui_Event(const SDL_Event *ev) {
            ev->type == SDL_EVENT_MOUSE_BUTTON_DOWN || ev->type == SDL_EVENT_MOUSE_BUTTON_UP || ev->type == SDL_EVENT_MOUSE_WHEEL;
 }
 
+// SDL supplies English key names independently of the display language.
+static const char *key_caption(SDL_Scancode key) {
+    switch (key) {
+    case SDL_SCANCODE_UP: return "Arriba";
+    case SDL_SCANCODE_DOWN: return "Abajo";
+    case SDL_SCANCODE_LEFT: return "Izquierda";
+    case SDL_SCANCODE_RIGHT: return "Derecha";
+    case SDL_SCANCODE_SPACE: return "Espacio";
+    case SDL_SCANCODE_RETURN: return "Intro";
+    case SDL_SCANCODE_KP_ENTER: return "Intro numérico";
+    case SDL_SCANCODE_BACKSPACE: return "Retroceso";
+    case SDL_SCANCODE_DELETE: return "Supr";
+    case SDL_SCANCODE_INSERT: return "Insertar";
+    case SDL_SCANCODE_HOME: return "Inicio";
+    case SDL_SCANCODE_END: return "Fin";
+    case SDL_SCANCODE_PAGEUP: return "Re Pág";
+    case SDL_SCANCODE_PAGEDOWN: return "Av Pág";
+    case SDL_SCANCODE_LSHIFT: return "Mayús izquierda";
+    case SDL_SCANCODE_RSHIFT: return "Mayús derecha";
+    case SDL_SCANCODE_LCTRL: return "Ctrl izquierdo";
+    case SDL_SCANCODE_RCTRL: return "Ctrl derecho";
+    case SDL_SCANCODE_LALT: return "Alt izquierdo";
+    case SDL_SCANCODE_RALT: return "Alt derecho";
+    case SDL_SCANCODE_CAPSLOCK: return "Bloq Mayús";
+    case SDL_SCANCODE_NUMLOCKCLEAR: return "Bloq Num";
+    case SDL_SCANCODE_PRINTSCREEN: return "Impr Pant";
+    case SDL_SCANCODE_SCROLLLOCK: return "Bloq Despl";
+    case SDL_SCANCODE_PAUSE: return "Pausa";
+    default: return SDL_GetScancodeName(key);
+    }
+}
+
 static const char *pad_source_name(int src) {
-    static const char *names[] = {"A / Cross", "B / Circle", "X / Square", "Y / Triangle", "Back / Select", "Guide", "Start",
-                                  "Left stick click", "Right stick click", "Left shoulder", "Right shoulder", "D-pad up",
-                                  "D-pad down", "D-pad left", "D-pad right", "Misc 1", "Right paddle 1", "Left paddle 1",
-                                  "Right paddle 2", "Left paddle 2", "Touchpad"};
+    static const char *names[] = {"A / Cruz", "B / Círculo", "X / Cuadrado", "Y / Triángulo", "Atrás / Select", "Guía", "Inicio",
+                                  "Pulsar palanca izquierda", "Pulsar palanca derecha", "Botón superior izquierdo", "Botón superior derecho", "Cruceta arriba",
+                                  "Cruceta abajo", "Cruceta izquierda", "Cruceta derecha", "Adicional 1", "Palanca trasera derecha 1", "Palanca trasera izquierda 1",
+                                  "Palanca trasera derecha 2", "Palanca trasera izquierda 2", "Panel táctil"};
     static char other[24];
-    if (src == PORT_PAD_LT) { return "Left trigger"; }
-    if (src == PORT_PAD_RT) { return "Right trigger"; }
+    if (src == PORT_PAD_LT) { return "Gatillo izquierdo"; }
+    if (src == PORT_PAD_RT) { return "Gatillo derecho"; }
     if (src < 0) { return "-"; }
     if (src < (int)(sizeof(names) / sizeof(names[0]))) { return names[src]; }
-    snprintf(other, sizeof(other), "Button %d", src);
+    snprintf(other, sizeof(other), "Botón %d", src);
     return other;
 }
 
@@ -1183,67 +1215,67 @@ static void video_tab(PortVideo &v) {
     int best = 0, count = 0;
 
     snprintf(label, sizeof(label), "%dx  (%d x %d)", v.scale, 512 * v.scale, 448 * v.scale);
-    if (ImGui::BeginCombo("Internal resolution", label)) {
+    if (ImGui::BeginCombo("Resolución interna", label)) {
         for (int n = 1; n <= 8; n++) {
             snprintf(label, sizeof(label), "%dx  (%d x %d)", n, 512 * n, 448 * n);
             if (ImGui::Selectable(label, n == v.scale)) { v.scale = n; }
         }
         ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("How finely the game is drawn. 1x is the PlayStation 2's own resolution.\nHigher is sharper and uses more video memory.");
+    ImGui::SetItemTooltip("Nivel de detalle del renderizado. 1x es la resolución original de PlayStation 2.\nUna resolución mayor mejora la nitidez y consume más memoria de video.");
     for (int i = 1; i < (int)(sizeof(aspects) / sizeof(aspects[0])); i++) {
         if (abs(aspects[i].milli - v.aspectMilli) < abs(aspects[best].milli - v.aspectMilli)) { best = i; }
     }
-    if (ImGui::BeginCombo("Aspect ratio", aspects[best].name)) {
+    if (ImGui::BeginCombo("Relación de aspecto", aspects[best].name)) {
         for (int i = 0; i < (int)(sizeof(aspects) / sizeof(aspects[0])); i++) {
             if (ImGui::Selectable(aspects[i].name, i == best)) { v.aspectMilli = aspects[i].milli; }
         }
         ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("Wider than 4:3 shows more of the fight to the sides. Menus are stretched.");
-    if (ImGui::BeginCombo("2D filtering", v.smooth2d ? "Smooth" : "Sharp (console)")) {
-        if (ImGui::Selectable("Sharp (console)", !v.smooth2d)) { v.smooth2d = 0; }
-        if (ImGui::Selectable("Smooth", v.smooth2d != 0)) { v.smooth2d = 1; }
+    ImGui::SetItemTooltip("Una relación más ancha que 4:3 muestra más combate a los lados. Los menús se estiran.");
+    if (ImGui::BeginCombo("Filtrado 2D", v.smooth2d ? "Suave" : "Nítido (consola)")) {
+        if (ImGui::Selectable("Nítido (consola)", !v.smooth2d)) { v.smooth2d = 0; }
+        if (ImGui::Selectable("Suave", v.smooth2d != 0)) { v.smooth2d = 1; }
         ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("How the display of a fight, the menus and text are drawn above 1x internal resolution.\n"
-                          "Sharp: each of the PlayStation 2's pixels is a block. Smooth: as an emulator shows them.\n"
-                          "No difference at 1x.");
+    ImGui::SetItemTooltip("Cómo se dibujan el HUD, los menús y el texto con una resolución interna superior a 1x.\n"
+                          "Nítido: conserva los píxeles de PlayStation 2. Suave: aplica un filtrado similar al de un emulador.\n"
+                          "Sin diferencias a 1x.");
     bool full = v.fullscreen != 0;
-    if (ImGui::Checkbox("Full screen", &full)) { v.fullscreen = full; }
+    if (ImGui::Checkbox("Pantalla completa", &full)) { v.fullscreen = full; }
     ImGui::SameLine();
     ImGui::TextDisabled("(F11)");
     {
         bool vs = v.vsync != 0, fs = v.frameSkip != 0;
-        if (ImGui::Checkbox("V-sync", &vs)) { v.vsync = vs; }
-        ImGui::SetItemTooltip("Each picture waits for the display's refresh. Turn it on if the picture tears.\n"
-                              "Off is the default: it adds a little delay.");
-        if (ImGui::Checkbox("Skip pictures instead of slowing down", &fs)) { v.frameSkip = fs; }
-        ImGui::SetItemTooltip("When this machine cannot show a picture in time, the game normally runs slower.\n"
-                              "With this on it stays at full speed and leaves pictures out instead (choppier,\n"
-                              "not slower). It helps where the graphics chip is the slow part. On by default.");
+        if (ImGui::Checkbox("Sincronización vertical", &vs)) { v.vsync = vs; }
+        ImGui::SetItemTooltip("Cada imagen espera la actualización de la pantalla. Actívalo si observas cortes en la imagen.\n"
+                              "Desactivado por defecto, ya que añade algo de retardo.");
+        if (ImGui::Checkbox("Omitir imágenes para mantener la velocidad", &fs)) { v.frameSkip = fs; }
+        ImGui::SetItemTooltip("Si la PC no puede mostrar una imagen a tiempo, el juego normalmente se ralentiza.\n"
+                              "Con esta opción mantiene la velocidad omitiendo imágenes (menos fluidez,\n"
+                              "sin ralentizarse). Ayuda cuando la GPU limita el rendimiento. Activado por defecto.");
         {
             bool late = Port_LateInput() != 0;
-            if (ImGui::Checkbox("Low input lag (experimental)", &late)) { Port_LateInputSet(late); }
-            ImGui::SetItemTooltip("The game reads the controller, computes, and then waits before the picture is shown:\n"
-                                  "about 33 ms in a fight. With this on the wait comes first, so the picture follows\n"
-                                  "your press by the few milliseconds the machine needs. The game itself is unchanged.\n"
-                                  "Not used online or with in-between pictures. Off by default: on a machine that\n"
-                                  "cannot keep up it may stutter where the original order would not.");
+            if (ImGui::Checkbox("Baja latencia de entrada (experimental)", &late)) { Port_LateInputSet(late); }
+            ImGui::SetItemTooltip("El juego lee el mando, calcula y espera antes de mostrar la imagen:\n"
+                                  "unos 33 ms en combate. Esta opción mueve la espera al inicio, para que la imagen responda\n"
+                                  "a tu pulsación en los pocos milisegundos que necesita la PC. La lógica del juego se conserva.\n"
+                                  "No se usa en línea ni con interpolación. Desactivado por defecto: si la PC no puede\n"
+                                  "mantener el ritmo, puede producir tirones que no ocurren con el orden original.");
         }
     }
     SDL_DisplayID *displays = SDL_GetDisplays(&count);
     if (v.display > count) { v.display = 0; }
-    snprintf(label, sizeof(label), "%s", v.display == 0 ? "Chosen by the desktop" : SDL_GetDisplayName(displays[v.display - 1]));
-    if (ImGui::BeginCombo("Display", label)) {
-        if (ImGui::Selectable("Chosen by the desktop", v.display == 0)) { v.display = 0; }
+    snprintf(label, sizeof(label), "%s", v.display == 0 ? "Elegida por el escritorio" : SDL_GetDisplayName(displays[v.display - 1]));
+    if (ImGui::BeginCombo("Pantalla", label)) {
+        if (ImGui::Selectable("Elegida por el escritorio", v.display == 0)) { v.display = 0; }
         for (int i = 0; i < count; i++) {
             snprintf(label, sizeof(label), "%d: %s", i + 1, SDL_GetDisplayName(displays[i]));
             if (ImGui::Selectable(label, v.display == i + 1)) { v.display = i + 1; }
         }
         ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("Takes effect the next time the game starts.");
+    ImGui::SetItemTooltip("Se aplica al reiniciar el juego.");
     SDL_free(displays);
     {   // which renderer draws the game: Vulkan (the default) or OpenGL 3.3, for machines without a working Vulkan
         static const char *const kApi[] = {"Vulkan", "OpenGL"};
@@ -1251,36 +1283,36 @@ static void video_tab(PortVideo &v) {
         if (api < 0) {
             api = Port_Setting("gpu_api", 0) == 1 ? 1 : 0;
         }
-        if (ImGui::Combo("Renderer", &api, kApi, 2)) {
+        if (ImGui::Combo("Renderizador", &api, kApi, 2)) {
             Port_SettingSave("gpu_api", api);
             Port_SettingsWrite();
         }
-        ImGui::SetItemTooltip("Takes effect the next time the game starts. Both draw the same picture; Vulkan is faster.\n"
-                              "If the chosen one cannot start, the game tries the other.");
+        ImGui::SetItemTooltip("Se aplica al reiniciar. Ambos dibujan la misma imagen; Vulkan es más rápido.\n"
+                              "Si el elegido no puede iniciarse, el juego prueba el otro.");
         if (api != (sGL ? 1 : 0)) {
-            ImGui::TextDisabled("Running now: %s. %s from the next start.", kApi[sGL ? 1 : 0], kApi[api]);
+            ImGui::TextDisabled("En uso: %s. Se usará %s al reiniciar.", kApi[sGL ? 1 : 0], kApi[api]);
         }
-        ImGui::TextWrapped("Active GPU: %s", sGpuName);
+        ImGui::TextWrapped("GPU activa: %s", sGpuName);
     }
     {
         // In-between pictures (gs_draw.c): the fight is computed 30 times a second, as on the console; with this
         // on one more picture is drawn between each two. The game itself, its replays and online play are the same.
-        static const char *kSmooth[] = { "Off (30, as the console)", "60 pictures a second", "120 pictures a second", "240 pictures a second" };
+        static const char *kSmooth[] = { "Desactivado (30, como la consola)", "60 imágenes por segundo", "120 imágenes por segundo", "240 imágenes por segundo" };
         int smooth = gsInterp < 0 ? 0 : gsInterp > 3 ? 3 : gsInterp;
         ImGui::SetNextItemWidth(416.0f);
-        if (ImGui::Combo("Smooth motion", &smooth, kSmooth, 4)) {
+        if (ImGui::Combo("Interpolación de movimiento", &smooth, kSmooth, 4)) {
             gsInterp = smooth;
             Port_SettingSave("interp", gsInterp);
             Port_SettingsWrite();
         }
-        ImGui::SetItemTooltip("Experimental. The game computes a fight 30 times a second. With this, more pictures are\n"
-                              "drawn between each two. The fight itself does not change, and neither does online play.\n"
-                              "The newest picture reaches the screen later: 17 ms at 60, 25 ms at 120, 29 ms at 240.\n"
-                              "Choose what your screen can show. F9 switches it off and on.");
+        ImGui::SetItemTooltip("Experimental. El juego calcula el combate 30 veces por segundo. Esta opción dibuja imágenes\n"
+                              "intermedias. La lógica del combate y de las partidas en línea se conserva.\n"
+                              "La imagen más reciente llega después: 17 ms a 60, 25 ms a 120 y 29 ms a 240.\n"
+                              "Elige una frecuencia compatible con tu pantalla. F9 lo activa y desactiva.");
     }
     {
         bool on = meter_on();
-        if (ImGui::Checkbox("Show frame rate, and the connection in an online match", &on)) {
+        if (ImGui::Checkbox("Mostrar FPS y datos de conexión en partidas en línea", &on)) {
             sMeter = on;
             Port_SettingSave("meter", sMeter);
             Port_SettingsWrite();
@@ -1289,26 +1321,26 @@ static void video_tab(PortVideo &v) {
     ImGui::Spacing();
     if (v.texPackCount > 0) {
         bool on = v.texPack != 0;
-        snprintf(label, sizeof(label), "Texture pack (%d textures)", v.texPackCount);
+        snprintf(label, sizeof(label), "Paquete de texturas (%d texturas)", v.texPackCount);
         if (ImGui::Checkbox(label, &on)) { v.texPack = on; }
-        ImGui::SetItemTooltip("Replacement textures from the folder \"textures\" next to the game.");
+        ImGui::SetItemTooltip("Texturas de reemplazo de la carpeta \"textures\" junto al juego.");
     } else {
         ImGui::BeginDisabled();
         bool off = false;
-        ImGui::Checkbox("Texture pack (none found)", &off);
+        ImGui::Checkbox("Paquete de texturas (ninguno encontrado)", &off);
         ImGui::EndDisabled();
-        ImGui::SetItemTooltip("Put a pack's files (PCSX2 naming, .dds or .png) into a folder \"textures\" next to the game.");
+        ImGui::SetItemTooltip("Coloca los archivos del paquete (nombres PCSX2, .dds o .png) en la carpeta \"textures\" junto al juego.");
     }
 }
 
 static void effects_tab(PortVideo &v) {
     static const struct { const char *name, *tip; } fx[6] = {
-        {"Outline", "The black line around the fighters."},
-        {"See-through tint", "The tint that shows a fighter behind scenery."},
-        {"Depth tint", "The haze that colours distant things."},
-        {"Glare and glow", "The bloom around bright things and the sky's glare."},
-        {"Distance blur", "The soft focus on distant scenery."},
-        {"Movement blur", "The blur of the scenery while the view turns or moves fast."},
+        {"Contorno", "La línea negra que rodea a los luchadores."},
+        {"Silueta tras obstáculos", "Color que permite ver al luchador detrás del escenario."},
+        {"Niebla de profundidad", "La neblina que colorea los elementos lejanos."},
+        {"Destellos y resplandor", "Resplandor de los objetos brillantes y destellos del cielo."},
+        {"Desenfoque de distancia", "Desenfoque de las zonas lejanas del escenario."},
+        {"Desenfoque de movimiento", "Desenfoque del escenario al girar o mover rápido la cámara."},
     };
     for (int i = 0; i < 6; i++) {
         bool on = !((v.fxOff >> i) & 1);
@@ -1316,8 +1348,8 @@ static void effects_tab(PortVideo &v) {
         ImGui::SetItemTooltip("%s", fx[i].tip);
     }
     ImGui::Spacing();
-    ImGui::SliderInt("Glow strength", &v.glow, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetItemTooltip("100%% is what the PlayStation 2 draws; the default here is 60%%.");
+    ImGui::SliderInt("Intensidad del resplandor", &v.glow, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetItemTooltip("100%% es la intensidad original de PlayStation 2; aquí se usa 60%% por defecto.");
 }
 
 // ---- "an update is available" ----
@@ -1351,13 +1383,13 @@ static int update_latest(void) {
 static void misc_tab(void) {
     {
         bool chk = sUpdCheck != 0;
-        if (ImGui::Checkbox("Check for updates", &chk)) {
+        if (ImGui::Checkbox("Buscar actualizaciones", &chk)) {
             sUpdCheck = chk;
             Port_SettingSave("update_check", sUpdCheck);
             Port_SettingsWrite();
         }
-        ImGui::SetItemTooltip("Once per start, ask GitHub for the number of the newest release and say so if it is newer\n"
-                              "than this one. Nothing is downloaded: the settings window then has a button to the page.");
+        ImGui::SetItemTooltip("Consulta una vez al iniciar si hay una versión más reciente en GitHub. Si existe, muestra un aviso\n"
+                              "y un botón para abrir su página. No descarga archivos automáticamente.");
     }
     // the start of the game (PR #50): read by FirstRun_Main, so they count from the next start
     static int sSkipLogos = -1, sSkipIntro = -1, sSkipCopy = -1;
@@ -1368,53 +1400,53 @@ static void misc_tab(void) {
     }
     bool logos = sSkipLogos != 0, intro = sSkipIntro != 0, copy = sSkipCopy != 0;
     ImGui::Spacing();
-    if (ImGui::Checkbox("Skip logos", &logos)) {
+    if (ImGui::Checkbox("Omitir logotipos", &logos)) {
         sSkipLogos = logos;
         Port_SettingSave("skip_logos", sSkipLogos);
         Port_SettingsWrite();
     }
-    ImGui::SetItemTooltip("Start without the publisher and developer logos. From the next start of the game.");
-    if (ImGui::Checkbox("Skip intro video", &intro)) {
+    ImGui::SetItemTooltip("Omite los logotipos del distribuidor y del desarrollador. Se aplica al reiniciar.");
+    if (ImGui::Checkbox("Omitir video de introducción", &intro)) {
         sSkipIntro = intro;
         Port_SettingSave("skip_intro", sSkipIntro);
         Port_SettingsWrite();
     }
-    ImGui::SetItemTooltip("Start without the opening movie. From the next start of the game.");
-    if (ImGui::Checkbox("Skip copyright page", &copy)) {
+    ImGui::SetItemTooltip("Inicia sin el video de introducción. Se aplica al reiniciar.");
+    if (ImGui::Checkbox("Omitir pantalla de derechos de autor", &copy)) {
         sSkipCopy = copy;
         Port_SettingSave("skip_copyright", sSkipCopy);
         Port_SettingsWrite();
     }
-    ImGui::SetItemTooltip("The page of legal text shown for five seconds before the title screen, every time.");
+    ImGui::SetItemTooltip("Omite el texto legal que aparece cinco segundos antes de la pantalla del título.");
     ImGui::Spacing();
     bool chat = PortChat_Enabled() != 0;
-    if (ImGui::Checkbox("Online chat", &chat)) {
+    if (ImGui::Checkbox("Chat en línea", &chat)) {
         PortChat_EnabledSet(chat);
     }
-    ImGui::SetItemTooltip("Text with the other player of an online match. Tab opens a line (setting key_chat), Enter sends it,\n"
-                          "Esc puts it away; while it is typed the keyboard does not play, a controller does. Off: no lines\n"
-                          "are shown or sent. A player without it sees nothing.");
+    ImGui::SetItemTooltip("Chatea con el otro jugador. Tab abre el campo (ajuste key_chat), Intro envía el mensaje\n"
+                          "y Esc lo cierra. Mientras escribes, el teclado no controla el juego; el mando sí. Desactivado: no se\n"
+                          "muestran ni envían mensajes. Un jugador que lo tenga desactivado no verá el chat.");
     if (chat) {
         if (sChatSize < 0) {
             sChatSize = Port_Setting("chat_size", 1);
             if (sChatSize < 0 || sChatSize > 2) sChatSize = 1;
         }
-        static const char *const kChatSizes[] = {"Compact", "Normal", "Large"};
+        static const char *const kChatSizes[] = {"Compacto", "Normal", "Grande"};
         int size = sChatSize;
-        if (ImGui::Combo("Chat size", &size, kChatSizes, 3)) {
+        if (ImGui::Combo("Tamaño del chat", &size, kChatSizes, 3)) {
             sChatSize = size;
             Port_SettingSave("chat_size", sChatSize);
             Port_SettingsWrite();
         }
-        ImGui::SetItemTooltip("How wide the online chat is and how many lines it shows (while typing / otherwise).\n"
-                              "Compact: 4 / 2, narrower.\n"
+        ImGui::SetItemTooltip("Ancho del chat y cantidad de líneas visibles (al escribir / el resto del tiempo).\n"
+                              "Compacto: 4 / 2, más estrecho.\n"
                               "Normal: 6 / 4.\n"
-                              "Large: 8 / 6, wider, for large screens.");
+                              "Grande: 8 / 6, más ancho, para pantallas grandes.");
     }
 }
 
 static void ui_tab(PortVideo &v) {
-    if (ImGui::BeginCombo("Menu font", MenuText_FontName(v.menuFont))) {
+    if (ImGui::BeginCombo("Fuente de los menús", MenuText_FontName(v.menuFont))) {
         for (int i = 0; i < MenuText_FontCount(); i++) {
             if (!MenuText_FontAvailable(i, MENU_TEXT_MENU)) { continue; }
             ImGui::PushID(i);
@@ -1424,8 +1456,8 @@ static void ui_tab(PortVideo &v) {
         }
         ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("Original uses the game's sprites. Other fonts replace matching menu labels immediately.\nBattle announcements have their own setting below.");
-    if (ImGui::BeginCombo("Battle font", MenuText_FontName(v.battleFont))) {
+    ImGui::SetItemTooltip("Original usa los gráficos del juego. Otras fuentes reemplazan los textos compatibles al instante.\nLos anuncios de combate tienen su propio ajuste más abajo.");
+    if (ImGui::BeginCombo("Fuente del combate", MenuText_FontName(v.battleFont))) {
         for (int i = 0; i < MenuText_FontCount(); i++) {
             if (!MenuText_FontAvailable(i, MENU_TEXT_BATTLE)) { continue; }
             ImGui::PushID(i);
@@ -1435,8 +1467,8 @@ static void ui_tab(PortVideo &v) {
         }
         ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("Choose original battle announcements and HUD text, or any battle font listed in fonts.tsv.");
-    if (ImGui::BeginCombo("Dialogue / UI font", MenuText_FontName(v.textFont))) {
+    ImGui::SetItemTooltip("Elige los gráficos originales para los anuncios y el HUD, o una fuente de combate de fonts.tsv.");
+    if (ImGui::BeginCombo("Fuente de diálogos e interfaz", MenuText_FontName(v.textFont))) {
         for (int i = 0; i < MenuText_FontCount(); i++) {
             if (!MenuText_FontAvailable(i, MENU_TEXT_DIALOGUE)) { continue; }
             ImGui::PushID(i);
@@ -1446,65 +1478,65 @@ static void ui_tab(PortVideo &v) {
         }
         ImGui::EndCombo();
     }
-    ImGui::SetItemTooltip("Replace the shared font used by dialogue, subtitles and ordinary UI text.\n"
-                          "Original keeps the game's glyphs. Text placement, colors, shadows and icons are preserved.");
-    static const char *const kHud[] = {"At the screen's edges", "At the edges, long health bars", "In the middle, as in 4:3"};
-    ImGui::Combo("HUD Style", &v.hudLayout, kHud, 3);
-    ImGui::SetItemTooltip("Where a fight's health bars and gauges sit in a picture wider than 4:3.\n"
-                          "Long health bars: the bars reach from the edges to the timer.\n"
-                          "In the middle: the original 4:3 arrangement, next to the timer.");
+    ImGui::SetItemTooltip("Reemplaza la fuente compartida de diálogos, subtítulos y textos de interfaz.\n"
+                          "Original conserva los caracteres del juego. Se mantienen las posiciones, colores, sombras e iconos.");
+    static const char *const kHud[] = {"En los bordes de la pantalla", "En los bordes, barras de salud largas", "En el centro, como en 4:3"};
+    ImGui::Combo("Diseño del HUD", &v.hudLayout, kHud, 3);
+    ImGui::SetItemTooltip("Posición de las barras de salud e indicadores en pantallas más anchas que 4:3.\n"
+                          "Barras largas: llegan desde los bordes hasta el reloj.\n"
+                          "En el centro: disposición original 4:3, junto al reloj.");
     {
         bool m43 = Port_Menus43() != 0;
-        if (ImGui::Checkbox("Menus in 4:3", &m43)) {
+        if (ImGui::Checkbox("Menús en 4:3", &m43)) {
             Port_Menus43Set(m43);
             Port_SettingSave("menus_43", m43);
             Port_SettingsWrite();
         }
-        ImGui::SetItemTooltip("In a picture wider than 4:3, show the menus at their own shape with black at the sides\n"
-                              "instead of stretched to the width. Fights keep the wide picture.");
+        ImGui::SetItemTooltip("En pantallas más anchas que 4:3, muestra los menús con sus proporciones originales y bandas negras\n"
+                              "a los lados. Los combates conservan la imagen panorámica.");
     }
     {
-        static const char *const kBars[] = {"Black", "Border", "Fighter panels"};
+        static const char *const kBars[] = {"Negro", "Borde", "Paneles de luchadores"};
         int b = sBars < 0 ? 0 : sBars;
-        if (ImGui::Combo("Side bars", &b, kBars, 3)) {
+        if (ImGui::Combo("Bandas laterales", &b, kBars, 3)) {
             sBars = b;
             Port_SettingSave("side_bars", sBars);
             Port_SettingsWrite();
         }
-        ImGui::SetItemTooltip("What fills the sides where the picture is narrower than the window:\n"
-                              "a 4:3 picture, or the menus with \"Menus in 4:3\", in a wide window.\n"
-                              "Fighter panels: the border, and in a fight each side's fighter with its name and form.\n"
-                              "Your own: a folder \"bars\" next to the game with trim.png (the strip along the\n"
-                              "picture, kept in proportion) and fill.png (stretched over the rest). Read at start.");
+        ImGui::SetItemTooltip("Contenido de los laterales cuando la imagen es más estrecha que la ventana:\n"
+                              "una imagen 4:3 o los menús con \"Menús en 4:3\", dentro de una ventana panorámica.\n"
+                              "Paneles de luchadores: borde y, en combate, un retrato con el nombre y la forma de cada luchador.\n"
+                              "Personalizados: carpeta \"bars\" junto al juego, con trim.png (franja junto a la imagen,\n"
+                              "conservando su proporción) y fill.png (estirado en el resto). Se carga al iniciar.");
     }
     if (sBars == 2) { // the fighter panels' faces
-        font_picker("Name font", sPanelFont[0], "The fighter's name down the panel. The game's fonts, as for the Menu font\n"
-                                                "(a font of your own: add it to fonts/fonts.tsv). Default: the first of the list.");
-        font_picker("Form font", sPanelFont[1], "The form under the portrait. The game's fonts, as for the Menu font.\n"
-                                                "Default: the first of the list.");
+        font_picker("Fuente del nombre", sPanelFont[0], "Fuente del nombre bajo el retrato. Usa las mismas fuentes que los menús.\n"
+                                                "Para añadir una fuente, regístrala en fonts/fonts.tsv. Por defecto: la primera de la lista.");
+        font_picker("Fuente de la transformación", sPanelFont[1], "Fuente de la transformación bajo el retrato. Usa las mismas fuentes que los menús.\n"
+                                                "Por defecto: la primera de la lista.");
     }
 }
 
 extern "C" int gPortMusicFollows; // snd_adx.c: 1 = looping music is sped up or slowed down with the game
 
 static void audio_tab(PortVideo &v) {
-    ImGui::SliderInt("Music", &v.music, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SliderInt("Sound effects", &v.effects, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetItemTooltip("Hits, blasts, menu sounds. Takes effect with the next sound that starts.");
-    ImGui::SliderInt("Voices", &v.voices, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetItemTooltip("The fighters' voices in a fight and the spoken lines outside one.");
-    ImGui::SliderInt("Stage sounds", &v.stage, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
-    ImGui::SetItemTooltip("A stage's background sound (wind, water) and its own effects.");
+    ImGui::SliderInt("Música", &v.music, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SliderInt("Efectos de sonido", &v.effects, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetItemTooltip("Golpes, ráfagas y sonidos de menús. Se aplica al siguiente sonido que se reproduzca.");
+    ImGui::SliderInt("Voces", &v.voices, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetItemTooltip("Voces de los luchadores en combate y diálogos fuera de él.");
+    ImGui::SliderInt("Sonidos del escenario", &v.stage, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SetItemTooltip("Sonido ambiente del escenario (viento, agua) y sus efectos.");
     {
         bool follows = gPortMusicFollows > 0;
         ImGui::Spacing();
-        if (ImGui::Checkbox("Music follows game speed", &follows)) {
+        if (ImGui::Checkbox("Adaptar música a la velocidad del juego", &follows)) {
             gPortMusicFollows = follows;
             Port_SettingSave("music_follows_speed", follows);
         }
-        ImGui::SetItemTooltip("When the game runs at another speed than 100%% (an online match, the Cheats tab):\n"
-                              "off, the music plays as it is; on, it is sped up or slowed down with the game,\n"
-                              "at its own pitch, as an emulator does. Spoken lines always follow the game.");
+        ImGui::SetItemTooltip("Cuando el juego usa una velocidad distinta de 100%% (partidas en línea o pestaña Trucos):\n"
+                              "desactivado, la música suena a su velocidad normal; activado, sigue la velocidad del juego,\n"
+                              "conservando su tono, como en un emulador. Las voces siempre siguen al juego.");
     }
 }
 
@@ -1521,6 +1553,60 @@ int Port_NetSession(void);
 
 // Character packages (the `characters` folder next to the game; docs/port/character_packages.md): what is
 // installed, what each folder does, and what was found wrong with it.
+// Translate loader diagnostics at the UI boundary, keeping logs and package parsing unchanged.
+static const char *package_issue_es(const char *text) {
+    static char out[2048];
+    static const struct { const char *en, *es; } parts[] = {
+        {"base has no character id from 0 to 160; 0 is used", "base no contiene un ID de 0 a 160; se usa 0"},
+        {"replaces has no character id from 0 to 160", "replaces no contiene un ID de 0 a 160"},
+        {"made for package format ", "creado para el formato de paquete "},
+        {"; this game knows format ", "; el juego admite el formato "},
+        {" and reads what it knows", " y lee los campos compatibles"},
+        {" is not a number from ", " no es un número entre "},
+        {" to ", " y "},
+        {"; the character's own is used", "; se usa el valor original del personaje"},
+        {" cannot be read; that file is left out", " no se puede leer; se omite ese archivo"},
+        {" is empty; that file is left out", " está vacío; se omite ese archivo"},
+        {" is ", " tiene "},
+        {" bytes, more than the ", " bytes, por encima del límite de "},
+        {"1.5 MB a model may have; the character is left out", "1,5 MB por modelo; se omite el personaje"},
+        {" the game has room for (", " bytes del juego ("},
+        {"); that file is left out", "); se omite ese archivo"},
+        {"chip.bin is not a chip of the game (one entry of the select's chip pack, 5504 bytes); the chip is left out", "chip.bin no es un retrato válido de selección de 5504 bytes; se omite"},
+        {"replaces character ", "reemplaza al personaje "},
+        {" but holds nothing to put in its place", " pero no contiene archivos de reemplazo"},
+        {"character ", "personaje "},
+        {" is already replaced by ", " ya está reemplazado por "},
+        {" (the first by name counts)", " (se usa el primero por nombre)"},
+        {"no model of the first costume (*_1p.pak) and no `replaces`: not a character", "falta el modelo del primer traje (*_1p.pak) y replaces: no es un personaje válido"},
+        {"there are already ", "ya hay "},
+        {" added characters, the most the game takes", " personajes añadidos, el máximo admitido"},
+        {", named as a link, is not installed; that ", ", indicado como enlace, no está instalado; se omite esa "},
+        {"transformation", "transformación"}, {"fusion", "fusión"},
+        {" is left out", ""},
+        {"there is no character ", "no existe el personaje "},
+        {"its model file (", "el archivo de modelo ("},
+        {"its animation file (", "el archivo de animación ("},
+        {") is empty in the game data", ") está vacío en los datos del juego"},
+        {") is not in the game data", ") no se encuentra en los datos del juego"}
+    };
+    size_t used = 0;
+    while (*text && used + 1 < sizeof(out)) {
+        const char *replacement = NULL; size_t matched = 0;
+        for (const auto &part : parts) {
+            size_t n = strlen(part.en);
+            if (n > matched && strncmp(text, part.en, n) == 0) { matched = n; replacement = part.es; }
+        }
+        if (replacement) {
+            size_t n = strlen(replacement);
+            if (n >= sizeof(out) - used) break;
+            memcpy(out + used, replacement, n); used += n; text += matched;
+        } else { out[used++] = *text++; }
+    }
+    out[used] = 0;
+    return out;
+}
+
 static void mods_tab(void) {
     int count = Port_CharaPkgCount(), added = 0, replaced = 0, off = 0;
     for (int i = 0; i < count; i++) {
@@ -1530,28 +1616,28 @@ static void mods_tab(void) {
         off += p->kind == PORT_PKG_OFF;
     }
     if (Port_NetSession()) {
-        ImGui::TextWrapped("Character packages are not part of online play: an online match has the game's own characters only, "
-                           "and nothing of the \"characters\" folder is loaded.");
+        ImGui::TextWrapped("El online clásico de dos jugadores usa solo personajes originales; "
+                           "no carga la carpeta \"characters\". El Raid cooperativo sí permite paquetes idénticos entre participantes.");
         ImGui::Spacing();
     } else if (count == 0) {
-        ImGui::TextWrapped("No character packages. A package is a folder in \"characters\" next to the game: it adds a character, "
-                           "or replaces one of the game's.");
+        ImGui::TextWrapped("No hay paquetes de personajes. Cada carpeta dentro de \"characters\" junto al juego añade un personaje "
+                           "o reemplaza uno original.");
         return;
     }
-    ImGui::Text("Character packages: %d added, %d replacing", added, replaced);
+    ImGui::Text("Paquetes de personajes: %d añadidos, %d reemplazos", added, replaced);
     if (off > 0) {
         ImGui::SameLine();
-        ImGui::Text("(%d not used)", off);
+        ImGui::Text("(%d sin usar)", off);
     }
     ImGui::Spacing();
     if (!Port_NetSession()) {
         bool pool = Port_CharaPool() != 0;
-        if (ImGui::Checkbox("Added characters in random picks", &pool)) {
+        if (ImGui::Checkbox("Incluir personajes añadidos en la selección aleatoria", &pool)) {
             Port_CharaPoolSet(pool);
         }
-        ImGui::SetItemTooltip("Off: the \"random\" cell of the character select and the computer's entrants of a tournament are\n"
-                              "drawn from the game's own characters, as in the original. On: the added characters are in the draw too.\n"
-                              "The computer then plays them with the behaviour of the character each is based on.");
+        ImGui::SetItemTooltip("Desactivado: la casilla aleatoria y los participantes CPU de los torneos eligen personajes\n"
+                              "originales. Activado: los personajes añadidos también participan en la selección.\n"
+                              "La CPU usa el comportamiento del personaje en el que se basa cada uno.");
         ImGui::Spacing();
     }
     {
@@ -1562,24 +1648,24 @@ static void mods_tab(void) {
             ImGui::TextUnformatted(p->name[0] != '\0' ? p->name : p->folder);
             ImGui::SameLine();
             if (p->kind == PORT_PKG_ADDS) {
-                ImGui::TextDisabled("adds a character (id %d)", p->id);
+                ImGui::TextDisabled("añade un personaje (ID %d)", p->id);
             } else if (p->kind == PORT_PKG_REPLACES) {
-                ImGui::TextDisabled("replaces character %d", p->id);
+                ImGui::TextDisabled("reemplaza al personaje %d", p->id);
             } else {
-                ImGui::TextDisabled("not used");
+                ImGui::TextDisabled("sin usar");
             }
             if (p->author[0] != '\0' || p->version[0] != '\0') {
                 ImGui::SameLine();
                 ImGui::TextDisabled("- %s%s%s", p->author, p->author[0] != '\0' && p->version[0] != '\0' ? ", " : "", p->version);
             }
             ImGui::Indent();
-            ImGui::TextDisabled("folder: %s", p->folder);
+            ImGui::TextDisabled("carpeta: %s", p->folder);
             if (p->about[0] != '\0') {
                 ImGui::TextWrapped("%s", p->about);
             }
             if (p->problem[0] != '\0') {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.75f, 0.35f, 1.0f));
-                ImGui::TextWrapped("%s", p->problem);
+                ImGui::TextWrapped("%s", package_issue_es(p->problem));
                 ImGui::PopStyleColor();
             }
             ImGui::Unindent();
@@ -1595,43 +1681,43 @@ extern "C" void Port_AudioRefresh(void);
 static void cheats_tab(void) {
     {
         int speed = Port_GameSpeed();
-        if (ImGui::SliderInt("Game speed", &speed, 50, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp)) {
+        if (ImGui::SliderInt("Velocidad del juego", &speed, 50, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp)) {
             Port_GameSpeedSet(speed);
             Port_AudioRefresh();
         }
-        ImGui::SetItemTooltip("How fast the game runs outside online play (the sound keeps its pitch). 100%% is the game's own;\n"
-                              "114%% is what competitive play uses. An online match never uses this value:\n"
-                              "its speed is the host's or the queue's.");
+        ImGui::SetItemTooltip("Velocidad fuera de las partidas en línea (el sonido conserva su tono). 100%% es la velocidad original;\n"
+                              "114%% es la usada en competitivo. Las partidas en línea tienen su propia velocidad,\n"
+                              "elegida por el anfitrión o la cola de búsqueda.");
         ImGui::SameLine();
-        if (ImGui::Button("Reset")) {
+        if (ImGui::Button("Restablecer")) {
             Port_GameSpeedSet(100);
             Port_AudioRefresh();
         }
         ImGui::Separator();
         ImGui::Spacing();
     }
-    ImGui::TextWrapped("Unlock everything: all characters, stages, music and items, and the largest amount of Zenni. "
-                       "This is a debug function the game's developers left in.");
+    ImGui::TextWrapped("Desbloquea todos los personajes, escenarios, música, objetos y la cantidad máxima de zenis. "
+                       "Es una función de depuración de los desarrolladores originales.");
     ImGui::Spacing();
-    ImGui::TextWrapped("It also empties your records list, and it becomes permanent the next time the game saves. "
-                       "Use it after your save has been loaded (from the main menu on).");
+    ImGui::TextWrapped("También vacía tus récords y se vuelve permanente al guardar la partida. "
+                       "Úsala después de cargar tu partida, desde el menú principal.");
     ImGui::Spacing();
-    if (ImGui::Button("Unlock everything...")) {
-        ImGui::OpenPopup("Unlock everything?");
+    if (ImGui::Button("Desbloquear todo...")) {
+        ImGui::OpenPopup("¿Desbloquear todo?");
     }
     if (gPortUnlockDone) {
         ImGui::SameLine();
-        ImGui::TextUnformatted("Done.");
+        ImGui::TextUnformatted("Hecho.");
     }
-    if (ImGui::BeginPopupModal("Unlock everything?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextUnformatted("Your records list will be emptied. This cannot be undone once the game saves.");
+    if (ImGui::BeginPopupModal("¿Desbloquear todo?", NULL, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextUnformatted("Se vaciará tu lista de récords. No podrás deshacerlo después de guardar la partida.");
         ImGui::Spacing();
-        if (ImGui::Button("Unlock", ImVec2(140.0f, 0.0f))) {
+        if (ImGui::Button("Desbloquear", ImVec2(140.0f, 0.0f))) {
             gPortUnlockAll = 1;
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
-        if (ImGui::Button("Cancel", ImVec2(140.0f, 0.0f))) {
+        if (ImGui::Button("Cancelar", ImVec2(140.0f, 0.0f))) {
             ImGui::CloseCurrentPopup();
         }
         ImGui::EndPopup();
@@ -1645,7 +1731,7 @@ static void chara_label(char *out, size_t size, int chara) {
     if (name[0] != '\0') {
         snprintf(out, size, "%s  (%d)", name, chara);
     } else {
-        snprintf(out, size, "Character %d", chara);
+        snprintf(out, size, "Personaje %d", chara);
     }
 }
 
@@ -1657,14 +1743,14 @@ static void experiments_tab(void) {
     if (!ImGui::CollapsingHeader("Opciones avanzadas de Tag Team y Entrenamiento")) return;
     static const char *const kTeams[] = {"Equipo 1 (Jugador 1)", "Equipo 2 (Jugador 2)", "Por su cuenta (Contra todos)"};
     static const char *const kLast[] = {NULL,
-                                        "El Ãºltimo combate tuvo el tercer luchador activo.",
-                                        "El Ãºltimo combate fue original: el luchador extra de esta opcion solo se aplica en Entrenamiento.",
-                                        "El Ãºltimo combate fue original: un bando tenÃ­a mÃ¡s de un integrante.",
-                                        "El Ãºltimo combate fue original: la pantalla ya estaba dividida para dos jugadores.",
-                                        "El Ãºltimo combate fue original: era una repeticiÃ³n.",
-                                        "El Ãºltimo combate fue original: combate de historia con guiÃ³n.",
-                                        "El Ãºltimo combate fue original: las partidas online no permiten luchador extra.",
-                                        "El Ãºltimo combate fue original: no se encontraron los archivos del personaje."};
+                                        "El último combate tuvo el tercer luchador activo.",
+                                        "El último combate fue original: el luchador extra de esta opcion solo se aplica en Entrenamiento.",
+                                        "El último combate fue original: un bando tenía más de un integrante.",
+                                        "El último combate fue original: la pantalla ya estaba dividida para dos jugadores.",
+                                        "El último combate fue original: era una repetición.",
+                                        "El último combate fue original: combate de historia con guión.",
+                                        "El último combate fue original: las partidas online no permiten luchador extra.",
+                                        "El último combate fue original: no se encontraron los archivos del personaje."};
     static int checked = -1, ok, age; // the character whose files were looked for, what came of it, frames since
     static char why[160], refused[320];
     int count = Port_ExtraCount(), chara = Port_ExtraChara(0), team = Port_ExtraTeam(0), level = Port_ExtraLevel(0);
@@ -1682,8 +1768,8 @@ static void experiments_tab(void) {
         if (ImGui::Combo("Jugadores en esta PC", &local, kLocal, 4)) {
             Port_LocalPlayersSet(local + 1);
         }
-        ImGui::TextWrapped("Para Batalla por Equipos o Todos Contra Todos (pulsa SELECT en el MenÃº Principal), con "
-                           "dos o mÃ¡s luchadores por equipo: el mando 3 controla al 2Âº luchador del Equipo 1, y el mando 4 al 2Âº del Equipo 2. "
+        ImGui::TextWrapped("Para Batalla por Equipos o Todos Contra Todos (pulsa SELECT en el Menú Principal), con "
+                           "dos o más luchadores por equipo: el mando 3 controla al 2º luchador del Equipo 1, y el mando 4 al 2º del Equipo 2. "
                            "La pantalla se divide en 4 cuadrantes (uno para cada jugador).");
     }
     ImGui::Spacing();
@@ -1725,7 +1811,7 @@ static void experiments_tab(void) {
                         chara = c;
                         refused[0] = '\0';
                     } else {
-                        snprintf(refused, sizeof(refused), "%s no se pudo usar: %s.", label, why);
+                        snprintf(refused, sizeof(refused), "%s no se pudo usar: %s.", label, package_issue_es(why));
                     }
                 }
                 if (c == chara) {
@@ -1742,13 +1828,13 @@ static void experiments_tab(void) {
                 team = at == 2 ? -1 : at;
             }
         }
-        ImGui::SetItemTooltip("De quÃ© bando pelea. Los luchadores del mismo equipo no se golpean entre sÃ­.\n"
+        ImGui::SetItemTooltip("De qué bando pelea. Los luchadores del mismo equipo no se golpean entre sí.\n"
                               "Por su cuenta: pelea contra ambos jugadores (todos contra todos).");
         ImGui::TableNextColumn();
         ImGui::SetNextItemWidth(-FLT_MIN);
         ImGui::SliderInt("##level", &level, 0, 29, "%d", ImGuiSliderFlags_AlwaysClamp);
         ImGui::SetItemTooltip("Dificultad de la CPU de 0 a 29.\n"
-                              "Los cinco niveles estÃ¡ndar del juego son: 0, 6, 13 (Normal), 21 y 29 (Muy difÃ­cil).");
+                              "Los cinco niveles estándar del juego son: 0, 6, 13 (Normal), 21 y 29 (Muy difícil).");
         ImGui::PopID();
         ImGui::EndTable();
     }
@@ -1768,20 +1854,20 @@ static void experiments_tab(void) {
     }
     if (on && !ok) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.5f, 0.4f, 1.0f));
-        ImGui::TextWrapped("Este personaje no se puede usar: %s. Los combates siguen normales hasta que elijas otro.", why);
+        ImGui::TextWrapped("Este personaje no se puede usar: %s. Los combates siguen normales hasta que elijas otro.", package_issue_es(why));
         ImGui::PopStyleColor();
     }
     ImGui::Spacing();
     ImGui::Separator();
     ImGui::Spacing();
     ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.2f, 1.0f), "INSTRUCCIONES PARA ACTIVAR MODOS EXTRA (TAG TEAM / EXTRA FIGHTERS):");
-    ImGui::TextWrapped("1. En la pantalla del MENÃš PRINCIPAL del juego, pulsa la tecla o botÃ³n asignado a SELECT.\n"
-                       "2. El menÃº cambiarÃ¡ y mostrarÃ¡: 'Team Battle' (Batalla por Equipos simultÃ¡nea), 'Free-for-All' (Todos contra todos) y 'Training'.\n"
-                       "3. Elige el nÃºmero de jugadores (1 a 4) y selecciona tus luchadores en la pantalla de equipos.\n"
-                       "4. Â¡En el combate lucharÃ¡n todos los personajes simultÃ¡neamente en la misma arena!");
+    ImGui::TextWrapped("1. En la pantalla del MENÚ PRINCIPAL del juego, pulsa la tecla o botón asignado a SELECT.\n"
+                       "2. El menú cambiará y mostrará: 'Batalla por equipos' (simultánea), 'Todos contra todos' y 'Entrenamiento'.\n"
+                       "3. Elige el número de jugadores (1 a 4) y selecciona tus luchadores en la pantalla de equipos.\n"
+                       "4. ¡En el combate lucharán todos los personajes simultáneamente en la misma arena!");
     if (Port_ModesFight() != PORT_MODE_NONE) {
         ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.3f, 1.0f, 0.3f, 1.0f));
-        ImGui::TextWrapped("Modo actual activo: %s (se mantendrÃ¡ hasta que vuelvas al MenÃº Principal).",
+        ImGui::TextWrapped("Modo actual activo: %s (se mantendrá hasta que vuelvas al Menú Principal).",
                            Port_ModesName(Port_ModesFight()));
         ImGui::PopStyleColor();
     }
@@ -1796,8 +1882,8 @@ static void experiments_tab(void) {
 // the triggers, and the settings for these and for vibration. For seeing a stick that drifts and choosing a deadzone
 // that covers it.
 static void sticks_panel(int player) {
-    static const char *const kStick[2] = {"Left stick", "Right stick"}, *const kTrigger[2] = {"Left trigger", "Right trigger"};
-    static const char *const kDir[5] = {"", "up", "down", "left", "right"};
+    static const char *const kStick[2] = {"Palanca izquierda", "Palanca derecha"}, *const kTrigger[2] = {"Gatillo izquierdo", "Gatillo derecho"};
+    static const char *const kDir[5] = {"", "arriba", "abajo", "izquierda", "derecha"};
     const float R = 42.0f, box = 2.0f * R + 8.0f;
     const ImU32 colZone = ImGui::GetColorU32(ImGuiCol_Text, 0.22f);
     const ImU32 colRaw = ImGui::GetColorU32(ImGuiCol_Text), colGame = ImGui::GetColorU32(ImVec4(1.0f, 0.75f, 0.2f, 1.0f));
@@ -1840,62 +1926,62 @@ static void sticks_panel(int player) {
         ImGui::AlignTextToFramePadding(); // (in both cells: the second one's lines start that much lower anyway)
         if (view.connected) {
             ImGui::Text(view.dir[s] != 0 ? "%s: %s" : "%s", kStick[s], kDir[view.dir[s]]);
-            ImGui::Text("stick  %+.2f %+.2f", view.raw[s][0], view.raw[s][1]);
-            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(colGame), "game   %+.2f %+.2f", view.game[s][0], view.game[s][1]);
+            ImGui::Text("palanca %+.2f %+.2f", view.raw[s][0], view.raw[s][1]);
+            ImGui::TextColored(ImGui::ColorConvertU32ToFloat4(colGame), "juego   %+.2f %+.2f", view.game[s][0], view.game[s][1]);
         } else {
             ImGui::TextUnformatted(kStick[s]);
-            ImGui::TextDisabled("no controller");
+            ImGui::TextDisabled("sin mando");
             ImGui::TextDisabled(" ");
         }
         ImGui::SetNextItemWidth(100.0f);
-        snprintf(label, sizeof(label), "Deadzone##%d", s);
+        snprintf(label, sizeof(label), "Zona muerta##%d", s);
         ImGui::SliderInt(label, &dead[s], -1, PORT_DEADZONE_MAX, dead[s] < 0 ? "Original" : "%d%%", ImGuiSliderFlags_AlwaysClamp);
         if (ImGui::IsItemDeactivatedAfterEdit()) {
             PortInput_Save();
         }
-        ImGui::SetItemTooltip("How far the stick has to be moved before the game is told anything (the shaded middle).\n"
-                              "Original: the game's own, 39%% for left / right and for up / down separately, a square.\n"
-                              "0%% to 90%%: a round one of that size instead; from its edge the value grows evenly\n"
-                              "to full at full tilt, and the stick counts as a direction half way between the two.\n"
-                              "The white dot is the stick, the ring what the game is given; after the stick's name,\n"
-                              "the direction the game takes it for. Choose a size that covers where the dot rests\n"
-                              "when the stick is let go.");
+        ImGui::SetItemTooltip("Distancia que debe moverse la palanca antes de registrar una entrada (zona central sombreada).\n"
+                              "Original: 39%% en cada eje por separado, formando un cuadrado.\n"
+                              "De 0%% a 90%%: zona circular de ese tamaño. Desde su borde, el valor aumenta de forma uniforme\n"
+                              "hasta el máximo al inclinar por completo. La dirección se registra a mitad del recorrido restante.\n"
+                              "El punto blanco muestra la palanca y el anillo la entrada enviada al juego. Tras el nombre aparece\n"
+                              "la dirección que interpreta el juego. Elige un tamaño que cubra la posición del punto\n"
+                              "cuando sueltas la palanca.");
         ImGui::EndGroup();
     }
     for (int s = 0; s < 2; s++) {
         ImGui::TableNextColumn();
-        snprintf(label, sizeof(label), "%d%%%s", (int)(view.trigger[s] * 100.0f + 0.5f), view.triggerHeld[s] ? " pressed" : "");
+        snprintf(label, sizeof(label), "%d%%%s", (int)(view.trigger[s] * 100.0f + 0.5f), view.triggerHeld[s] ? " pulsado" : "");
         ImGui::ProgressBar(view.trigger[s], ImVec2(144.0f, 0.0f), label);
-        ImGui::SetItemTooltip("A trigger counts as pressed from %d%% on. The game is told pressed or not, nothing between.",
+        ImGui::SetItemTooltip("El gatillo cuenta como pulsado a partir de %d%%. El juego solo distingue entre pulsado y suelto.",
                               (PORT_TRIGGER_AT * 100 + 16383) / 32767);
         ImGui::SameLine(0.0f, ImGui::GetStyle().ItemInnerSpacing.x);
         ImGui::TextUnformatted(kTrigger[s]);
     }
     ImGui::EndTable();
     bool on = vib[0] != 0;
-    if (ImGui::Checkbox("Vibration", &on)) {
+    if (ImGui::Checkbox("Vibración", &on)) {
         vib[0] = on;
         PortInput_Save();
     }
-    ImGui::SetItemTooltip("The game's own vibration (hits, clashes, charging), on this player's controller.\n"
-                          "The game's Options > Controller > Vibration has to be on as well: it is, unless you turned it off.\n"
-                          "The game gives none in a replay or for a side the computer plays.");
+    ImGui::SetItemTooltip("Vibración del juego (golpes, choques y carga de energía) en el mando de este jugador.\n"
+                          "También debe estar activada en Opciones > Mando > Vibración dentro del juego.\n"
+                          "No hay vibración en repeticiones ni para un bando controlado por la CPU.");
     ImGui::BeginDisabled(!on);
     ImGui::SameLine();
     ImGui::SetNextItemWidth(160.0f);
-    ImGui::SliderInt("Strength", &vib[1], 0, 100, "%d%%", ImGuiSliderFlags_AlwaysClamp);
+    ImGui::SliderInt("Intensidad", &vib[1], 0, 100, "%d%%", ImGuiSliderFlags_AlwaysClamp);
     if (ImGui::IsItemDeactivatedAfterEdit()) {
         PortInput_Save();
     }
     ImGui::SameLine();
-    if (ImGui::Button("Test")) {
+    if (ImGui::Button("Probar")) {
         PortInput_VibrationTest(player);
     }
-    ImGui::SetItemTooltip("Half a second of both motors at this strength.");
+    ImGui::SetItemTooltip("Activa ambos motores durante medio segundo con esta intensidad.");
     ImGui::EndDisabled();
     if (view.connected && !view.canVibrate) {
         ImGui::SameLine();
-        ImGui::TextDisabled("(this controller has none)");
+        ImGui::TextDisabled("(este mando no tiene vibración)");
     }
 }
 
@@ -1904,30 +1990,30 @@ static void controls_tab(void) {
     char label[96];
     int count = 0;
 
-    ImGui::RadioButton("Player 1", &player, 0);
+    ImGui::RadioButton("Jugador 1", &player, 0);
     ImGui::SameLine();
-    ImGui::RadioButton("Player 2", &player, 1);
+    ImGui::RadioButton("Jugador 2", &player, 1);
     ImGui::SameLine();
-    ImGui::RadioButton("Player 3", &player, 2); // (players 3 and 4: four local players, Experiments tab)
+    ImGui::RadioButton("Jugador 3", &player, 2); // (players 3 and 4: four local players, Experiments tab)
     ImGui::SameLine();
-    ImGui::RadioButton("Player 4", &player, 3);
+    ImGui::RadioButton("Jugador 4", &player, 3);
     int *slot = PortInput_PadSlot(player), *keys = PortInput_Keys(player), *pads = PortInput_PadButtons(player);
     SDL_JoystickID *ids = SDL_GetGamepads(&count);
     if (*slot < 0) {
-        snprintf(label, sizeof(label), "None");
+        snprintf(label, sizeof(label), "Ninguno");
     } else if (*slot < count) {
         snprintf(label, sizeof(label), "%d: %s", *slot + 1, SDL_GetGamepadNameForID(ids[*slot]));
     } else {
-        snprintf(label, sizeof(label), "Controller %d (not connected)", *slot + 1);
+        snprintf(label, sizeof(label), "Mando %d (desconectado)", *slot + 1);
     }
     ImGui::SetNextItemWidth(300.0f);
-    if (ImGui::BeginCombo("Controller", label)) {
-        if (ImGui::Selectable("None", *slot < 0)) { *slot = -1; PortInput_Save(); }
+    if (ImGui::BeginCombo("Mando", label)) {
+        if (ImGui::Selectable("Ninguno", *slot < 0)) { *slot = -1; PortInput_Save(); }
         for (int i = 0; i < (count > 4 ? count : 4); i++) {
             if (i < count) {
                 snprintf(label, sizeof(label), "%d: %s", i + 1, SDL_GetGamepadNameForID(ids[i]));
             } else {
-                snprintf(label, sizeof(label), "Controller %d (not connected)", i + 1);
+                snprintf(label, sizeof(label), "Mando %d (desconectado)", i + 1);
             }
             if (ImGui::Selectable(label, *slot == i)) { *slot = i; PortInput_Save(); }
         }
@@ -1935,22 +2021,22 @@ static void controls_tab(void) {
     }
     SDL_free(ids);
     ImGui::SameLine();
-    if (ImGui::Button("Reset to defaults")) {
+    if (ImGui::Button("Restablecer valores predeterminados")) {
         PortInput_ResetDefaults(player);
         PortInput_Save();
     }
-    if (ImGui::CollapsingHeader("Sticks, triggers and vibration", ImGuiTreeNodeFlags_DefaultOpen)) {
+    if (ImGui::CollapsingHeader("Palancas, gatillos y vibración", ImGuiTreeNodeFlags_DefaultOpen)) {
         sticks_panel(player);
     }
-    ImGui::TextDisabled("Choose a binding, then press the new key or button. Esc keeps it, Delete clears it;");
-    ImGui::TextDisabled("with a controller, press nothing for five seconds to keep it.");
+    ImGui::TextDisabled("Elige una asignación y pulsa la nueva tecla o botón. Esc conserva la actual; Supr la borra.");
+    ImGui::TextDisabled("Con un mando, espera cinco segundos sin pulsar nada para conservarla.");
     // (never lower than a few rows: in a small window the tab scrolls as a whole instead)
     if (ImGui::BeginTable("bindings", 3, ImGuiTableFlags_RowBg | ImGuiTableFlags_ScrollY | ImGuiTableFlags_BordersInnerV,
                           ImVec2(0.0f, ImGui::GetContentRegionAvail().y > 140.0f ? ImGui::GetContentRegionAvail().y : 140.0f))) {
         ImGui::TableSetupScrollFreeze(0, 1);
-        ImGui::TableSetupColumn("Action");
-        ImGui::TableSetupColumn("Keyboard");
-        ImGui::TableSetupColumn("Controller");
+        ImGui::TableSetupColumn("Acción");
+        ImGui::TableSetupColumn("Teclado");
+        ImGui::TableSetupColumn("Mando");
         ImGui::TableHeadersRow();
         {   // what opens and closes this window (not a player's: one for the program)
             const int a = PORT_ACTIONS;
@@ -1959,14 +2045,14 @@ static void controls_tab(void) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted("Open this window");
+            ImGui::TextUnformatted("Abrir este menú");
             ImGui::TableNextColumn();
-            snprintf(label, sizeof(label), "%s##k%d", waitKey ? "press a key..." : key > 0 ? SDL_GetScancodeName((SDL_Scancode)key) : "-", a);
+            snprintf(label, sizeof(label), "%s##k%d", waitKey ? "pulsa una tecla..." : key > 0 ? key_caption((SDL_Scancode)key) : "-", a);
             if (ImGui::Button(label, ImVec2(-FLT_MIN, 0.0f))) {
                 capture(1, player, a);
             }
             ImGui::TableNextColumn();
-            snprintf(label, sizeof(label), "%s##p%d", waitPad ? "press a button..." : pad >= 0 ? pad_source_name(pad) : "START + SELECT", a);
+            snprintf(label, sizeof(label), "%s##p%d", waitPad ? "pulsa un botón..." : pad >= 0 ? pad_source_name(pad) : "START + SELECT", a);
             if (ImGui::Button(label, ImVec2(-FLT_MIN, 0.0f))) {
                 capture(2, player, a);
             }
@@ -1978,9 +2064,9 @@ static void controls_tab(void) {
             ImGui::TableNextRow();
             ImGui::TableNextColumn();
             ImGui::AlignTextToFramePadding();
-            ImGui::TextUnformatted("Open online chat");
+            ImGui::TextUnformatted("Abrir chat en línea");
             ImGui::TableNextColumn();
-            snprintf(label, sizeof(label), "%s##k%d", waitKey ? "press a key..." : key > 0 ? SDL_GetScancodeName((SDL_Scancode)key) : "Tab", a);
+            snprintf(label, sizeof(label), "%s##k%d", waitKey ? "pulsa una tecla..." : key > 0 ? key_caption((SDL_Scancode)key) : "Tab", a);
             if (ImGui::Button(label, ImVec2(-FLT_MIN, 0.0f))) {
                 capture(1, player, a);
             }
@@ -1995,19 +2081,19 @@ static void controls_tab(void) {
             ImGui::AlignTextToFramePadding();
             ImGui::TextUnformatted(PortInput_ActionLabel(a));
             ImGui::TableNextColumn();
-            snprintf(label, sizeof(label), "%s##k%d", waitKey ? "press a key..." : keys[a] > 0 ? SDL_GetScancodeName((SDL_Scancode)keys[a]) : "-", a);
+            snprintf(label, sizeof(label), "%s##k%d", waitKey ? "pulsa una tecla..." : keys[a] > 0 ? key_caption((SDL_Scancode)keys[a]) : "-", a);
             if (ImGui::Button(label, ImVec2(-FLT_MIN, 0.0f))) {
                 capture(1, player, a);
             }
             ImGui::TableNextColumn();
             if (a < PORT_PAD_BUTTONS) {
-                snprintf(label, sizeof(label), "%s##p%d", waitPad ? "press a button..." : pad_source_name(pads[a]), a);
+                snprintf(label, sizeof(label), "%s##p%d", waitPad ? "pulsa un botón..." : pad_source_name(pads[a]), a);
                 if (ImGui::Button(label, ImVec2(-FLT_MIN, 0.0f))) {
                     capture(2, player, a);
                 }
             } else {
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextDisabled(a < 20 ? "Left stick" : "Right stick");
+                ImGui::TextDisabled(a < 20 ? "Palanca izquierda" : "Palanca derecha");
             }
         }
         ImGui::EndTable();
@@ -2038,19 +2124,19 @@ static void build(void) {
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
     // (760 high where the picture has the room: the Controls tab's sticks and its list of bindings together)
     // (and 690 wide: the eight tabs' names side by side)
-    ImGui::SetNextWindowSize(ImVec2(690.0f, io.DisplaySize.y >= 800.0f ? 760.0f : 600.0f), ImGuiCond_Appearing);
-    if (ImGui::Begin("Settings", &open, ImGuiWindowFlags_NoCollapse)) {
+    ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x >= 1000.0f ? 900.0f : io.DisplaySize.x * .94f, io.DisplaySize.y >= 800.0f ? 760.0f : 600.0f), ImGuiCond_Appearing);
+    if (ImGui::Begin("Ajustes", &open, ImGuiWindowFlags_NoCollapse)) {
         {
             int latest = update_latest();
             if (latest > PORT_RELEASE) {
                 ImGui::AlignTextToFramePadding();
-                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Update available: 0.%d.%d (this is 0.%d.%d).", latest / 100, latest % 100,
+                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Actualización disponible: 0.%d.%d (versión actual: 0.%d.%d).", latest / 100, latest % 100,
                                    PORT_RELEASE / 100, PORT_RELEASE % 100);
                 ImGui::SameLine();
-                if (ImGui::Button("Download page")) {
+                if (ImGui::Button("Página de descarga")) {
                     SDL_OpenURL("https://github.com/" PORT_UPDATE_REPO "/releases/latest");
                 }
-                ImGui::SetItemTooltip("Opens the release page in your browser. To update, copy the new files over the old ones.");
+                ImGui::SetItemTooltip("Abre la página de la versión en tu navegador. Para actualizar, reemplaza los archivos anteriores por los nuevos.");
                 ImGui::Separator();
             }
         }
@@ -2058,18 +2144,18 @@ static void build(void) {
         ImGui::BeginChild("body", ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing() - ImGui::GetStyle().ItemSpacing.y), ImGuiChildFlags_NavFlattened);
         if (ImGui::BeginTabBar("tabs")) {
             if (tab("Video", 0)) { video_tab(v); ImGui::EndTabItem(); }
-            if (tab("Effects", 1)) { effects_tab(v); ImGui::EndTabItem(); }
+            if (tab("Efectos", 1)) { effects_tab(v); ImGui::EndTabItem(); }
             if (tab("Audio", 2)) { audio_tab(v); ImGui::EndTabItem(); }
-            if (tab("UI", 3)) { ui_tab(v); ImGui::EndTabItem(); }
-            if (tab("Controls", 4)) {
+            if (tab("Interfaz", 3)) { ui_tab(v); ImGui::EndTabItem(); }
+            if (tab("Controles", 4)) {
                 bool cs = Port_ClashSquare() != 0;
-                if (ImGui::Checkbox("Clashes: Square counts as a direction", &cs)) {
+                if (ImGui::Checkbox("Choques: Cuadrado cuenta como una dirección", &cs)) {
                     Port_ClashSquareSet(cs);
                 }
-                ImGui::SetItemTooltip("In a clash of two beams or two rushes the game counts newly pressed directions:\n"
-                                      "turning the stick, or tapping the d-pad. With this on, each press of Square\n"
-                                      "counts as one of them while the clash lasts, as a tap of the d-pad does.\n"
-                                      "It only changes your own pad, so it can be used in online play.");
+                ImGui::SetItemTooltip("En un choque de rayos o acometidas, el juego cuenta nuevas pulsaciones de dirección:\n"
+                                      "giros de la palanca o pulsaciones de la cruceta. Esta opción permite que cada pulsación de Cuadrado\n"
+                                      "cuente como una dirección mientras dure el choque, igual que la cruceta.\n"
+                                      "Solo modifica tu mando, por lo que puede usarse en partidas en línea.");
                 if (cs) {
                     static const int kQuarters[] = {4, 6, 7, 8};
                     static const char *const kWorth[] = {"1", "1.5", "1.75", "2"};
@@ -2081,20 +2167,20 @@ static void build(void) {
                     }
                     ImGui::SameLine();
                     ImGui::SetNextItemWidth(80.0f);
-                    if (ImGui::Combo("per press", &at, kWorth, 4)) {
+                    if (ImGui::Combo("por pulsación", &at, kWorth, 4)) {
                         Port_ClashSquareXSet(kQuarters[at]);
                     }
-                    ImGui::SetItemTooltip("What one press of Square is worth. The d-pad has four buttons to tap in turn and the\n"
-                                          "stick four directions a turn; Square is one button. 1 is a single d-pad tap.\n"
-                                          "Never more than one a frame, which is the most the game counts from any pad.");
+                    ImGui::SetItemTooltip("Valor de cada pulsación de Cuadrado. La cruceta tiene cuatro botones y la palanca cuatro direcciones\n"
+                                          "por giro; Cuadrado es un solo botón. 1 equivale a una pulsación de la cruceta.\n"
+                                          "Nunca se cuenta más de una por cuadro, el máximo admitido para cualquier mando.");
                 }
                 ImGui::Separator();
                 controls_tab();
                 ImGui::EndTabItem();
             }
-            if (tab("Cheats", 5)) { ImGui::BeginDisabled(Port_CoopEnabled()); cheats_tab(); ImGui::EndDisabled(); ImGui::EndTabItem(); }
-            if (tab("Mods", 7)) { mods_tab(); ImGui::EndTabItem(); }
-            if (tab("Tag Team / Modos Extra", 8)) { experiments_tab(); ImGui::EndTabItem(); }
+            if (tab("Trucos", 5)) { ImGui::BeginDisabled(Port_CoopEnabled()); cheats_tab(); ImGui::EndDisabled(); ImGui::EndTabItem(); }
+            if (tab("Modificaciones", 7)) { mods_tab(); ImGui::EndTabItem(); }
+            if (tab("Equipos / Modos extra", 8)) { experiments_tab(); ImGui::EndTabItem(); }
             ImGui::EndTabBar();
         }
         ImGui::EndChild();
@@ -2111,7 +2197,7 @@ static void build(void) {
         }
         if ((io.BackendFlags & ImGuiBackendFlags_HasGamepad) != 0) {
             ImGui::SameLine();
-            ImGui::TextDisabled("D-pad: move   Cross / A: choose   Circle / B: back   L1 / R1: tab");
+            ImGui::TextDisabled("Cruceta: mover   Cruz / A: elegir   Círculo / B: volver   L1 / R1: pestaña");
         }
     }
     ImGui::End();
@@ -2177,17 +2263,17 @@ static void modes_draw(const PortModesView &v) {
         said = -1;
     } else if (v.players && v.cursor + 10 != said && v.cursor >= 0 && v.cursor < 4) { // (the number of players)
         char speak[96];
-        snprintf(speak, sizeof(speak), "%s, %d of 4", Port_ModesPlayersName(v.cursor + 1), v.cursor + 1);
+        snprintf(speak, sizeof(speak), "%s, %d de 4", Port_ModesPlayersName(v.cursor + 1), v.cursor + 1);
         if (said < 10) {
-            PortA11y_Say(PortA11y_Label("Players"), 1);
+            PortA11y_Say(PortA11y_Label("Jugadores"), 1);
         }
         PortA11y_Say(speak, said < 10 ? 0 : 1);
         said = v.cursor + 10;
     } else if (!v.players && v.cursor != said && v.cursor >= 0 && v.cursor < PORT_MODE_COUNT - 1) {
         char speak[96];
-        snprintf(speak, sizeof(speak), "%s, %d of %d", Port_ModesName(v.cursor + 1), v.cursor + 1, PORT_MODE_COUNT - 1);
+        snprintf(speak, sizeof(speak), "%s, %d de %d", Port_ModesName(v.cursor + 1), v.cursor + 1, PORT_MODE_COUNT - 1);
         if (said < 0 || said >= 10) {
-            PortA11y_Say(PortA11y_Label("Extra modes"), 1);
+            PortA11y_Say(PortA11y_Label("Modos extra"), 1);
         }
         PortA11y_Say(speak, said < 0 || said >= 10 ? 0 : 1);
         said = v.cursor;
@@ -2224,7 +2310,7 @@ extern "C" void Port_UiNotice(const char *text) {
 }
 
 // ============================================================================
-// SPARKING! ZERO STYLE FLOATING DAMAGE POPUPS & CINEMATIC PHOTO MODE 360Â°
+// Battle feature overlays and cinematic photo mode
 // ============================================================================
 // The battle and renderer run on different threads. Share only small locked snapshots.
 static SDL_SpinLock sFeatureLock;
@@ -2307,118 +2393,7 @@ static void Port_DrawFeatureHints(ImDrawList *dl) {
     }
 }
 
-struct PortDamagePopup {
-    int side;
-    int damage;
-    float x, y;
-    float vy;
-    float timer;
-    float max_timer;
-    bool is_massive;
-};
-
-#define MAX_DAMAGE_POPUPS 32
-static PortDamagePopup sPopups[MAX_DAMAGE_POPUPS];
-static int sPopupCount = 0;
-
-extern "C" void Port_AddDamagePopup(int side, int damage, float x, float y, float z) {
-    (void)x; (void)y; (void)z;
-    if (damage <= 0) return;
-    SDL_LockSpinlock(&sFeatureLock);
-    if (sPopupCount >= MAX_DAMAGE_POPUPS) {
-        for (int i = 0; i < MAX_DAMAGE_POPUPS - 1; i++) {
-            sPopups[i] = sPopups[i + 1];
-        }
-        sPopupCount = MAX_DAMAGE_POPUPS - 1;
-    }
-    PortDamagePopup &p = sPopups[sPopupCount++];
-    p.side = side;
-    p.damage = damage;
-    p.max_timer = 1.25f;
-    p.timer = 1.25f;
-    p.vy = 55.0f;
-    p.is_massive = damage > 2500;
-
-    // Store normalized game-page coordinates; window dimensions belong to the renderer.
-    static unsigned scatter = 0x9e3779b9u;
-    scatter = scatter * 1664525u + 1013904223u;
-    p.x = (side == 0 ? 179.0f : 333.0f) + (float)((int)(scatter % 90) - 45);
-    p.y = 202.0f + (float)((int)((scatter >> 8) % 60) - 30);
-    SDL_UnlockSpinlock(&sFeatureLock);
-}
-
-static void Port_DrawDamagePopups(ImDrawList *dl) {
-    if (gUiPresentW <= 0 || gUiPresentH <= 0) return;
-    SDL_LockSpinlock(&sFeatureLock);
-    if (!sBattleActive) sPopupCount = 0;
-    float dt = ImGui::GetIO().DeltaTime;
-    if (dt <= 0.0f || dt > 0.1f) dt = 1.0f / 60.0f;
-
-    if (Port_PhotoActive()) dt = 0.0f;
-    ImFont *font = ImGui::GetFont();
-    int active = 0;
-    for (int i = 0; i < sPopupCount; i++) {
-        PortDamagePopup &p = sPopups[i];
-        p.timer -= dt;
-        p.y -= p.vy * dt;
-        p.vy *= powf(0.93f, dt * 60.0f);
-        if (p.timer <= 0.0f) {
-            continue;
-        }
-
-        float progress = p.timer / p.max_timer;
-        float alpha = progress > 0.2f ? 1.0f : (progress / 0.2f);
-        int a_byte = (int)(alpha * 255.0f);
-        if (a_byte < 5) continue;
-
-        float size = (p.is_massive ? 28.0f : 20.0f) * ((float)gUiPresentH / 448.0f);
-        float age = p.max_timer - p.timer;
-        if (age < 0.22f) {
-            float t = age / 0.22f;
-            size *= 1.0f + (p.damage > 4000 ? 0.65f : 0.3f) * (1.0f - t) * (1.0f - t);
-        }
-        float px = gUiPresentX + p.x * ((float)gUiPresentW / 512.0f);
-        float py = gUiPresentY + p.y * ((float)gUiPresentH / 448.0f);
-
-        char buf[32];
-        snprintf(buf, sizeof(buf), "-%d", p.damage);
-
-        ImU32 text_col;
-        if (p.is_massive) {
-            text_col = IM_COL32(255, 65, 30, a_byte);
-        } else if (p.damage > 1000) {
-            text_col = IM_COL32(255, 215, 0, a_byte);
-        } else {
-            text_col = IM_COL32(255, 255, 255, a_byte);
-        }
-        ImU32 shadow_col = IM_COL32(0, 0, 0, (int)(a_byte * 0.95f));
-
-        if (!Port_HudHidden()) {
-        if (p.damage > 4000) {
-            const char *critical = "\xC2\xA1" "CR\xC3\x8D" "TICO!";
-            dl->AddText(font, size * 0.5f, ImVec2(px + 1, py - size * 0.6f + 1), shadow_col, critical);
-            dl->AddText(font, size * 0.5f, ImVec2(px, py - size * 0.6f), text_col, critical);
-        }
-        for (int ox = -2; ox <= 2; ox++) {
-            for (int oy = -2; oy <= 2; oy++) {
-                if (ox != 0 || oy != 0) {
-                    dl->AddText(font, size, ImVec2(px + (float)ox, py + (float)oy), shadow_col, buf);
-                }
-            }
-        }
-        dl->AddText(font, size, ImVec2(px, py), text_col, buf);
-        }
-
-        if (active != i) {
-            sPopups[active] = p;
-        }
-        active++;
-    }
-    sPopupCount = active;
-    SDL_UnlockSpinlock(&sFeatureLock);
-}
-
-// Cinematic Photo Mode 360Â° & Clean HUD Toggle
+// Cinematic photo mode and clean HUD toggle
 static float sPhotoToastTimer = 0.0f;
 static const char *sPhotoToast = "";
 
@@ -2432,7 +2407,7 @@ extern "C" void Port_TogglePhotoMode(void) {
     gPortPhotoDist = 1.0f;
     __atomic_store_n(&gPortPhotoMode, !Port_PhotoActive(), __ATOMIC_RELEASE);
     SDL_UnlockSpinlock(&sFeatureLock);
-    sPhotoToast = Port_PhotoActive() ? "MODO FOTO ACTIVADO (Camara Libre 360)" : "MODO FOTO DESACTIVADO";
+    sPhotoToast = Port_PhotoActive() ? "MODO FOTO ACTIVADO (Cámara libre 360)" : "MODO FOTO DESACTIVADO";
     sPhotoToastTimer = 2.5f;
 }
 
@@ -2519,7 +2494,7 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
         if (!Port_HudHidden() && gUiPresentW > 0 && gUiPresentH > 0) {
             float sy = (float)gUiPresentH / 448.0f;
             float font_size = 14.0f * sy;
-            const char *barText = "[MODO FOTO 360] Orbitar: Flechas/WASD | Zoom: Q/E (L1/R1) | Reset: [R] | Ocultar HUD: [H] | Salir: [P]";
+            const char *barText = "[MODO FOTO 360] Orbitar: Flechas/WASD | Zoom: Q/E (L1/R1) | Restablecer: [R] | Ocultar HUD: [H] | Salir: [P]";
             ImFont *font = ImGui::GetFont();
             ImVec2 tsz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, barText);
             float bx = (float)gUiPresentX + ((float)gUiPresentW - tsz.x) * 0.5f;
@@ -2585,20 +2560,20 @@ static void meter_draw(void) {
     if (ImGui::Begin("##meter", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs |
                                           ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings)) {
         // a fight shows 30 frames a second and the menus 60, as on the console; the speed is what should stay at 100%
-        ImGui::Text("%.0f fps   speed %.0f%%", sFps, sSpeed);
+        ImGui::Text("%.0f FPS   velocidad %.0f%%", sFps, sSpeed);
         if (Port_NetStats(n)) {
             if (n[0] >= 0) {
-                ImGui::Text("ping %d ms%s", n[0], Port_LobbyRelayed() ? " (relay)" : "");
+                ImGui::Text("ping %d ms%s", n[0], Port_LobbyRelayed() ? " (intermediario)" : "");
             } else {
                 ImGui::TextUnformatted("ping ...");
             }
             if (n[5] > 0) {
-                ImGui::Text("rollbacks %d/s, %.1f frames", n[1], (float)n[2] / 10.0f);
+                ImGui::Text("correcciones %d/s, %.1f cuadros", n[1], (float)n[2] / 10.0f);
             } else {
-                ImGui::TextUnformatted("rollback off");
+                ImGui::TextUnformatted("predicción desactivada");
             }
-            ImGui::Text("waited %d ms/s (%d times)", n[4], n[3]);
-            ImGui::Text("delay %d%s, rollback up to %d", n[6], n[7] ? " (auto)" : "", n[5]);
+            ImGui::Text("espera %d ms/s (%d veces)", n[4], n[3]);
+            ImGui::Text("retardo %d%s, predicción hasta %d", n[6], n[7] ? " (auto)" : "", n[5]);
         }
     }
     ImGui::End();
@@ -2778,11 +2753,11 @@ static void chat_draw(void) {
             ImGui::SameLine();
             ImGui::TextDisabled("::");
             if (ImGui::IsItemHovered()) {
-                ImGui::SetTooltip("Drag anywhere to move the chat window. Click a line to copy it.");
+                ImGui::SetTooltip("Arrastra para mover el chat. Haz clic en un mensaje para copiarlo.");
             }
             ImGui::SameLine(w - 70.0f);
             bool mute = PortChat_Muted() != 0;
-            if (ImGui::Checkbox("Mute", &mute)) {
+            if (ImGui::Checkbox("Silenciar", &mute)) {
                 PortChat_MutedSet(mute);
                 sChatFocus = true;
             }
@@ -2804,7 +2779,7 @@ static void chat_draw(void) {
                     alpha = (float)(CHAT_SHOWN_MS - age) / (float)CHAT_FADE_MS;
                 }
             }
-            const char *sender = l.sender[0] != '\0' ? l.sender : (names[l.mine ? 0 : 1][0] != '\0' ? names[l.mine ? 0 : 1] : (l.mine ? "You" : "Rival"));
+            const char *sender = l.sender[0] != '\0' ? l.sender : (names[l.mine ? 0 : 1][0] != '\0' ? names[l.mine ? 0 : 1] : (l.mine ? "Tú" : "Rival"));
             ImGui::PushID((int)i);
             ImVec4 nameCol = l.mine ? ImVec4(0.35f, 0.85f, 1.0f, alpha) : ImVec4(1.0f, 0.82f, 0.28f, alpha);
             ImGui::TextColored(nameCol, "%s:", sender);
@@ -2822,7 +2797,7 @@ static void chat_draw(void) {
                 static Uint64 sCopiedMs;
                 bool copied = sCopiedIdx == i + 1 && now - sCopiedMs < 1500;
                 if (ImGui::IsItemHovered()) {
-                    ImGui::SetTooltip(copied ? "Copied" : "Click to copy");
+                    ImGui::SetTooltip(copied ? "Copiado" : "Haz clic para copiar");
                     if (ImGui::IsMouseReleased(ImGuiMouseButton_Left) && io.MouseDragMaxDistanceSqr[ImGuiMouseButton_Left] < 16.0f) {
                         SDL_SetClipboardText(l.text);
                         sCopiedIdx = i + 1;
@@ -2855,7 +2830,7 @@ static void chat_draw(void) {
                     sChatFocus = true;
                 }
             }
-            ImGui::TextDisabled(sChatSoon ? "1 line/s: Enter to send" : "Enter: send   Esc/Tab: close   Ctrl+V: paste");
+            ImGui::TextDisabled(sChatSoon ? "1 mensaje/s: Intro para enviar" : "Intro: enviar   Esc/Tab: cerrar   Ctrl+V: pegar");
         }
     }
     ImGui::End();
@@ -2879,7 +2854,7 @@ static bool frame_build(void) {
     if (sQuit && !PortQuit_Active() && !PortQuit_Failed()) {
         sQuit = false;
         input_owner();
-        PortA11y_Say(PortA11y_Label("Back to the game"), 1);
+        PortA11y_Say(PortA11y_Label("Volver al juego"), 1);
     }
     if (sReady && gPortNetWindowClose) { // back from an online session: the window it was started from closes
         gPortNetWindowClose = 0;
@@ -2892,7 +2867,7 @@ static bool frame_build(void) {
     if (sReady && !sUpdTold && update_latest() > PORT_RELEASE && SDL_GetTicks() >= sNoticeUntil) {
         int latest = update_latest(); // (told once, and not over another notice)
         sUpdTold = true;
-        SDL_snprintf(sNotice, sizeof(sNotice), "Update available: 0.%d.%d. F1 for the download page.", latest / 100, latest % 100);
+        SDL_snprintf(sNotice, sizeof(sNotice), "Actualización disponible: 0.%d.%d. F1 para abrir la página de descarga.", latest / 100, latest % 100);
         sNoticeUntil = SDL_GetTicks() + 10000;
     }
     int coopKnown=0, coopTotal=0;
@@ -2988,7 +2963,6 @@ static bool frame_build(void) {
     if (chat && !Port_HudHidden()) {
         chat_draw();
     }
-    Port_DrawDamagePopups(ImGui::GetForegroundDrawList());
     Port_DrawFeatureHints(ImGui::GetForegroundDrawList());
     if (names && !Port_HudHidden() && GsDraw_HudShown() && gUiPresentW > 0 && gUiPresentH > 0) { // (with the HUD: not over an intro)
         // Under each side's health bar (the game's 512 x 448 page: the bars end at about y 50). The left place is

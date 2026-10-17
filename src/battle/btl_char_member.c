@@ -449,19 +449,6 @@ s32 BtlMember_Damage(BtlMemberChr *chr, s32 amount, s32 flags) {
         }
     }
     g->health = health - amount;
-#ifdef PORT
-    /* Report actual HP removed, including overkill clamping. */
-    s32 actualDamage = before - BtlUtil_Max(g->health, 0);
-    if (actualDamage > 0) {
-        extern void Port_AddDamagePopup(int side, int damage, float x, float y, float z);
-        BtlMemberPose *pose = BtlChar_GetPos(chr);
-        if (pose != NULL) {
-            Port_AddDamagePopup(chr->side, actualDamage, pose->pos.x, pose->pos.y + 1.2f, pose->pos.z);
-        } else {
-            Port_AddDamagePopup(chr->side, actualDamage, 0.0f, 0.0f, 0.0f);
-        }
-    }
-#endif
     if (amount > 0 || (flags & BTL_DMG_FORCE)) {
         if (flags & BTL_DMG_NO_HIT) {
             if (!(flags & BTL_DMG_NO_TOTAL)) {

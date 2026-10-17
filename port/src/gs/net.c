@@ -442,7 +442,7 @@ static void sync_check(uint32_t sure, unsigned tick) {
                 fprintf(stderr, "bt3: net: the two games differ at blank %u (this copy %016llx, the other %016llx)\n", (unsigned)was, (unsigned long long)m->value,
                         (unsigned long long)o->value);
                 sByeWhy = BYE_APART;
-                ended("The two games no longer agree (desync): the match has ended.", tick);
+                ended("Los juegos perdieron la sincronización. La partida ha terminado.", tick);
             }
         }
     }
@@ -855,7 +855,7 @@ static void net_start(int role, const char *host, const char *join) {
         receive();
         if (sVersionBad) {
             fprintf(stderr, "bt3: net: the other player's game is another version; both need the same release\n");
-            Port_UiNotice("The other player's game is a different version.");
+            Port_UiNotice("El otro jugador tiene una versión diferente.");
             if (sSession) {
                 Port_NetLeave();
             }
@@ -1053,11 +1053,11 @@ static void ended(const char *why, unsigned tick) {
 
 /* The other copy said goodbye. */
 static void gone(unsigned tick) {
-    ended(sGone == 2 ? "The two games no longer agree (desync): the match has ended." : "The other player left the match.", tick);
+    ended(sGone == 2 ? "Los juegos perdieron la sincronización. La partida ha terminado." : "El otro jugador salió de la partida.", tick);
 }
 
 static void gone_quiet(unsigned tick) {
-    ended("The connection to the other player was lost.", tick);
+    ended("Se perdió la conexión con el otro jugador.", tick);
 }
 
 /*
@@ -1479,7 +1479,7 @@ static int sCodeSeenSet, sCodeGen, sCodeRelayGen; /* ... and which of the search
 
 int Port_LobbyRelayed(void) { return sCodeVia; }
 static struct sockaddr_in sCodeAddr[MATCH_ADDRS];
-static char sCodeText[8], sCodeError[96];
+static char sCodeText[8], sCodeError[256];
 static uint64_t sCodeSince;
 
 const char *Port_LobbyCode(void) { return sCodeText; }
@@ -1905,10 +1905,10 @@ static void lobby_background(void) {
     now = Port_LobbyPoll();
     if (now == 2) {
         sLobbyBg = 0;
-        Port_UiNotice("Tenkaichi Budokai Online: your opponent is here! The match begins.");
+        Port_UiNotice("Tenkaichi Budokai Online: tu rival está listo. Comienza la partida.");
         Port_LobbyLaunch();
     } else if (now <= 0) {
         sLobbyBg = 0;
-        Port_UiNotice(now == -3 ? Port_LobbyError() : "Tenkaichi Budokai Online: the room was closed.");
+        Port_UiNotice(now == -3 ? Port_LobbyError() : "Tenkaichi Budokai Online: la sala se ha cerrado.");
     }
 }

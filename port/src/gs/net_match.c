@@ -308,7 +308,7 @@ static int http_post(const char *what, const char *json, char *out, size_t size)
 /* What the window says when the service lets only official releases in (its REQUIRE_KEY) and refused this program:
    `plain` for a program without a key, or with one the service does not know. */
 static const char *key_refused(const char *answer, const char *plain) {
-    return Sign_HasKey() && SDL_strstr(answer, "\"why\":\"time\"") != NULL ? "This computer's clock is wrong: set its date and time, then try again." : plain;
+    return Sign_HasKey() && SDL_strstr(answer, "\"why\":\"time\"") != NULL ? "La fecha y hora de esta PC son incorrectas. Corrígelas y vuelve a intentarlo." : plain;
 }
 #define KEY_REFUSED(answer) (SDL_strstr(answer, "\"build key\"") != NULL)
 
@@ -474,7 +474,7 @@ static int SDLCALL match_thread(void *arg) {
     SDL_snprintf(addrs, sizeof(addrs), "%s%s%s%s%s%s%s", pub[0] ? "\"" : "", pub, pub[0] ? "\"" : "", pub[0] && lan[0] ? "," : "", lan[0] ? "\"" : "", lan,
                  lan[0] ? "\"" : "");
     if (addrs[0] == '\0') {
-        set_state(-1, "This computer's address could not be found (no network?).");
+        set_state(-1, "No se pudo obtener la dirección de esta PC. Comprueba la conexión de red.");
         return 0;
     }
 again:
@@ -487,7 +487,7 @@ again:
         SDL_snprintf(body, sizeof(body), "{\"v\":%d,\"rel\":%d,\"name\":\"%s\",\"addrs\":[%s],\"queue\":\"%s\",\"who\":\"%s\"%s}", sM.version, PORT_RELEASE, name, addrs, sM.queue,
                      match_who(), relayAddr[0] != '\0' ? ",\"relay\":false" : "");
         if (!http_post("quick", body, answer, sizeof(answer))) {
-            set_state(-1, "The matchmaking service could not be reached (is the network up?).");
+            set_state(-1, "No se pudo acceder al servicio de partidas. Comprueba tu conexión.");
             return 0;
         }
         if (STOPPED()) {
@@ -508,11 +508,11 @@ again:
             goto joined;
         }
         if (SDL_strstr(answer, "\"role\":\"host\"") == NULL) {
-            set_state(-1, SDL_strstr(answer, "\"old\"") != NULL ? "Update available. Online servers are unreachable until you update." :
-                          KEY_REFUSED(answer) ? key_refused(answer, "Quick match needs an official release of the game.") :
-                          SDL_strstr(answer, "busy") != NULL ? "Too many searches from this address; try again in a few minutes." :
-                          SDL_strstr(answer, "bad request") != NULL || SDL_strstr(answer, "error") != NULL ? "The matchmaking service does not know quick match yet." :
-                          "The matchmaking service gave no answer.");
+            set_state(-1, SDL_strstr(answer, "\"old\"") != NULL ? "Actualización disponible. Actualiza para acceder a los servidores en línea." :
+                          KEY_REFUSED(answer) ? key_refused(answer, "Las partidas rápidas requieren una versión oficial del juego.") :
+                          SDL_strstr(answer, "busy") != NULL ? "Demasiadas búsquedas desde esta dirección. Inténtalo en unos minutos." :
+                          SDL_strstr(answer, "bad request") != NULL || SDL_strstr(answer, "error") != NULL ? "El servicio todavía no admite partidas rápidas." :
+                          "El servicio de partidas no respondió.");
             return 0;
         }
         hosting = 1;
@@ -521,7 +521,7 @@ again:
         if (sM.role == 1) {
             SDL_snprintf(body, sizeof(body), "{\"v\":%d,\"rel\":%d,\"name\":\"%s\",\"addrs\":[%s]}", sM.version, PORT_RELEASE, name, addrs);
             if (!http_post("host", body, answer, sizeof(answer))) {
-                set_state(-1, "The matchmaking service could not be reached (is the network up?).");
+                set_state(-1, "No se pudo acceder al servicio de partidas. Comprueba tu conexión.");
                 return 0;
             }
             if (STOPPED()) {
@@ -529,9 +529,9 @@ again:
             }
         }
         if (!json_str(answer, "code", sM.code, sizeof(sM.code)) || !json_str(answer, "key", key, sizeof(key))) {
-            set_state(-1, SDL_strstr(answer, "\"old\"") != NULL ? "Update available. Online servers are unreachable until you update." :
-                          KEY_REFUSED(answer) ? key_refused(answer, "Room codes need an official release of the game. Playing by address still works.") :
-                          SDL_strstr(answer, "busy") != NULL ? "Too many rooms from this address; try again in a few minutes." : "The matchmaking service gave no room.");
+            set_state(-1, SDL_strstr(answer, "\"old\"") != NULL ? "Actualización disponible. Actualiza para acceder a los servidores en línea." :
+                          KEY_REFUSED(answer) ? key_refused(answer, "Los códigos de sala requieren una versión oficial. Puedes jugar mediante una dirección IP.") :
+                          SDL_strstr(answer, "busy") != NULL ? "Demasiadas salas desde esta dirección. Inténtalo en unos minutos." : "El servicio no pudo crear una sala.");
             return 0;
         }
         if (relayAddr[0] != '\0') { /* (a search begun again: the relay address it holds already goes with the new room) */
@@ -646,23 +646,23 @@ again:
             http_post("leave", body, answer, sizeof(answer));
             goto again;
         }
-        set_state(-1, "Nobody joined: the room code has run out. Host again for a new one.");
+        set_state(-1, "Nadie se unió y el código caducó. Crea otra sala para obtener uno nuevo.");
     } else {
         MatchStatus st;
         SDL_snprintf(body, sizeof(body), "{\"v\":%d,\"rel\":%d,\"code\":\"%s\",\"name\":\"%s\",\"addrs\":[%s]}", sM.version, PORT_RELEASE, sM.code, name, addrs);
         if (!http_post("join", body, answer, sizeof(answer))) {
-            set_state(-1, "The matchmaking service could not be reached (is the network up?).");
+            set_state(-1, "No se pudo acceder al servicio de partidas. Comprueba tu conexión.");
             return 0;
         }
         (void)you;
         SDL_memset(&st, 0, sizeof(st));
         if (!json_peer(answer, &st)) {
-            set_state(-1, SDL_strstr(answer, "\"old\"") != NULL ? "Update available. Online servers are unreachable until you update." :
-                          KEY_REFUSED(answer) ? key_refused(answer, "Room codes need an official release of the game. Playing by address still works.") :
-                          SDL_strstr(answer, "version") != NULL ? "The host's game is a different version: both players need the same release." :
-                          SDL_strstr(answer, "full") != NULL ? "Someone has already joined that room." :
-                          SDL_strstr(answer, "no room") != NULL ? "No room with that code (codes last ten minutes)." :
-                          SDL_strstr(answer, "busy") != NULL ? "Too many wrong codes from this address; try again in an hour." : "The matchmaking service gave no answer.");
+            set_state(-1, SDL_strstr(answer, "\"old\"") != NULL ? "Actualización disponible. Actualiza para acceder a los servidores en línea." :
+                          KEY_REFUSED(answer) ? key_refused(answer, "Los códigos de sala requieren una versión oficial. Puedes jugar mediante una dirección IP.") :
+                          SDL_strstr(answer, "version") != NULL ? "El anfitrión tiene otra versión. Ambos necesitan la misma versión." :
+                          SDL_strstr(answer, "full") != NULL ? "Otro jugador ya se ha unido a esa sala." :
+                          SDL_strstr(answer, "no room") != NULL ? "No existe una sala con ese código. Los códigos duran diez minutos." :
+                          SDL_strstr(answer, "busy") != NULL ? "Demasiados códigos incorrectos desde esta dirección. Inténtalo en una hora." : "El servicio de partidas no respondió.");
             return 0;
         }
         if (STOPPED()) {
@@ -750,7 +750,7 @@ void Match_Begin(int role, int sock, int localPort, const char *code, const char
     SDL_strlcpy(sM.name, name != NULL ? name : "Player", sizeof(sM.name));
     sM.thread = SDL_CreateThread(match_thread, "bt3-match", (void *)(intptr_t)SDL_GetAtomicInt(&sM.gen));
     if (sM.thread == NULL) {
-        set_state(-1, "The matchmaking could not be started.");
+        set_state(-1, "No se pudo iniciar la búsqueda de partidas.");
     }
 }
 
