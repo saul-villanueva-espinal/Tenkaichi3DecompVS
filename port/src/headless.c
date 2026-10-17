@@ -140,15 +140,16 @@ int __wrap_Progress_Main(int arg) {
                 if(Port_TourneyCopy(&state) && state.champion>=0) {
                     extern int PortTournamentOnline_Card(void);
                     fprintf(stderr,"bt3: torneo: CAMPEON %d; torneo completo\n",state.champion+1);
-                    if(getenv("BT3_TOURNAMENT_TEST_BOTS")) {Port_TourneyLeave();exit(0);}
-                    PortTournamentOnline_Card(); /* closes the completed session */
+                    gPortMenuMode=1;PortTournamentOnline_Card();gPortMenuMode=0;
+                    if(getenv("BT3_TOURNAMENT_TEST_BOTS")) exit(0);
                     gProgress->mode=4;
                     goto tournament_finished;
                 }
             }
             if (!Port_PcBattleBuild()) exit(2);
-            if(Port_TourneyEnabled() && !getenv("BT3_TOURNAMENT_TEST_BOTS")) {
-                extern int PortTournamentOnline_Card(void);PortTournamentOnline_Card();
+            if(Port_TourneyEnabled()) {
+                extern int PortTournamentOnline_Card(void);
+                gPortMenuMode=1;PortTournamentOnline_Card();gPortMenuMode=0;
             }
             sFromMenu = 1;
             return 0;

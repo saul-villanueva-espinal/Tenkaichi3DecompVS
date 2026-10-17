@@ -2477,7 +2477,8 @@ static void Port_DrawFeatureHints(ImDrawList *dl) {
         if (Port_CoopEnabled()) snprintf(text, sizeof(text), "RAID ONLINE  Jugador %d (mando local 1)", Port_CoopMe() + 1);
         if(Port_TourneyEnabled()) {
             PortTourney t;int a,b;
-            if(Port_TourneyCopy(&t) && Port_TourneyPair(&t,t.current,&a,&b))
+            Port_TourneyActive(&a,&b);
+            if(Port_TourneyCopy(&t))
                 snprintf(text,sizeof(text),"TORNEO %d | %d vs %d | %s (puesto %d)",t.count,a+1,b+1,Port_TourneySpectating()?"ESPECTADOR":"TU COMBATE",Port_CoopMe()+1);
         }
         if (text[0]) dl->AddText(font, 11.0f * sy, ImVec2(gUiPresentX + 8 * sx, gUiPresentY + 22 * sy), IM_COL32(245,220,150,255), text);
@@ -3059,7 +3060,7 @@ static bool frame_build(void) {
     if (coopLobby) {
         ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * .5f, ImGui::GetIO().DisplaySize.y * .5f), ImGuiCond_Always, ImVec2(.5f,.5f));
         ImGui::SetNextWindowBgAlpha(.96f);
-        if (ImGui::Begin("Sala Raid online", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
+        if (ImGui::Begin(Port_TourneyEnabled()?"Sala de torneo online":"Sala Raid online", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {
             if (coopLobby==1) ImGui::TextUnformatted("Comprobando datos del juego y paquetes...");
             else ImGui::Text("Esperando jugadores: %d / %d",coopKnown,coopTotal);
             ImGui::TextUnformatted("La partida comienza cuando todos estan conectados.");

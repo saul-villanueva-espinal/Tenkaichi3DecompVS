@@ -86,7 +86,10 @@ s32 Progress_Main(s32 arg) {
         static s32 tested;
         s32 test=Port_RosterTestMode();
         if(test && !tested) {
-            if(test>=10 && test<=12) {
+            if(test==13) {
+                extern s32 PortTournamentOnline_Run(void);
+                tested=1;Save_UnlockAll(gSaveData);PortTournamentOnline_Run();gProgress->mode=4;
+            } else if(test>=10 && test<=12) {
                 tested=1;Save_UnlockAll(gSaveData);
                 gPortScreen=test==10?PORT_SCREEN_CHALLENGE:test==11?PORT_SCREEN_RAID:PORT_SCREEN_TOURNAMENT;
                 gProgress->mode=MPROG_MODE_PORT_SCREEN;

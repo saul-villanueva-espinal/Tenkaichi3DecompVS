@@ -19,10 +19,13 @@ with tempfile.TemporaryDirectory() as tmp:
                           'BT3_COOP_HOST' if i==0 else 'BT3_COOP_JOIN':str(port) if i==0 else f'127.0.0.1:{port}'}
                 peers.append(subprocess.Popen([exe],env=env,stdout=subprocess.PIPE,stderr=subprocess.PIPE,text=True))
                 if i==0:time.sleep(.1)
+            champions=[]
             for p in peers:
                 out,err=p.communicate(timeout=90)
                 assert p.returncode==0,out+err
                 assert 'spectators isolated' in out,out+err
+                champions.append(out.split('champion ')[-1].split(',')[0])
+            assert len(set(champions))==1,champions
             print(f'tournament_test: {count} UDP peers, complete bracket, role changes, duplicate result guard and spectator isolation pass')
         finally:
             for p in peers:

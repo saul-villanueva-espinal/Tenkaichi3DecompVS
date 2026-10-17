@@ -6,7 +6,7 @@
 #include "port_tournament.h"
 extern void Gfx_BeginFrame(void),Gfx_EndFrame(s32),Dma_Flush(void),Dma_ResetBuffers(void),Snd_Update(void);
 extern void Port_RosterName(char *,s32,s32);
-extern s32 Port_CoopMe(void);
+extern s32 Port_CoopMe(void),Port_TourneyTestBots(void);
 extern s32 Snd_PlaySe(u32,s32);
 
 static void Tn_Background(char *title) {
@@ -51,7 +51,7 @@ static void Tn_Bracket(const PortTourney *t) {
 /* Every participant sees the same bracket between actual fights. The final
    page becomes local after the completed network session has been closed. */
 s32 PortTournamentOnline_Card(void) {
-    PortTourney t;s32 age=0,done;char info[128];
+    PortTourney t;s32 age=0,done,test=Port_TourneyTestBots();char info[128];
     if(!Port_TourneyCopy(&t)) return 0;
     done=t.champion>=0;
     if(done) Port_TourneyLeave();
@@ -65,7 +65,7 @@ s32 PortTournamentOnline_Card(void) {
         Ps_Text(16,407,done?"X / Circulo: volver al menu principal":"Dos luchan; los demas miran. Empates: se repite el combate.",.37f,480,0);
         if(!done) {sprintf(info,"El combate comienza en %d...",(180-age+59)/60);Ps_Text(16,426,info,.4f,480,1);}
         Gfx_EndFrame(1);Dma_Flush();age++;
-        if((!done && age>=180) || (done && age>15 && (gPad[0].gamePressed&(PADG_CROSS|PADG_CIRCLE)))) break;
+        if((!done && age>=180) || (done && test && age>=180) || (done && age>15 && (gPad[0].gamePressed&(PADG_CROSS|PADG_CIRCLE)))) break;
     }
     Dma_ResetBuffers();return done;
 }
@@ -78,6 +78,7 @@ s32 PortTournamentOnline_Run(void) {
     for(;;) {
         u32 p;char text[128],name[96];s32 i;
         Gfx_BeginFrame();Pad_Update();Snd_Update();p=gPad[0].gamePressed;
+        {extern s32 Port_RosterTestMode(void);extern u32 Port_RosterTestInput(u32);if(Port_RosterTestMode()==13)p|=Port_RosterTestInput(age+1);}
         if(age>15) {
             if(p&PADG_UP) cur=Ps_Wrap(cur-1,0,4);
             if(p&PADG_DOWN) cur=Ps_Wrap(cur+1,0,4);

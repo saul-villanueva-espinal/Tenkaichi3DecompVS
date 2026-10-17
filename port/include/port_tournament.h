@@ -19,6 +19,7 @@ int Port_TourneyLaunch(int host,const char *address,int port,int count,const PcF
 void Port_TourneyResult(int resultBits);
 void Port_TourneyLeave(void);
 int Port_TourneySpectating(void);
+void Port_TourneyActive(int *a,int *b);
 #ifdef __cplusplus
 }
 #endif

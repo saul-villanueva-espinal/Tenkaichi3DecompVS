@@ -363,7 +363,12 @@ int Port_TourneyCopy(PortTourney *out) {
     if(!sReady || !sTournament || !out) return 0;
     pthread_mutex_lock(&sTourneyLock);*out=sTourney;pthread_mutex_unlock(&sTourneyLock);return 1;
 }
-int Port_TourneySpectating(void) {return sTournament && sReady && sMe!=sActive[0] && sMe!=sActive[1];}
+int Port_TourneySpectating(void) {
+    int spectator;pthread_mutex_lock(&sTourneyLock);
+    spectator=sTournament && sReady && sMe!=sActive[0] && sMe!=sActive[1];
+    pthread_mutex_unlock(&sTourneyLock);return spectator;
+}
+void Port_TourneyActive(int *a,int *b) {pthread_mutex_lock(&sTourneyLock);*a=sActive[0];*b=sActive[1];pthread_mutex_unlock(&sTourneyLock);}
 void Port_TourneyResult(int resultBits) {
     if(!sTournament || !sReady || sRecorded) return;
     pthread_mutex_lock(&sTourneyLock);

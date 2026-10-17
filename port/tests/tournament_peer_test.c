@@ -24,6 +24,7 @@ int ChrTbl_GetCost(int c){(void)c;return 2;}
 void Port_CoopRelaunch(void){}
 int main(void){
     PcBattle b;PortTourney t,before;int match,n=atoi(getenv("BT3_TOURNAMENT"));unsigned total=0;
+    {PortTourney invalid;assert(!Port_TourneyInit(&invalid,17));assert(Port_TourneyInit(&invalid,4));assert(!Port_TourneyAdvance(&invalid,-1));assert(!Port_TourneyAdvance(&invalid,2));}
     assert(Port_CoopConfig(&b));
     assert(Port_TourneyCopy(&t) && t.count==n);
     {int i,j;for(i=0;i<n;i++){int found=0;for(j=0;j<n;j++)found+=t.fighters[j].chara==i*2;assert(found==1);}}
@@ -46,6 +47,10 @@ int main(void){
             Port_CoopInput(2,p);assert(p[0]==255);
         }
         before=t;
+        if(match==0) {
+            Port_TourneyResult(4);assert(Port_TourneyCopy(&t) && t.current==before.current && t.winners[t.current]==-1);
+            assert(Port_CoopConfig(&b));
+        }
         Port_TourneyResult(match%2?2:1);
         Port_TourneyResult(2); /* duplicate finish notification must be ignored */
         assert(Port_TourneyCopy(&t));assert(t.winners[before.current]==(match%2?bseed:a));
