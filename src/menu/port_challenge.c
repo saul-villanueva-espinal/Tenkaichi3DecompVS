@@ -27,7 +27,7 @@ extern s32 Port_Setting(const char *name, int def);
 extern void Port_SettingSave(const char *name, int val);
 extern void Port_SettingsWrite(void);
 extern int Port_RosterPointerRead(int *x, int *y);
-extern s32 Snd_PlaySe(s32 bank, s32 se);
+extern s32 Snd_PlaySe(u32 mask, s32 id);
 extern f32 cosf(f32 x);
 extern f32 sinf(f32 x);
 extern s32 ColorFade_IsOutDone(void);
