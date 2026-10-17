@@ -100,6 +100,48 @@ static int quit_init(void) {
     return sQuitDialog != NULL ? 1 : -1;
 }
 
+/* Keep the game's animated plates, replacing only their English artwork labels.
+   Other dialogs and their resources are untouched. Called after Flash_Advance. */
+void PortQuit_LocalizeDialog(void *dialog) {
+    static u16 yes[] = {'S', 0x00ED, 0};
+    static u16 no[] = {'N', 'o', 0};
+    static char *plates[] = {"mc_menu_plate_1", "mc_menu_plate_2"};
+    extern void Flash_FindLabel(DialogFlash *, char *, char *, DialogFlashRef *);
+    extern void Flash_ClipSetFlags(DialogFlash *, DialogFlashRef *, s32, s32);
+    extern void Flash_ClipGetPos(DialogFlash *, DialogFlashRef *, s32 *, s32 *);
+    extern f32 Flash_ClipGetAlpha(DialogFlash *, DialogFlashRef *);
+    extern void Font_PushStyle(void), Font_PopStyle(void);
+    extern void Font_SetAlign(s32), Font_SetScaleXY(f32, f32);
+    extern void Font_SetColorRGBA(s32, s32, s32, s32);
+    extern void Font_SetShadowMode(s32), Font_SetShadowColor(u32), Font_SetShadowOffset(s32, s32);
+    extern void Font_PrintAt(s32, s32, u16 *);
+    int i;
+    if (dialog != sQuitDialog || sQuitDialog == NULL || !sQuitDialog->choices) return;
+    for (i = 0; i < 2; i++) {
+        DialogFlashRef plate, off, on;
+        s32 x, y;
+        f32 alpha;
+        Flash_FindLabel(sQuitDialog->flash, NULL, plates[i], &plate);
+        Flash_FindLabel(sQuitDialog->flash, plates[i], "mc_menu_text_off", &off);
+        Flash_FindLabel(sQuitDialog->flash, plates[i], "mc_menu_text_on", &on);
+        if (plate.id < 0 || off.id < 0 || on.id < 0) continue;
+        alpha = Flash_ClipGetAlpha(sQuitDialog->flash, &plate);
+        Flash_ClipGetPos(sQuitDialog->flash, &off, &x, &y);
+        Flash_ClipSetFlags(sQuitDialog->flash, &off, 2, 0);
+        Flash_ClipSetFlags(sQuitDialog->flash, &on, 2, 0);
+        if (alpha <= 0.0f) continue;
+        Font_PushStyle();
+        Font_SetAlign(1);
+        Font_SetScaleXY(1.3f, 1.3f);
+        Font_SetColorRGBA(255, sQuitDialog->cursor == i ? 230 : 255, sQuitDialog->cursor == i ? 120 : 255, (s32)(alpha * 128.0f));
+        Font_SetShadowMode(2);
+        Font_SetShadowOffset(1, 2);
+        Font_SetShadowColor(((u32)(alpha * 96.0f) << 24) | 0x202020);
+        Font_PrintAt(x + 64, y + 4, i == 0 ? yes : no);
+        Font_PopStyle();
+    }
+}
+
 /* Once per frame of the game (Gfx_EndFrame), which lasts `vsyncs` blanks: one in the menus, two in a fight. The
    window's animation was made for the menus' frames; in a fight it played at half speed. */
 void PortQuit_Draw(int vsyncs) {
