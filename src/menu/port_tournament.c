@@ -1,7 +1,7 @@
 #include "common.h"
 #include "menu/port_screen.h"
 #include "menu/tbo_art.h"
-#include "port/include/port_pc_battle.h"
+#include "port_pc_battle.h"
 #include "sys/pad.h"
 
 #ifdef PORT
