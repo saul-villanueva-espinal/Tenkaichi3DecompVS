@@ -68,7 +68,10 @@ void PortQuit_Action(int action) {
 /* Archive 0, section 2 is the boot memory-card screen. Its unpacked part 1 is the Dialog resource.
    Returns 0 while the archive partition is still loading, -1 on failure, and 1 when ready. */
 static int quit_init(void) {
-    static const char message[] = "Close the game?\nUnsaved progress will be lost.";
+    /* Native Dialog consumes UTF-16 code units, not UTF-8 bytes. */
+    static const u16 message[] = {
+        0x00BF, 0x0043, 0x0065, 0x0072, 0x0072, 0x0061, 0x0072, 0x0020, 0x0065, 0x006C, 0x0020, 0x006A, 0x0075, 0x0065, 0x0067, 0x006F, 0x003F, 0x000A, 0x0053, 0x0065, 0x0020, 0x0070, 0x0065, 0x0072, 0x0064, 0x0065, 0x0072, 0x00E1, 0x0020, 0x0065, 0x006C, 0x0020, 0x0070, 0x0072, 0x006F, 0x0067, 0x0072, 0x0065, 0x0073, 0x006F, 0x0020, 0x0073, 0x0069, 0x006E, 0x0020, 0x0067, 0x0075, 0x0061, 0x0072, 0x0064, 0x0061, 0x0072, 0x002E, 0x0000
+    };
     Dialog *previous;
     unsigned i;
 
@@ -81,8 +84,8 @@ static int quit_init(void) {
     if (sQuitResource == NULL) { return -1; }
     sQuitMessage.offsets[0] = 0;
     sQuitMessage.offsets[1] = sizeof(sQuitMessage.offsets);
-    for (i = 0; i < sizeof(message) && i < sizeof(sQuitMessage.text) / sizeof(sQuitMessage.text[0]); i++) {
-        sQuitMessage.text[i] = (u8)message[i];
+    for (i = 0; i < sizeof(message) / sizeof(message[0]) && i < sizeof(sQuitMessage.text) / sizeof(sQuitMessage.text[0]); i++) {
+        sQuitMessage.text[i] = message[i];
     }
     quit_select(&previous);
     Dialog_Init((u32 *)QUIT_PACK_AT(sQuitResource, 1), sQuitMessage.offsets, 0);

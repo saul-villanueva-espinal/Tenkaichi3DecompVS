@@ -852,8 +852,10 @@ static void build_net(void) {
                     ImGui::RadioButton(label, &sQueue, i);
                 }
                 ImGui::EndDisabled();
-                ImGui::TextDisabled("Ambos juegos se conectan directamente cuando es posible, como en otros juegos de lucha en línea.");
-                ImGui::TextDisabled("Un jugador que inspeccione su tráfico de red puede ver la dirección del otro.");
+                ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+                ImGui::TextWrapped("Ambos juegos se conectan directamente cuando es posible, como en otros juegos de lucha en línea. "
+                                   "Un jugador que inspeccione su tráfico de red puede ver la dirección del otro.");
+                ImGui::PopStyleColor();
                 ImGui::EndTabItem();
             }
             if (ImGui::BeginTabItem("Unirse")) {
@@ -985,9 +987,11 @@ static void build_net(void) {
             }
         }
         ImGui::Spacing();
-        ImGui::TextDisabled("Al conectarse, el juego inicia la partida: ambos jugadores reciben la misma plantilla,");
-        ImGui::TextDisabled("con todo desbloqueado. Tu guardado se conserva. Al salir de la partida, vuelves");
-        ImGui::TextDisabled("al punto donde estabas. El anfitrión también controla los menús.");
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("Al conectarse, el juego inicia la partida: ambos jugadores reciben la misma plantilla, "
+                           "con todo desbloqueado. Tu guardado se conserva. Al salir de la partida, vuelves "
+                           "al punto donde estabas. El anfitrión también controla los menús.");
+        ImGui::PopStyleColor();
     }
     ImGui::End();
     if (!open) {
