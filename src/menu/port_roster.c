@@ -443,14 +443,25 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     sNr.players=(kind==2||kind==3)?1:mode?Port_LocalPlayers():savedPlayers==1?2:1;
     max=sNr.mode==PC_RELAY?10:(sNr.mode==PC_TAG||sNr.mode==PC_FFA)?5:sNr.mode==PC_RAID?4:1;
     sNr.count[0]=sNr.count[1]=max;if(sNr.mode==PC_RAID) {sNr.count[0]=sNr.players;sNr.count[1]=1;}
-    if(kind==3) sNr.count[1]=1;
     remembered=Port_RosterRecall(sNr.mode,&last);
     if(remembered && last.count[0]<=max && last.count[1]<=max && last.players==sNr.players) sNr=last;else remembered=0;
-    if(kind==3) sNr.count[1]=1;
-    sNrCostume[0]=sNr.fighter[0][0].costume;sNrCostume[1]=sNr.fighter[1][0].costume;
     memset(sNrFilled,0,sizeof(sNrFilled));if(remembered) memset(sNrFilled,1,sizeof(sNrFilled));
+    if(kind==3 && out!=NULL && out->count[1]>0) {
+        s32 k;
+        sNr.count[1] = out->count[1] > 10 ? 10 : out->count[1];
+        for(k=0; k<sNr.count[1]; k++) {
+            sNr.fighter[1][k] = out->fighter[1][k];
+            sNrFilled[1][k] = 1;
+        }
+        if(out->count[0]>0) sNr.count[0] = out->count[0] > 10 ? 10 : out->count[0];
+        if(out->stage>=0 && out->stage<35) sNr.stage = out->stage;
+        if(out->mode>0) sNr.mode = out->mode;
+    } else if(kind==3) {
+        sNr.count[1]=1;
+        sNrFilled[1][0]=1;
+    }
+    sNrCostume[0]=sNr.fighter[0][0].costume;sNrCostume[1]=sNr.fighter[1][0].costume;
     memset(sNrSlot,0,sizeof(sNrSlot));sNrCursor[0]=0;sNrCursor[1]=sNrCount>1?1:0;sNrSide=0;sNrKind=kind;sNrDp=dp;sNrPhase=sNrAge=sNrConnection=sNrField=sNrSaga=0;sNrMessage[0]=0;
-    if(kind==3) sNrFilled[1][0]=1;
     for(i=0;i<PORT_CHARA_ID_LIMIT;i++) sNrFavorite[i]=0;
     for(i=0;i<Port_PcRosterCount();i++) {s32 id=Port_PcRosterId(i);sNrFavorite[id]=Port_RosterFavorite(id,0);}
     TeamSel_Init(2);gPortNativeRosterActive=1;

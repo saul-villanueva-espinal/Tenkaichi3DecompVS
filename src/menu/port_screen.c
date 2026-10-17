@@ -602,6 +602,18 @@ s32 PortScreen_Main(void) {
         Adx_StopAll();
         gProgress->mode = result ? 45 : 4; /* the Ultimate Training's fight, or back to the main menu */
         break;
+    case PORT_SCREEN_CHALLENGE: {
+        extern s32 PortChallenge_Run(void);
+        result = PortChallenge_Run();
+        Adx_StopAll();
+        if (result) {
+            extern int Port_PcBattleBuild(void);
+            result = Port_PcBattleBuild();
+        } else {
+            gProgress->mode = 4;
+        }
+        break;
+    }
     default:
         gProgress->mode = 4;
         break;

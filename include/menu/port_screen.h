@@ -11,6 +11,7 @@ enum {
     PORT_SCREEN_NONE,
     PORT_SCREEN_PC_BATTLE,
     PORT_SCREEN_TBO, /* Tenkaichi Budokai Online (menu/port_tbo.c) */
+    PORT_SCREEN_CHALLENGE, /* Torre de Desafios y Batallas Personalizadas (menu/port_challenge.c) */
 };
 
 extern s32 gPortScreen; /* the screen the mode runs next (PORT_SCREEN_*) */

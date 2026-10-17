@@ -47,7 +47,7 @@ static volatile int sHint;   /* pad reads the hint still has: the main menu rene
 static volatile int sSet;    /* the main menu shows the extra modes' entries */
 static volatile int sCursor; /* ... and its cursor is on this one (0..2) */
 static int sReady;           /* the menu's label sheets can be given the modes' names */
-static int sRows[4];         /* the label rows that have them now */
+static int sRows[8];         /* the label rows that have them now */
 static int sRowCount;
 static volatile int sPlayers; /* the list is the number of players */
 static int sEntered;         /* the progress mode the main menu left for with the mode that is on, 0: none */
@@ -72,7 +72,7 @@ int Port_TeamDuplicatesAllowed(void) {
 }
 
 const char *Port_ModesName(int mode) {
-    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Modo Raid Boss", "Entrenamiento Extra"};
+    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Modo Raid Boss", "Torre Desafios", "Entrenamiento Extra"};
     return mode > PORT_MODE_NONE && mode < PORT_MODE_COUNT ? kNames[mode] : "";
 }
 
@@ -151,7 +151,7 @@ static void show_names(const int *rows, int n, int players) {
     sSet = rows != NULL;
     sPlayers = rows != NULL && players;
     sCursor = 0;
-    for (i = 0; i < n && i < 4 && rows != NULL; i++) {
+    for (i = 0; i < n && i < 8 && rows != NULL; i++) {
         sRows[sRowCount++] = rows[i];
         MenuText_Relabel(rows[i], players ? Port_ModesPlayersName(i + 1) : Port_ModesName(i + 1));
     }
@@ -191,6 +191,12 @@ int Port_ModesChoose(int entry) {
 
     if (mode <= PORT_MODE_NONE || mode >= PORT_MODE_COUNT || online()) {
         return 0;
+    }
+    if (mode == PORT_MODE_CHALLENGE) {
+        extern s32 gPortScreen;
+        gPortScreen = 3; /* PORT_SCREEN_CHALLENGE */
+        sEntered = 80;   /* MPROG_MODE_PORT_SCREEN */
+        return sEntered;
     }
     Port_SettingSave("modes_fight", mode);
     Port_SettingSave("modes_extras", mode == PORT_MODE_TRAINING ? 1 : 0);
