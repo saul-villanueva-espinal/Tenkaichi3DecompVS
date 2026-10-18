@@ -2543,7 +2543,8 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
     for (int i = 0; i < count; i++) {
         SDL_Gamepad *pad = SDL_GetGamepadFromID(ids[i]);
         if (!pad) continue;
-        combo |= SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_STICK) && SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_RIGHT_STICK);
+        // L3 + R3 belongs to the original teammate switch. Photo mode uses SELECT + L3.
+        combo |= SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_BACK) && SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_STICK);
         if (i != 0) continue;
         stickX = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32768.0f;
         stickY = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32768.0f;
