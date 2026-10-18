@@ -368,9 +368,9 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             extern s32 CharSel_Run(s32);
             ok = CharSel_Run(2);
             if (ok) {
-                out->fighter[0][0].chara = CSPROG->side[0].pick.chara;
-                out->fighter[0][0].costume = CSPROG->side[0].pick.colorPlate;
-                out->fighter[0][0].items = CSPROG->side[0].pick.items;
+                CharSelSide *cs = (CharSelSide *)&CSPROG->side[0].pick;
+                out->fighter[0][0].chara = cs->picked;
+                out->fighter[0][0].costume = cs->colorPlate;
                 out->stage = CSPROG->stage;
                 if (CSPROG->bgm > 0) out->rules.bgm1 = CSPROG->bgm;
             }
@@ -390,7 +390,6 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
                     if (k < 5 && gTsProgress->team[0].member[k].chara >= 0) {
                         out->fighter[0][k].chara = gTsProgress->team[0].member[k].chara;
                         out->fighter[0][k].costume = gTsProgress->team[0].member[k].color;
-                        out->fighter[0][k].items = gTsProgress->team[0].member[k].items;
                         c++;
                     }
                 }

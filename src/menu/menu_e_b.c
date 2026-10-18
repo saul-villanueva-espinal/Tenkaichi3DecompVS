@@ -1776,7 +1776,7 @@ f32 TeamSel_Input(s32 *result) {
                 else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
                     if (CUR_SIDE->chara >= 0 && CUR_SIDE->chara < PORT_TOTAL_CHARAS) {
                         extern s32 Port_ChrPreview_Run(s32, s32, s32);
-                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgmPlaying] : 0;
+                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgm] : 0;
                         CUR_MEMBER.color = Port_ChrPreview_Run(CUR_SIDE->chara, CUR_MEMBER.color, bgm);
                         TeamSel_RequestFace(CUR_N);
                     }
@@ -1949,7 +1949,7 @@ f32 TeamSel_Input(s32 *result) {
                 else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
                     if (CUR_SIDE->chara >= 0 && CUR_SIDE->chara < PORT_TOTAL_CHARAS) {
                         extern s32 Port_ChrPreview_Run(s32, s32, s32);
-                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgmPlaying] : 0;
+                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgm] : 0;
                         CUR_MEMBER.color = Port_ChrPreview_Run(CUR_SIDE->chara, CUR_MEMBER.color, bgm);
                         TeamSel_RequestFace(CUR_N);
                     }
@@ -2066,7 +2066,7 @@ f32 TeamSel_Input(s32 *result) {
                 else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
                     if (CUR_SIDE->chara >= 0 && CUR_SIDE->chara < PORT_TOTAL_CHARAS) {
                         extern s32 Port_ChrPreview_Run(s32, s32, s32);
-                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgmPlaying] : 0;
+                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgm] : 0;
                         CUR_MEMBER.color = Port_ChrPreview_Run(CUR_SIDE->chara, CUR_MEMBER.color, bgm);
                         TeamSel_RequestFace(CUR_N);
                     }
