@@ -19,6 +19,7 @@ extern int Port_NetSession(void);
 extern int Port_Setting(const char *name, int def);
 extern void Dma_AddScissor(s32 x0, s32 x1, s32 y0, s32 y1);
 extern s32 ChrTbl_WrapCostume(s32 chara, s32 *costume);
+extern f32 sqrtf(f32);
 
 typedef struct SelectModel {
     s32 wanted, costume, loaded, loadedCostume, stable, object;
@@ -96,6 +97,7 @@ void Port_SelectModelsDraw(void) {
     BtlObj *obj;
     SelectModel *m;
     ChrViewInfo *info;
+    f32 target,dist,height,radius,rx,rz,fit;
     if (!sSelectModelsOn) return;
     for (i = 0; i < 2; i++) {
         SelectModel_Load(i);
@@ -114,8 +116,26 @@ void Port_SelectModelsDraw(void) {
             if (sSelectModel[j].object >= 0) BtlObj_Get(sSelectModel[j].object)->active = i == j && m->loaded == m->wanted && m->loadedCostume == m->costume;
         info = ChrView_GetCharaInfo(m->loaded);
         View_InitLayout(&gOrbitCam->view, i ? VIEW_LAYOUT_RIGHT : VIEW_LAYOUT_LEFT);
-        OrbitCam_SetTarget(0.0f, info ? info->targetY : 1.2f, 0.0f);
-        OrbitCam_SetDist(info ? info->dist * 1.15f : 5.75f);
+        target=info ? info->targetY : 1.2f;
+        dist=info ? info->dist*1.15f : 5.75f;
+        /* Use the loaded model's real animated bounds. Modded giants often
+           borrow the camera table of an ordinary-sized base character. */
+        if (m->object>=0) {
+            obj=BtlObj_Get(m->object);
+            height=obj->state.box.max[1]-obj->state.box.min[1];
+            rx=(obj->state.box.max[0]-obj->state.box.min[0])*.5f;
+            rz=(obj->state.box.max[2]-obj->state.box.min[2])*.5f;
+            radius=sqrtf(rx*rx+rz*rz);
+            if (height>target*2.6f && height<1000.0f && radius<1000.0f) {
+                fit=height*1.8f+radius;
+                if (fit>dist) {
+                    dist=fit;
+                    target=(obj->state.box.max[1]+obj->state.box.min[1])*.5f-height*.08f;
+                }
+            }
+        }
+        OrbitCam_SetTarget(0.0f,target,0.0f);
+        OrbitCam_SetDist(dist);
         OrbitCam_SetDistRange(0.1f, 1000.0f);
         m->angle += 0.008f;
         if (m->angle > 3.14159265f) m->angle -= 6.2831853f;

@@ -8,6 +8,7 @@
 #include "port_fighters.h"
 #include "sys/save.h"
 #include "port_chara.h"
+#include "menu/port_screen.h"
 extern s32 CpuLevel_FromSetting(s32);
 extern void Port_SettingSave(const char *, int);
 extern void Port_LocalPlayersSet(int);
@@ -66,6 +67,39 @@ void Port_PcApplyTeams(void) {
 
 void Port_PcRelayStop(void) { sRelay = 0; sRemaining[0] = sRemaining[1] = 0; sBankReady[0] = sBankReady[1] = 0; }
 int Port_PcRelayRemaining(int side) { return side >= 0 && side < 2 ? sRemaining[side] : 0; }
+
+/* Draw with the disc's glyph atlas on the game's HUD layer, so photo mode,
+   widescreen anchoring and the original font all behave like the native bars. */
+void Port_PcRelayDraw(void) {
+    extern void Font_PushStyle(void),Font_PopStyle(void),Font_SetScale(f32);
+    extern void Font_SetScaleXY(f32,f32),Font_SetColor(u32),Font_SetShadowColor(u32);
+    extern void Font_SetAlign(s32),Font_SetShadowMode(s32),Font_SetSpacing(s32,s32);
+    extern void Font_PrintAsciiAt(s32,s32,char *),Font_FlushAll(void),Port_GsMarker(s32);
+    extern s32 Port_TourneyEnabled(void);
+    static char labels[2][4],counts[2][16];
+    s32 s;
+    f32 x,y=89.0f,w=76.0f,h=17.0f;
+    u32 silver=Ps_Rgba(180,195,210,128),black=Ps_Rgba(5,9,20,128);
+    if (!sRelay || Port_CoopEnabled() || Port_TourneyEnabled() || (sBattle.count[0]<=5 && sBattle.count[1]<=5)) return;
+    Font_PushStyle(); Font_SetScale(1.0f); Font_SetScaleXY(.56f,.51f);
+    Font_SetAlign(0); Font_SetSpacing(0,0);Font_SetShadowMode(2);Font_SetShadowColor(black);
+    for(s=0;s<2;s++) {
+        u32 top=s?Ps_Rgba(140,25,60,128):Ps_Rgba(25,80,150,128);
+        x=s?422.0f:14.0f;
+        Port_GsMarker(s?0x11:0x10);
+        Ps_ScreenQuad(x+5,y,x+w-5,y,x,y+h*.5f,x+w,y+h*.5f,silver,silver,silver,silver);
+        Ps_ScreenQuad(x,y+h*.5f,x+w,y+h*.5f,x+5,y+h,x+w-5,y+h,silver,silver,silver,silver);
+        Ps_ScreenQuad(x+6,y+2,x+w-6,y+2,x+2,y+h*.5f,x+w-2,y+h*.5f,top,top,black,black);
+        Ps_ScreenQuad(x+2,y+h*.5f,x+w-2,y+h*.5f,x+6,y+h-2,x+w-6,y+h-2,black,black,top,top);
+        sprintf(labels[s],"J%d",s+1);sprintf(counts[s],"%d/%d",sRemaining[s],sBattle.count[s]);
+        Font_SetColor(s?Ps_Rgba(255,110,130,128):Ps_Rgba(110,200,255,128));
+        Font_PrintAsciiAt((s32)x+9,(s32)y+2,labels[s]);
+        Font_SetColor(Ps_Rgba(255,235,100,128));
+        Font_PrintAsciiAt((s32)x+31,(s32)y+2,counts[s]);
+        Font_FlushAll();
+    }
+    Font_PopStyle();Port_GsMarker(0x12);
+}
 
 /* Slots own both loader buffers until Battle_Unload. A fresh member setup has
    no buffers: replacing the whole slot would leak them and later free NULL. */

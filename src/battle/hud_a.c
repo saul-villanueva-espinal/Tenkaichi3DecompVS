@@ -877,5 +877,11 @@ void Hud_Draw(void) {
         PortTbo_SparSign();
     }
 #endif
+#ifdef PORT
+    if (gHud->flags & HUD_SHOW_GAUGES) {
+        extern void Port_PcRelayDraw(void);
+        Port_PcRelayDraw();
+    }
+#endif
     Hud_ClearTexMarks();
 }

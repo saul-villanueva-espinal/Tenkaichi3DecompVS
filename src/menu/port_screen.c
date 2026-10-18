@@ -157,6 +157,10 @@ void Ps_PageSet(void) {
     sPsPy = (448.0f - sPsPh) * 0.5f;
 }
 
+void Ps_PageFull(void) {
+    sPsPx=sPsPy=0.0f; sPsPw=512.0f; sPsPh=448.0f;
+}
+
 /* A page coming in (Tb_PageIn): what it draws is moved this far right (from the left, as the hub's bars come). */
 static f32 sPsShift;
 

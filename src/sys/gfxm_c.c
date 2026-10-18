@@ -851,7 +851,23 @@ void FlashDraw_MaskQuad(FlashQuad *q, u64 tex0, s32 set) {
 
 /* Draws one quad: nothing when its alpha is 0, flat without a texture, else uploads the texture to block 0x3000
    and draws it normally or through the alpha-plane mask. */
+#ifdef PORT
+static s32 sPortRegion;
+static f32 sPortRegionRect[8];
+#endif
 void FlashDraw_Quad(FlashTex *tex, FlashQuad *q) {
+#ifdef PORT
+    FlashQuad transformed;
+    s32 corner;
+    if (sPortRegion) {
+        transformed = *q;
+        for (corner = 0; corner < 4; corner++) {
+            transformed.pt[corner][0] = sPortRegionRect[4] + (q->pt[corner][0] - sPortRegionRect[0]) * sPortRegionRect[6] / sPortRegionRect[2];
+            transformed.pt[corner][1] = sPortRegionRect[5] + (q->pt[corner][1] - sPortRegionRect[1]) * sPortRegionRect[7] / sPortRegionRect[3];
+        }
+        q = &transformed;
+    }
+#endif
     u64 tex0;
     u64 *p;
 
@@ -1103,6 +1119,33 @@ void Flash_Draw(Flash *flash) {
         FlashTl_Draw(flash->root, NULL);
     }
 }
+
+#ifdef PORT
+/* Reuse the disc's actual FIN plaque, including its lettering and highlight,
+   at the smaller size needed by the ten-member strip. No replacement artwork. */
+void Port_FlashRegion(Flash *flash, f32 x, f32 y, f32 w, f32 h, f32 dx, f32 dy, f32 dw, f32 dh) {
+    extern void Dma_AddScissor(s32, s32, s32, s32);
+    sPortRegionRect[0]=x; sPortRegionRect[1]=y; sPortRegionRect[2]=w; sPortRegionRect[3]=h;
+    sPortRegionRect[4]=dx; sPortRegionRect[5]=dy; sPortRegionRect[6]=dw; sPortRegionRect[7]=dh;
+    Gfx_AddDefaultEnv();
+    Dma_AddScissor((s32)dx,(s32)(dx+dw-1),(s32)dy,(s32)(dy+dh-1));
+    sPortRegion=1;
+    FlashTl_Draw(flash->root,NULL);
+    sPortRegion=0;
+    Dma_AddScissor(0,511,0,447);
+}
+
+/* A cropped original menu texture in native 512x448 coordinates. */
+void Port_FlashImage(FlashTex *tex, f32 x, f32 y, f32 w, f32 h, s32 u, s32 v, s32 uw, s32 vh) {
+    FlashQuad q;
+    memset(&q,0,sizeof(q));
+    q.pt[0][0]=q.pt[2][0]=x; q.pt[1][0]=q.pt[3][0]=x+w;
+    q.pt[0][1]=q.pt[1][1]=y; q.pt[2][1]=q.pt[3][1]=y+h;
+    q.uv.u0=u; q.uv.v0=v; q.uv.u1=u+uw; q.uv.v1=v+vh;
+    q.rgba[0]=q.rgba[1]=q.rgba[2]=q.rgba[3]=128;
+    FlashDraw_Quad(tex,&q);
+}
+#endif
 
 /* Back to the first frame, playing, every other flag cleared. Unless `keepClips`, every sprite instance and
    shape is cleared as well. */
