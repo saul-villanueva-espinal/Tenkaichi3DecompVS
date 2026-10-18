@@ -1,5 +1,6 @@
 #include "common.h"
 #ifdef PORT
+#include "menu/menu_d.h"
 #include "menu/menu_e.h"
 #include "menu/menu_f.h"
 #include "menu/port_screen.h"
@@ -358,6 +359,48 @@ static void Nr_Draw(void) {
 
 /* kind: 0 individual duel, 1 relay teams, 2 training, 3 the mode's player-only team. */
 s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
+    extern int Port_Setting(const char *, int);
+    extern int Port_RosterTestMode(void);
+    if (!Port_Setting("native_roster", 0) && !Port_RosterTestMode()) {
+        s32 ok = 0;
+        if (!gMenuArc5) gMenuArc5 = File_LoadSync(gProgress->baseFile, NULL, 0);
+        if (out != NULL && out->count[0] == 1) {
+            extern s32 CharSel_Run(s32);
+            ok = CharSel_Run(2);
+            if (ok) {
+                out->fighter[0][0].chara = CSPROG->side[0].pick.chara;
+                out->fighter[0][0].costume = CSPROG->side[0].pick.colorPlate;
+                out->fighter[0][0].items = CSPROG->side[0].pick.items;
+                out->stage = CSPROG->stage;
+                if (CSPROG->bgm > 0) out->rules.bgm1 = CSPROG->bgm;
+            }
+        } else {
+            extern s32 TeamSel_Run(s32);
+            if (out != NULL && out->count[1] > 0) {
+                s32 k;
+                for (k = 0; k < 5 && k < out->count[1]; k++) {
+                    gTsProgress->team[1].member[k].chara = out->fighter[1][k].chara;
+                    gTsProgress->team[1].member[k].color = out->fighter[1][k].costume;
+                }
+            }
+            ok = TeamSel_Run(2);
+            if (ok && out != NULL) {
+                s32 k, c = 0;
+                for (k = 0; k < 10; k++) {
+                    if (k < 5 && gTsProgress->team[0].member[k].chara >= 0) {
+                        out->fighter[0][k].chara = gTsProgress->team[0].member[k].chara;
+                        out->fighter[0][k].costume = gTsProgress->team[0].member[k].color;
+                        out->fighter[0][k].items = gTsProgress->team[0].member[k].items;
+                        c++;
+                    }
+                }
+                if (c > 0) out->count[0] = c;
+                out->stage = gTsProgress->stageCell;
+                if (gTsProgress->bgm > 0) out->rules.bgm1 = gTsProgress->bgm;
+            }
+        }
+        return ok;
+    }
     TsTeam saved[2];s32 savedPlayers,savedType,savedDp,savedStage,savedBgm;
     s32 s,i,mode=Port_ModesFight(),result=0,remembered,max,done=0;
     PcBattle last;

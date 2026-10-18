@@ -161,6 +161,17 @@ void ChrView_SetupCamera(s32 chara) {
         }
         OrbitCam_SetPitchLimit(0.78539816f);
     }
+#ifdef PORT
+    else {
+        OrbitCam_Reset();
+        OrbitCam_SetFloorClamp(1);
+        OrbitCam_SetTarget(0.0f, 1.2f, 0.0f);
+        OrbitCam_SetAngles(0.0f, 3.14159265f, 0.0f);
+        OrbitCam_SetDist(5.0f);
+        OrbitCam_SetDistRange(3.0f, 100.0f);
+        OrbitCam_SetPitchLimit(0.78539816f);
+    }
+#endif
 }
 
 /* Load job: waits, reads the model into a free buffer, creates its object, and after three frames swaps it in. */

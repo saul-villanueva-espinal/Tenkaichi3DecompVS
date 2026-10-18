@@ -1020,7 +1020,9 @@ void TeamSel_Draw(void) {
         {
             extern void Flash_ClipGetPos(MFlash *, MFlashRef *, s32 *, s32 *);
             extern void Port_FormHint(int side, int x, int y, int count);
-            s32 nx, ny;
+            extern void Ps_Button(s32, f32, f32, f32);
+            extern void Ps_Text(f32, f32, char *, f32, f32, s32);
+            s32 nx = 0, ny = 0;
             s32 cur = gTeamSel->side[i]->cur;
             s32 col = -1, row = -1;
             if (cur >= 0 && cur < TS_MEMBER_MAX) {
@@ -1030,6 +1032,10 @@ void TeamSel_Draw(void) {
             Flash_ClipGetPos(flash, &ref, &nx, &ny);
             if (gTeamSel->side[i]->state == TEAMSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gTeamSel->rows[i])
                 Port_FormHint(i, nx, ny + 30, gTeamSel->cells[i][col + row * 7].formCount);
+            if (gTeamSel->side[i]->chara >= 0 && gTeamSel->side[i]->chara < PORT_TOTAL_CHARAS) {
+                Ps_Button(1, (f32)nx + 10.0f, (f32)ny - 12.0f, 15.0f);
+                Ps_Text((f32)nx + 22.0f, (f32)ny - 20.0f, "Preview", 0.40f, 100.0f, 3);
+            }
         }
 #endif
         Flash_FindLabel(flash, NULL, i ? "mc_form_text_r" : "mc_form_text_l", &ref);
@@ -1766,6 +1772,15 @@ f32 TeamSel_Input(s32 *result) {
                         Snd_PlaySe(2, 0);
                     }
                 }
+                /* Preview 3D model on Square button */
+                else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
+                    if (CUR_SIDE->chara >= 0 && CUR_SIDE->chara < PORT_TOTAL_CHARAS) {
+                        extern s32 Port_ChrPreview_Run(s32, s32, s32);
+                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgmPlaying] : 0;
+                        CUR_MEMBER.color = Port_ChrPreview_Run(CUR_SIDE->chara, CUR_MEMBER.color, bgm);
+                        TeamSel_RequestFace(CUR_N);
+                    }
+                }
 #endif
                 else if (gPad[i].gamePressed & 0x200) {
                     if (CUR_CELL.id == TS_RANDOM) {
@@ -1930,6 +1945,16 @@ f32 TeamSel_Input(s32 *result) {
                     }
                     Snd_PlaySe(2, 0x29);
                 }
+#ifdef PORT
+                else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
+                    if (CUR_SIDE->chara >= 0 && CUR_SIDE->chara < PORT_TOTAL_CHARAS) {
+                        extern s32 Port_ChrPreview_Run(s32, s32, s32);
+                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgmPlaying] : 0;
+                        CUR_MEMBER.color = Port_ChrPreview_Run(CUR_SIDE->chara, CUR_MEMBER.color, bgm);
+                        TeamSel_RequestFace(CUR_N);
+                    }
+                }
+#endif
                 break;
 
             case TEAMSEL_ST_PLATE:
@@ -2036,7 +2061,18 @@ f32 TeamSel_Input(s32 *result) {
                     TeamSel_ClipGoto(CUR_N + 5, CUR_N, TEAMSEL_CLIP_COLOR_PLATE, "fl_on_start");
                     TeamSel_RequestFace(CUR_N);
                     Snd_PlaySe(1, 0);
-                } else if (gPad[i].gamePressed & 0x200) {
+                }
+#ifdef PORT
+                else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
+                    if (CUR_SIDE->chara >= 0 && CUR_SIDE->chara < PORT_TOTAL_CHARAS) {
+                        extern s32 Port_ChrPreview_Run(s32, s32, s32);
+                        s32 bgm = gTeamSel ? gTeamSel->bgmIds[gTeamSel->stage->bgmPlaying] : 0;
+                        CUR_MEMBER.color = Port_ChrPreview_Run(CUR_SIDE->chara, CUR_MEMBER.color, bgm);
+                        TeamSel_RequestFace(CUR_N);
+                    }
+                }
+#endif
+                else if (gPad[i].gamePressed & 0x200) {
                     /* the member is complete: fix the character and its item set */
                     CUR_SIDE->mask = 0;
                     Flash_GotoLabel(&gTeamSel->flash[CUR_N + 5], "fl_color_ok", 1);

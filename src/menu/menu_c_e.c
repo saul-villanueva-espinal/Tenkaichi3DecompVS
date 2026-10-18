@@ -939,11 +939,17 @@ void CharSel_Draw(void) {
         {
             extern void Flash_ClipGetPos(MFlash *, MFlashRef *, s32 *, s32 *);
             extern void Port_FormHint(int side, int x, int y, int count);
-            s32 nx, ny;
+            extern void Ps_Button(s32, f32, f32, f32);
+            extern void Ps_Text(f32, f32, char *, f32, f32, s32);
+            s32 nx = 0, ny = 0;
             s32 col = gCharSel->side[i]->col, row = gCharSel->side[i]->row;
             Flash_ClipGetPos(f, &ref, &nx, &ny);
             if (gCharSel->side[i]->state == CHARSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gCharSel->rows[i])
                 Port_FormHint(i, nx, ny + 30, gCharSel->cells[i][col + row * 7].formCount);
+            if (gCharSel->side[i]->chara >= 0 && gCharSel->side[i]->chara < PORT_TOTAL_CHARAS) {
+                Ps_Button(1, (f32)nx + 10.0f, (f32)ny - 12.0f, 15.0f);
+                Ps_Text((f32)nx + 22.0f, (f32)ny - 20.0f, "Preview", 0.40f, 100.0f, 3);
+            }
         }
 #endif
         Flash_FindLabel(f, NULL, i ? "mc_form_text_r" : "mc_form_text_l", &ref);
@@ -1588,6 +1594,15 @@ void CharSel_Input(s32 *running) {
                     Snd_PlaySe(2, 0);
                 }
             }
+            /* Preview 3D model on Square button */
+            else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
+                if (CS_SIDE->chara >= 0 && CS_SIDE->chara < PORT_TOTAL_CHARAS) {
+                    extern s32 Port_ChrPreview_Run(s32, s32, s32);
+                    s32 bgm = gCharSel ? gCharSel->bgmIds[gCharSel->stage->bgmPlaying] : 0;
+                    CS_SIDE->colorPlate = Port_ChrPreview_Run(CS_SIDE->chara, CS_SIDE->colorPlate, bgm);
+                    CharSel_RequestFace(CS_N);
+                }
+            }
 #endif
             else if (gPad[i].gamePressed & 0x200) {
                 if (CS_CELL.id == MCHR_RANDOM) {
@@ -1725,6 +1740,16 @@ void CharSel_Input(s32 *running) {
                 }
                 Snd_PlaySe(2, 0x29);
             }
+#ifdef PORT
+            else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
+                if (CS_SIDE->chara >= 0 && CS_SIDE->chara < PORT_TOTAL_CHARAS) {
+                    extern s32 Port_ChrPreview_Run(s32, s32, s32);
+                    s32 bgm = gCharSel ? gCharSel->bgmIds[gCharSel->stage->bgmPlaying] : 0;
+                    CS_SIDE->colorPlate = Port_ChrPreview_Run(CS_SIDE->chara, CS_SIDE->colorPlate, bgm);
+                    CharSel_RequestFace(CS_N);
+                }
+            }
+#endif
             break;
 
         case CHARSEL_ST_ITEMSET:
@@ -1829,7 +1854,18 @@ void CharSel_Input(s32 *running) {
                 CharSel_ClipGoto(CS_N + 3, CS_N, CHARSEL_CLIP_COLOR_PLATE, "fl_on_start");
                 CharSel_RequestFace(CS_N);
                 Snd_PlaySe(1, 0);
-            } else if (gPad[i].gamePressed & 0x200) {
+            }
+#ifdef PORT
+            else if ((gPad[i].pressed & PAD_SQUARE) || (gPad[i].gamePressed & PADG_SQUARE)) {
+                if (CS_SIDE->chara >= 0 && CS_SIDE->chara < PORT_TOTAL_CHARAS) {
+                    extern s32 Port_ChrPreview_Run(s32, s32, s32);
+                    s32 bgm = gCharSel ? gCharSel->bgmIds[gCharSel->stage->bgmPlaying] : 0;
+                    CS_SIDE->colorPlate = Port_ChrPreview_Run(CS_SIDE->chara, CS_SIDE->colorPlate, bgm);
+                    CharSel_RequestFace(CS_N);
+                }
+            }
+#endif
+            else if (gPad[i].gamePressed & 0x200) {
                 CS_SIDE->mask = 0;
                 Flash_GotoLabel(CS_PLATE, "fl_color_ok", 1);
                 Flash_GotoLabel(CS_REEL, "fl_out", 1);
