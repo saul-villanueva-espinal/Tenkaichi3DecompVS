@@ -86,6 +86,9 @@ static s32 sPortClashPending; /* frames for which a named pair waits for its seq
 
 /* 1 while a clash runs or a pair has just been named: no other pair may start one. */
 s32 Port_ClashBusy(void) {
+    if (gBtlChars == NULL) {
+        return 0;
+    }
     return gBtlChars->clashState != 0 || sPortClashPending > 0;
 }
 

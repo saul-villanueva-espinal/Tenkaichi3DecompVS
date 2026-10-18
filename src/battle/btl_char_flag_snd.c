@@ -85,8 +85,13 @@ static s32 sPortSndOverN;
 
 /* 1 when the request list holds this sound for this owner. */
 s32 BtlCharSnd_IsRequested(s32 owner, s32 kind, s32 id) {
-    BtlFlagSndReqList *list = &gBtlChars->snd;
+    BtlFlagSndReqList *list;
     s32 i;
+
+    if (gBtlChars == NULL) {
+        return 0;
+    }
+    list = &gBtlChars->snd;
 
 #ifdef PORT
     for (i = 0; i < sPortSndOverN; i++) {
@@ -105,10 +110,14 @@ s32 BtlCharSnd_IsRequested(s32 owner, s32 kind, s32 id) {
 
 /* Queues a positional sound; dropped when four are already queued. */
 void BtlCharSnd_Request(Vec4 *pos, s32 owner, s32 kind, f32 near, f32 far, s32 id) {
-    BtlFlagSndReqList *list = &gBtlChars->snd;
+    BtlFlagSndReqList *list;
     BtlFlagSndReq *req;
     s32 ok;
 
+    if (gBtlChars == NULL) {
+        return;
+    }
+    list = &gBtlChars->snd;
     if (gBtlChars != NULL) {
         ok = list->count < 4;
         req = &list->req[list->count];
@@ -204,9 +213,14 @@ void BtlCharSnd_CalcVolPan(Vec4 *pos, s32 *vol, s32 *pan, f32 near, f32 far) {
 
 /* Empties the request slots and every fighter's sound slots (the request count is left alone). */
 void BtlCharSnd_Init(void) {
-    BtlFlagSndReqList *list = &gBtlChars->snd;
+    BtlFlagSndReqList *list;
     s32 i;
     s32 j;
+
+    if (gBtlChars == NULL) {
+        return;
+    }
+    list = &gBtlChars->snd;
 
     for (i = 0; i < 4; i++) {
         BtlFlagSndParam *p = &list->req[i].p;
@@ -229,8 +243,13 @@ void BtlCharSnd_Init(void) {
 
 /* Empties the request list (start of the frame). */
 void BtlCharSnd_ClearRequests(void) {
-    BtlFlagSndReqList *list = &gBtlChars->snd;
+    BtlFlagSndReqList *list;
     s32 i;
+
+    if (gBtlChars == NULL) {
+        return;
+    }
+    list = &gBtlChars->snd;
 
     for (i = 0; i < 4; i++) {
         BtlFlagSndParam *p = &list->req[i].p;
@@ -247,8 +266,13 @@ void BtlCharSnd_ClearRequests(void) {
 
 /* Plays the queued requests, then stops the looping sounds nobody asked for this frame. */
 void BtlCharSnd_PlayRequests(void) {
-    BtlFlagSndReqList *list = &gBtlChars->snd;
+    BtlFlagSndReqList *list;
     s32 i;
+
+    if (gBtlChars == NULL) {
+        return;
+    }
+    list = &gBtlChars->snd;
 
     for (i = 0; i < list->count; i++) {
         BtlFlagSndReq *req = &list->req[i];

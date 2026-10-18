@@ -239,7 +239,12 @@ void BtlChar_PlaceOnPath(BtlCtlChr *chr) {
     Vec4 delta;
     Vec4 pos;
     Vec4 rot;
-    s32 *work = gBtlChars->unk7C;
+    s32 *work;
+
+    if (gBtlChars == NULL) {
+        return;
+    }
+    work = gBtlChars->unk7C;
 
     if (BtlChar_TestFlag(chr, 0xF8)) {
         BtlCtlPath *path = BtlStage_GetPath(work[2]);

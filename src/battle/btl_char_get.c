@@ -158,11 +158,17 @@ s32 BtlUtil_AngleToSector(f32 a) {
 
 /* Number of fighters. */
 s32 BtlChar_GetCount(void) {
+    if (gBtlChars == NULL) {
+        return 0;
+    }
     return gBtlChars->count;
 }
 
 /* Fighter i. */
 BtlCharGetChr *BtlChar_Get(s32 i) {
+    if (gBtlChars == NULL || i < 0 || i >= gBtlChars->count) {
+        return NULL;
+    }
     return &gBtlChars->chars[i];
 }
 
@@ -253,6 +259,9 @@ s32 BtlChar_TestMemberUnk70(BtlCharGetChr *chr) {
 
 /* Frames simulated since the fighters were reset. No caller. */
 s32 BtlChar_GetFrame(void) {
+    if (gBtlChars == NULL) {
+        return 0;
+    }
     return gBtlChars->frame;
 }
 
@@ -261,11 +270,17 @@ s32 BtlChar_FrameMod(s32 n) {
     if (n <= 0) {
         n = 1;
     }
+    if (gBtlChars == NULL) {
+        return 0;
+    }
     return gBtlChars->frame % n;
 }
 
 /* The fighters' random generator: 0..150888. The state is kept unchanged while roster+0x274 is set. */
 s32 BtlChar_Rand(void) {
+    if (gBtlChars == NULL) {
+        return 0;
+    }
     u64 state = gBtlChars->randState;
     s32 next = (state * 714025 + 4096) % 150889;
 
@@ -376,6 +391,9 @@ void BtlChar_UpdateVibration(BtlCharGetChr *chr) {
 
 /* Entry of the voice table for a kind. */
 BtlVoiceEntry *BtlChar_GetVoiceEntry(s32 kind) {
+    if (gBtlChars == NULL) {
+        return NULL;
+    }
     return &gBtlChars->voiceTbl[kind];
 }
 
