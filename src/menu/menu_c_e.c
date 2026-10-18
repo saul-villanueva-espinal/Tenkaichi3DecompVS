@@ -1566,13 +1566,35 @@ void CharSel_Input(s32 *running) {
                 CharSel_RequestFace(CS_N);
                 Snd_PlaySe(2, 0);
             }
+            /* Quick jump to Random (?): SELECT or R3 jumps cursor directly to the random slot */
+            else if (gPad[i].pressed & (PAD_SELECT | PAD_R3)) {
+                s32 c, r;
+                s32 found = 0;
+                for (r = 0; r < gCharSel->rows[CS_N]; r++) {
+                    for (c = 0; c < 7; c++) {
+                        if (gCharSel->cells[CS_N][c + r * 7].id == MCHR_RANDOM) {
+                            CS_SIDE->col = c;
+                            CS_SIDE->row = r;
+                            found = 1;
+                            break;
+                        }
+                    }
+                    if (found) break;
+                }
+                if (found) {
+                    CharSel_SetRowChips(CS_N);
+                    CS_SIDE->chara = CS_SIDE->chip[CS_SIDE->col];
+                    CharSel_RequestFace(CS_N);
+                    Snd_PlaySe(2, 0);
+                }
+            }
 #endif
             else if (gPad[i].gamePressed & 0x200) {
                 if (CS_CELL.id == MCHR_RANDOM) {
                     Flash_GotoLabel(CS_PLATE, "fl_custom_in", 1);
                     CharSel_ClipGoto(CS_N + 1, CS_N, CHARSEL_CLIP_CHIP, "fl_ok");
                     gCharSel->customRows[CS_N] = 4;
-                    gCharSel->colorCount[CS_N] = 2;
+                    gCharSel->colorCount[CS_N] = 8;
                     if (!(CS_SIDE->colorPlate < gCharSel->colorCount[CS_N])) {
                         CS_SIDE->colorPlate = 0;
                     }
@@ -1848,6 +1870,26 @@ void CharSel_Input(s32 *running) {
                             chara = gCharSel->cells[CS_N][n].form[Rand_Range(gCharSel->cells[CS_N][n].formCount)];
                         }
                         CS_SIDE->picked = chara;
+#ifdef PORT
+                        {
+                            extern int Port_ExtraCostumeOk(int, int, char *, int);
+                            s32 totalCostumes = ChrTbl_WrapCostume(chara, NULL);
+                            s32 attempts, validList[8], validCount = 0;
+                            char why[80];
+                            if (totalCostumes < 1) totalCostumes = 1;
+                            if (totalCostumes > 8) totalCostumes = 8;
+                            for (attempts = 0; attempts < totalCostumes; attempts++) {
+                                if (Port_ExtraCostumeOk(chara, attempts, why, sizeof(why))) {
+                                    validList[validCount++] = attempts;
+                                }
+                            }
+                            if (validCount > 0) {
+                                CS_SIDE->colorPlate = validList[Rand_Range(validCount)];
+                            } else {
+                                CS_SIDE->colorPlate = Rand_Range(totalCostumes);
+                            }
+                        }
+#endif
                     } else {
                         CS_SIDE->picked = CS_SIDE->chip[CS_SIDE->col];
                         n = CS_SIDE->col + CS_SIDE->row * 7;
@@ -2002,7 +2044,9 @@ extern s32 CpuLevel_FromSetting(u32 setting);
 /* Runs the screen. Returns 0 when it was cancelled, otherwise non-zero with the battle set up. */
 s32 CharSel_Run(s32 section) {
 #ifdef PORT
-    if(!Port_NetActive() && !Port_NetSession() && (gProgress->mode==39 || gProgress->mode==45)) return Port_NativeRosterBattle(gProgress->mode==45?2:0);
+    extern int Port_Setting(const char *, int);
+    extern int Port_RosterTestMode(void);
+    if((Port_Setting("native_roster", 0) || Port_RosterTestMode()) && !Port_NetActive() && !Port_NetSession() && (gProgress->mode==39 || gProgress->mode==45)) return Port_NativeRosterBattle(gProgress->mode==45?2:0);
 #endif
     s32 result = 1;
     s32 screenMode;

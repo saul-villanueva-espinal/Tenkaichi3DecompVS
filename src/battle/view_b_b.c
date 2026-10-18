@@ -23,7 +23,20 @@ s32 ChrTbl_WrapCostume(s32 chara, s32 *costume) {
 
 #ifdef PORT
     extern int Port_CharaCostumes(int chara);
+    extern int Port_ExtraCostumeOk(int chara, int costume, char *why, int size);
     s32 n = Port_CharaCostumes(chara);
+    if (n <= 0) {
+        s32 base = table[CHARA_T(chara)].costumes;
+        s32 c;
+        n = base;
+        for (c = base; c < 8; c++) {
+            if (Port_ExtraCostumeOk(chara, c, NULL, 0)) {
+                n = c + 1;
+            } else {
+                break;
+            }
+        }
+    }
     if (n > 0) {
         if (costume != NULL && !(*costume < n)) {
             *costume = 0;

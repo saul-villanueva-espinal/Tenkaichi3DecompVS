@@ -21,8 +21,13 @@ static struct { struct { s32 chara; } rec[SAVE_REC_COUNT]; } save;
 #define gSaveData (&save)
 static int session;
 static int installed = PORT_CHARA_MAX;
+static int independent = 1;
 int Port_NetSession(void) { return session; }
 int Port_CharaCount(void) { return installed; }
+int Port_Setting(const char *name, int def) {
+    if (name && !strcmp(name, "independent_forms")) return independent;
+    return def;
+}
 int Port_CharaForms(int chara, int *out, int max) {
     assert(max == CHRGRID_FORM_MAX);
     out[0] = chara;
@@ -98,6 +103,12 @@ int main(void) {
     installed = 8;
     ChrGrid_BuildPort(&count, large.cells, &n, input, NULL, NULL);
     assert(count == 175 && large.guard == 0x1234abcd);
+    /* Grouped roster (default, identical to online mode with transformations grouped) */
+    independent = 0;
+    ChrGrid_BuildPort(&count, large.cells, &n, input, NULL, NULL);
+    assert(large.cells[0].formCount == 3);
+    assert(ChrGrid_PortSaveIndex(2, 12) == 12);
+    assert(large.guard == 0x1234abcd);
     printf("grid_test: %d independent characters/forms fit; saved sets, grouped legacy/online, sparse packages and bounds pass\n", PORT_TOTAL_CHARAS);
     return 0;
 }

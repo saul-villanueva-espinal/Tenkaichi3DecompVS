@@ -769,6 +769,7 @@ void StgGrid_MoveUp(s32 *ids, s32 *col, s32 *row, s32 rows) {
 #define CHRGRID_NO_FORMS 8   /* a cell with several unlocked forms shows only the first */
 
 #ifdef PORT
+extern int Port_Setting(const char *name, int def);
 /* Legacy callers still supply the original 165-cell buffers. Only the PC
    Duel/Team selectors opt in to the larger storage through ChrGrid_BuildPort. */
 static s32 sPortChrGridCapacity = 165;
@@ -943,7 +944,7 @@ INCLUDE_ASM("asm/nonmatchings/battle/view_a_e", ChrGrid_Build);
 /* Item sets in the PS2 save are keyed by the original grouped grid cell.
    Flattening a form must not change which three saved sets it inherits. */
 s32 ChrGrid_PortSaveIndex(s32 chara, s32 legacyIndex) {
-    if (Port_NetSession()) return legacyIndex;
+    if (Port_NetSession() || !Port_Setting("independent_forms", 0)) return legacyIndex;
     return chara >= 0 && chara < 161 ? sPortChrGridSaveIndex[chara] : -1;
 }
 
@@ -955,7 +956,7 @@ void ChrGrid_BuildPort(s32 *outCount, ChrGridCell *out, s32 *inCount, ChrGridCel
     s32 previous = sPortChrGridCapacity;
     /* Character-menu construction runs on the game thread and is not recursive. */
     sPortChrGridCapacity = PORT_CHARA_GRID_CAPACITY;
-    if (Port_NetSession()) {
+    if (Port_NetSession() || !Port_Setting("independent_forms", 0)) {
         ChrGrid_Build(outCount, out, inCount, in, customCount, custom);
     } else {
         memset(flat, 0, sizeof(flat));

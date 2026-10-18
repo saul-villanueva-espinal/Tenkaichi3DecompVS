@@ -1166,7 +1166,9 @@ void UbTeamSel_UpdateEnd(void) {
  */
 s32 UbTeamSel_Run(s32 section) {
 #ifdef PORT
-    if(!Port_NetActive() && !Port_NetSession()) {
+    extern int Port_Setting(const char *, int);
+    extern int Port_RosterTestMode(void);
+    if((Port_Setting("native_roster", 0) || Port_RosterTestMode()) && !Port_NetActive() && !Port_NetSession()) {
         PcBattle b;s32 i,dp=UB_PROG->dpRule?(UB_PROG->dpRule+1)*5:0;
         memset(&b,0,sizeof(b)); /* No supplied rival preset in this legacy mode. */
         if(!Port_NativeRosterPick(&b,3,dp))return 0;

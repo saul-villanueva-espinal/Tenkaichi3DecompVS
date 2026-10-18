@@ -1744,6 +1744,28 @@ f32 TeamSel_Input(s32 *result) {
                     TeamSel_RequestFace(CUR_N);
                     Snd_PlaySe(2, 0);
                 }
+                /* Quick jump to Random (?): SELECT or R3 jumps cursor directly to the random slot */
+                else if (gPad[i].pressed & (PAD_SELECT | PAD_R3)) {
+                    s32 c, r;
+                    s32 found = 0;
+                    for (r = 0; r < gTeamSel->rows[CUR_N]; r++) {
+                        for (c = 0; c < TS_COLS; c++) {
+                            if (gTeamSel->cells[CUR_N][c + r * TS_COLS].id == TS_RANDOM) {
+                                CUR_MEMBER.col = c;
+                                CUR_MEMBER.row = r;
+                                found = 1;
+                                break;
+                            }
+                        }
+                        if (found) break;
+                    }
+                    if (found) {
+                        TeamSel_SetChips(CUR_N);
+                        CUR_SIDE->chara = CUR_SIDE->chip[0][CUR_MEMBER.col];
+                        TeamSel_RequestFace(CUR_N);
+                        Snd_PlaySe(2, 0);
+                    }
+                }
 #endif
                 else if (gPad[i].gamePressed & 0x200) {
                     if (CUR_CELL.id == TS_RANDOM) {
@@ -1755,7 +1777,7 @@ f32 TeamSel_Input(s32 *result) {
                             CUR_MEMBER.plate = 0;
                         }
                         TeamSel_ClipGoto(CUR_N + 5, CUR_N, TEAMSEL_CLIP_CUSTOM_PLATE, "fl_on_start");
-                        gTeamSel->colorCount[CUR_N] = 2;
+                        gTeamSel->colorCount[CUR_N] = 8;
                         if (!(CUR_MEMBER.color < gTeamSel->colorCount[CUR_N])) {
                             CUR_MEMBER.color = 0;
                         }
@@ -2059,6 +2081,26 @@ f32 TeamSel_Input(s32 *result) {
                                 }
                             } while (!TeamSel_IsCharaFree(CUR_N, chara));
                             CUR_MEMBER.chara = chara;
+#ifdef PORT
+                            {
+                                extern int Port_ExtraCostumeOk(int, int, char *, int);
+                                s32 totalCostumes = ChrTbl_WrapCostume(chara, NULL);
+                                s32 attempts, validList[8], validCount = 0;
+                                char why[80];
+                                if (totalCostumes < 1) totalCostumes = 1;
+                                if (totalCostumes > 8) totalCostumes = 8;
+                                for (attempts = 0; attempts < totalCostumes; attempts++) {
+                                    if (Port_ExtraCostumeOk(chara, attempts, why, sizeof(why))) {
+                                        validList[validCount++] = attempts;
+                                    }
+                                }
+                                if (validCount > 0) {
+                                    CUR_MEMBER.color = validList[Rand_Range(validCount)];
+                                } else {
+                                    CUR_MEMBER.color = Rand_Range(totalCostumes);
+                                }
+                            }
+#endif
                         } else {
                             CUR_MEMBER.chara = CUR_SIDE->chip[0][CUR_MEMBER.col];
                             idx = CUR_MEMBER.col + CUR_MEMBER.row * TS_COLS;
@@ -2314,7 +2356,9 @@ f32 TeamSel_Input(s32 *result) {
  */
 s32 TeamSel_Run(s32 section) {
 #ifdef PORT
-    if(!Port_NetActive() && !Port_NetSession()) return Port_NativeRosterBattle(1);
+    extern int Port_Setting(const char *, int);
+    extern int Port_RosterTestMode(void);
+    if((Port_Setting("native_roster", 0) || Port_RosterTestMode()) && !Port_NetActive() && !Port_NetSession()) return Port_NativeRosterBattle(1);
 #endif
     s32 result = 1;
     s32 i;
