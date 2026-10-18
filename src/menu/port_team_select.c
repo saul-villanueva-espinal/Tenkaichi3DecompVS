@@ -8,6 +8,27 @@
 extern int Port_NetActive(void),Port_NetSession(void);
 static PcBattle sChosen;
 static int sChosenReady,sLimitOverride;
+static MFlash sFinishMovie;
+static int sFinishReady;
+void Port_TeamSelectEnd(void) {
+    if(sFinishReady) Flash_Destroy(&sFinishMovie);
+    sFinishReady=0;
+}
+void Port_TeamSelectBegin(void) {
+    int i;
+    MFlashRef ref;
+    Port_TeamSelectEnd();
+    if(Port_TeamSelectLimit()<=TS_MEMBER_MAX) return;
+    /* Keep an independent original FIN animation. The player's own movie is
+       removed when that team is confirmed; it cannot supply a persistent button. */
+    Flash_Create(&sFinishMovie,MPACK_AT(gTeamSel->res,37),gTeamSel->teamTex[0]);
+    Flash_Play(&sFinishMovie,1);Flash_GotoLabel(&sFinishMovie,"fl_fast_in",1);
+    for(i=0;i<32;i++) Flash_Advance(&sFinishMovie);
+    Flash_FindLabel(&sFinishMovie,NULL,"mc_menu_plate",&ref);
+    Flash_ClipGotoLabel(&sFinishMovie,&ref,"fl_on_start");
+    for(i=0;i<16;i++) Flash_Advance(&sFinishMovie);
+    sFinishReady=1;
+}
 void Port_TeamSelectSetLimit(int limit) { sLimitOverride=limit; }
 int Port_TeamSelectLimit(void) {
     if(sLimitOverride>0 && !Port_NetActive() && !Port_NetSession()) return sLimitOverride;
@@ -76,7 +97,7 @@ void Port_TeamSelectDraw(void) {
             sprintf(labels[s][k],"%d",k+1);
             Font_PrintAsciiAt((int)(x+20),(int)(y+1),labels[s][k]);
         }
-        Port_FlashPlate(&gTeamSel->flash[1+s],"mc_menu_plate",430,y+18,74,27);
+        if(sFinishReady) Port_FlashPlate(&sFinishMovie,"mc_menu_plate",430,y+18,74,27);
         if(side->cur==TS_CUR_MENU && side->state==TEAMSEL_ST_TEAM) {
             Ps_Quad(430,y+22,435,y+18,430,y+41,435,y+45,gold,gold,gold,gold);
             Ps_Quad(499,y+18,504,y+22,499,y+45,504,y+41,gold,gold,gold,gold);

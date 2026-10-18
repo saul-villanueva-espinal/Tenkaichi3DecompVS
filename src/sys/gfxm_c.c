@@ -861,6 +861,7 @@ void FlashDraw_Quad(FlashTex *tex, FlashQuad *q) {
     FlashQuad transformed;
     s32 corner;
     if (sPortRegion==2) {
+        if (q->rgba[3]==0) return;
         for (corner=0;corner<4;corner++) {
             if(q->pt[corner][0]<sPortPlateBounds[0]) sPortPlateBounds[0]=q->pt[corner][0];
             if(q->pt[corner][1]<sPortPlateBounds[1]) sPortPlateBounds[1]=q->pt[corner][1];

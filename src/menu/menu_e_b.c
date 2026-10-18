@@ -432,7 +432,7 @@ void TeamSel_ClipGoto(s32 flash, s32 side, s32 kind, char *label) {
     MFlash *f = &gTeamSel->flash[flash];
 
 #ifdef PORT
-    if(kind==TEAMSEL_CLIP_TEAM && Port_TeamSelectLimit()>TS_MEMBER_MAX && gTeamSel->side[side]->cur!=TS_CUR_MENU) return;
+    if(kind==TEAMSEL_CLIP_TEAM && Port_TeamSelectLimit()>TS_MEMBER_MAX) return;
 #endif
     switch (kind) {
     case TEAMSEL_CLIP_CHIP:
@@ -893,6 +893,7 @@ void TeamSel_Init(s32 section) {
     }
 #ifdef PORT
     { extern volatile int gPortPcTeamDp; gPortPcTeamDp = gTeamSel->battleType == 2 ? gTeamSel->dpMax : 0; }
+    Port_TeamSelectBegin();
     { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 1; }
 #endif
 }
@@ -900,6 +901,7 @@ void TeamSel_Init(s32 section) {
 /* Frees the screen: the windows, the movies, the picture buffers and the work area. */
 void TeamSel_Term(void) {
 #ifdef PORT
+    Port_TeamSelectEnd();
     { extern volatile int gPortPcTeamReady; gPortPcTeamReady = 0; }
     { extern volatile int gPortPcTeamDp; gPortPcTeamDp = 0; }
 #endif

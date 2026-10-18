@@ -126,7 +126,7 @@ void Port_SelectModelsDraw(void) {
             rx=(obj->state.box.max[0]-obj->state.box.min[0])*.5f;
             rz=(obj->state.box.max[2]-obj->state.box.min[2])*.5f;
             radius=sqrtf(rx*rx+rz*rz);
-            if ((m->loaded>=PORT_CHARA_FIRST || dist>10.0f) && height>target*2.6f && height<1000.0f && radius<1000.0f) {
+            if (m->loaded>=PORT_CHARA_FIRST && height>target*2.6f && height<1000.0f && radius<1000.0f) {
                 fit=height*2.3f+radius;
                 if (fit>dist) {
                     dist=fit;

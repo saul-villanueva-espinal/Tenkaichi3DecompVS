@@ -4,6 +4,8 @@
 int Port_TeamSelectLimit(void);
 void Port_TeamSelectSetLimit(int limit);
 void Port_TeamSelectDraw(void);
+void Port_TeamSelectBegin(void);
+void Port_TeamSelectEnd(void);
 void Port_TeamSelectCapture(void);
 int Port_TeamSelectCopy(PcBattle *out);
 void Port_TeamChip(int chara, float x, float y, float w, float h, int alpha);
