@@ -414,13 +414,13 @@ s32 PortTournament_Run(void) {
             Ps_Prompt(0, "Luchar / Avanzar");
             Ps_Prompt(1, "Simular CPU");
             Ps_Prompt(2, "Volver");
-            Ps_Prompt(3, "Ficha / L3: Online");
+            Ps_Prompt(3, "Ficha / SELECT: Online");
         } else {
             Ps_Prompt(2, "Volver al Cuadro");
         }
 
         if (live) {
-            if(pad->gamePressed & PADG_L3) {
+            if(pad->gamePressed & (PADG_L3|PADG_SELECT)) {
                 extern s32 PortTournamentOnline_Run(void);
                 if(PortTournamentOnline_Run()) return 1;
             }
@@ -500,7 +500,7 @@ s32 PortTournament_Run(void) {
                       Ps_Rgba(6, 10, 18, 255), Ps_Rgba(12, 18, 30, 255));
 
         /* Header */
-        Ps_Heading(24.0f, 32.0f, "TORNEO LOCAL | L3: SALA ONLINE", 1.0f, 400.0f, 0x80);
+        Ps_Heading(24.0f, 32.0f, "TORNEO LOCAL | SELECT: ONLINE", 1.0f, 400.0f, 0x80);
         Ps_Text(24.0f, 52.0f, "8 Luchadores Legendarios  |  Arena Torneo Mundial  |  Eliminatoria Directa", 0.40f, 450.0f, 3);
 
         if (sTr->tab == 0) {
