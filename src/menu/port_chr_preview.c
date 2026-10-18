@@ -7,7 +7,6 @@
 #include "sys/fade.h"
 #include "sys/file.h"
 #include "sys/heap.h"
-#include "menu/menu_d.h"
 #include "menu/port_screen.h"
 
 #ifndef MCHR_RANDOM
