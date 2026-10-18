@@ -52,7 +52,7 @@ s32 Port_ChrPreview_Run(s32 chara, s32 costume, s32 bgm, s32 isConfirm) {
 
     while (1) {
         Pad *pad = &gPad[0];
-        u32 pressed, repeat, down;
+        u32 pressed, repeat, held;
 
         Gfx_BeginFrame();
         Pad_Update();
@@ -62,15 +62,15 @@ s32 Port_ChrPreview_Run(s32 chara, s32 costume, s32 bgm, s32 isConfirm) {
 
         pressed = pad->gamePressed;
         repeat = pad->gameRepeat;
-        down = pad->gameDown;
+        held = pad->held;
 
         if (ChrView_IsVisible()) {
             /* Support manual 360 rotation with D-pad or keyboard arrow keys in addition to analog stick */
             if (gOrbitCam != NULL) {
-                if (down & PAD_LEFT) gOrbitCam->angles.y -= 0.04f;
-                if (down & PAD_RIGHT) gOrbitCam->angles.y += 0.04f;
-                if (down & PAD_UP) gOrbitCam->angles.x -= 0.02f;
-                if (down & PAD_DOWN) gOrbitCam->angles.x += 0.02f;
+                if (held & PAD_LEFT) gOrbitCam->angles.y -= 0.04f;
+                if (held & PAD_RIGHT) gOrbitCam->angles.y += 0.04f;
+                if (held & PAD_UP) gOrbitCam->angles.x -= 0.02f;
+                if (held & PAD_DOWN) gOrbitCam->angles.x += 0.02f;
             }
             ChrView_Update();
             loaded = 1;
