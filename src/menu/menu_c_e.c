@@ -5,6 +5,7 @@
 #include "sys/save.h"
 #ifdef PORT
 #include "port_pc_battle.h"
+#include "port_select_models.h"
 extern int Port_NetActive(void),Port_NetSession(void);
 static MChrCell sPortLargeGrid[CHARSEL_SIDES][PORT_CHARA_GRID_CAPACITY];
 extern void ChrGrid_BuildPort(s32 *, MChrCell *, s32 *, MChrCell *, s32 *, MChrCell *);
@@ -914,6 +915,10 @@ void CharSel_Draw(void) {
         Sprite_DrawPicture(gCharSel->bg[i], 0, 0, gCharSel->bgAlpha[i]);
     }
 
+#ifdef PORT
+    for (i = 0; i < 2; i++) Port_SelectModelsSet(i, gCharSel->side[i]->chara, gCharSel->side[i]->colorPlate);
+    Port_SelectModelsDraw();
+#endif
     f = &gCharSel->flash[0];
     for (i = 0; i < CHARSEL_SIDES; i++) {
         Flash_FindLabel(f, NULL, i ? "mc_face_mask_r" : "mc_face_mask_l", &ref);
@@ -931,7 +936,11 @@ void CharSel_Draw(void) {
             gCharSel->faceAlpha[i] = 0.0f;
         }
         Flash_FindLabel(f, NULL, i ? "mc_single_chara_r" : "mc_single_chara_l", &ref);
+#ifdef PORT
+        Flash_ClipSetAlpha(f, &ref, Port_SelectModelsActive() ? 0.0f : gCharSel->faceAlpha[i]);
+#else
         Flash_ClipSetAlpha(f, &ref, gCharSel->faceAlpha[i]);
+#endif
         Flash_ClipSetFlags(f, &ref, 0x80, (u8)gCharSel->faceMask);
         Flash_FindLabel(f, NULL, i ? "mc_name_text_r" : "mc_name_text_l", &ref);
         TextBox_AttachLine(f, &ref, 0, 0, CS_NAME_LINE(gCharSel->side[i]->chara), &gCharSel->nameBox[i]);
@@ -946,10 +955,6 @@ void CharSel_Draw(void) {
             Flash_ClipGetPos(f, &ref, &nx, &ny);
             if (gCharSel->side[i]->state == CHARSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gCharSel->rows[i]) {
                 Port_FormHint(i, nx, ny + 30, gCharSel->cells[i][col + row * 7].formCount);
-                if (i == 1 || gCharSel->players == 1) {
-                    Ps_Button(1, 260.0f, 268.0f, 15.0f);
-                    Ps_Text(280.0f, 261.0f, "Preview", 0.45f, 100.0f, 0);
-                }
             }
         }
 #endif
@@ -2067,6 +2072,9 @@ s32 CharSel_Run(s32 section) {
     s32 i;
 
     CharSel_Init(section);
+#ifdef PORT
+    Port_SelectModelsBegin();
+#endif
     ColorFade_StartIn(0, 0, 0, 0x14);
     while (1) {
         Gfx_BeginFrame();
@@ -2109,6 +2117,9 @@ s32 CharSel_Run(s32 section) {
             CharSel_Input(&result);
         }
     }
+#ifdef PORT
+    Port_SelectModelsEnd();
+#endif
     if (result != 0) {
         s32 flag[2] = { 1, 1 };
         s32 mode;

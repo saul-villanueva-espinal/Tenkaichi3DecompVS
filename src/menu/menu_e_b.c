@@ -1,5 +1,6 @@
 #include "common.h"
 #ifdef PORT
+#include "port_select_models.h"
 #include "port_pc_battle.h"
 extern int Port_NetActive(void),Port_NetSession(void);
 #endif
@@ -995,6 +996,10 @@ void TeamSel_Draw(void) {
         }
         Sprite_DrawPicture(gTeamSel->bg[i], 0, 0, gTeamSel->bgAlpha[i]);
     }
+#ifdef PORT
+    for (i = 0; i < 2; i++) Port_SelectModelsSet(i, gTeamSel->side[i]->chara, (gTeamSel->side[i]->cur < 5 ? gTeamSel->side[i]->member[gTeamSel->side[i]->cur].color : gTeamSel->side[i]->member[0].color));
+    Port_SelectModelsDraw();
+#endif
     flash = &gTeamSel->flash[0];
     for (i = 0; i < TEAMSEL_SIDES; i++) {
         Flash_FindLabel(flash, NULL, i ? "mc_face_mask_r" : "mc_face_mask_l", &ref);
@@ -1012,7 +1017,11 @@ void TeamSel_Draw(void) {
             gTeamSel->faceAlpha[i] = 0.0f;
         }
         Flash_FindLabel(flash, NULL, i ? "mc_single_chara_r" : "mc_single_chara_l", &ref);
+#ifdef PORT
+        Flash_ClipSetAlpha(flash, &ref, Port_SelectModelsActive() ? 0.0f : gTeamSel->faceAlpha[i]);
+#else
         Flash_ClipSetAlpha(flash, &ref, gTeamSel->faceAlpha[i]);
+#endif
         Flash_ClipSetFlags(flash, &ref, 0x80, (u8)gTeamSel->faceMask);
         Flash_FindLabel(flash, NULL, i ? "mc_name_text_r" : "mc_name_text_l", &ref);
         TextBox_AttachLine(flash, &ref, 0, 0, PORT_NAME_LINE(gTeamSel->side[i]->chara), &gTeamSel->nameBox[i]);
@@ -2376,6 +2385,9 @@ s32 TeamSel_Run(s32 section) {
     s32 cpuLevel;
 
     TeamSel_Init(section);
+#ifdef PORT
+    Port_SelectModelsBegin();
+#endif
     ColorFade_StartIn(0, 0, 0, 0x14);
     while (1) {
         Gfx_BeginFrame();
@@ -2420,6 +2432,9 @@ s32 TeamSel_Run(s32 section) {
         TeamSel_Input(&result);
     }
 
+#ifdef PORT
+    Port_SelectModelsEnd();
+#endif
     if (result != 0) {
         s32 handicap[2] = { 1, 1 };
 
