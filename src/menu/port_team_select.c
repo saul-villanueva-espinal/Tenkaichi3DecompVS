@@ -61,7 +61,7 @@ int Port_TeamSelectCopy(PcBattle *out) {
 /* Original plate atlas and FIN movie, laid out across the same full-width
    canvas as the original reels. Only the count grows from five to ten. */
 extern void Port_FlashImage(void *,float,float,float,float,int,int,int,int);
-extern void Port_FlashPlate(MFlash *,char *,float,float,float,float);
+extern void Port_FlashRegion(MFlash *,float,float,float,float,float,float,float,float);
 extern void Font_PushStyle(void),Font_PopStyle(void),Font_SetScale(float);
 extern void Font_SetScaleXY(float,float),Font_SetAlign(int),Font_SetShadowMode(int);
 extern void Font_SetColor(unsigned),Font_SetSpacing(int,int);
@@ -97,7 +97,7 @@ void Port_TeamSelectDraw(void) {
             sprintf(labels[s][k],"%d",k+1);
             Font_PrintAsciiAt((int)(x+20),(int)(y+1),labels[s][k]);
         }
-        if(sFinishReady) Port_FlashPlate(&sFinishMovie,"mc_menu_plate",430,y+18,74,27);
+        if(sFinishReady) Port_FlashRegion(&sFinishMovie,336,36,164,44,430,y+18,74,27);
         if(side->cur==TS_CUR_MENU && side->state==TEAMSEL_ST_TEAM) {
             Ps_Quad(430,y+22,435,y+18,430,y+41,435,y+45,gold,gold,gold,gold);
             Ps_Quad(499,y+18,504,y+22,499,y+45,504,y+41,gold,gold,gold,gold);

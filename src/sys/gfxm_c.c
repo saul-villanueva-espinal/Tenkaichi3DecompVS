@@ -854,22 +854,11 @@ void FlashDraw_MaskQuad(FlashQuad *q, u64 tex0, s32 set) {
 #ifdef PORT
 static s32 sPortRegion;
 static f32 sPortRegionRect[8];
-static f32 sPortPlateBounds[4];
 #endif
 void FlashDraw_Quad(FlashTex *tex, FlashQuad *q) {
 #ifdef PORT
     FlashQuad transformed;
     s32 corner;
-    if (sPortRegion==2) {
-        if (q->rgba[3]==0) return;
-        for (corner=0;corner<4;corner++) {
-            if(q->pt[corner][0]<sPortPlateBounds[0]) sPortPlateBounds[0]=q->pt[corner][0];
-            if(q->pt[corner][1]<sPortPlateBounds[1]) sPortPlateBounds[1]=q->pt[corner][1];
-            if(q->pt[corner][0]>sPortPlateBounds[2]) sPortPlateBounds[2]=q->pt[corner][0];
-            if(q->pt[corner][1]>sPortPlateBounds[3]) sPortPlateBounds[3]=q->pt[corner][1];
-        }
-        return;
-    }
     if (sPortRegion) {
         transformed = *q;
         for (corner = 0; corner < 4; corner++) {
@@ -1143,27 +1132,6 @@ void Port_FlashRegion(Flash *flash, f32 x, f32 y, f32 w, f32 h, f32 dx, f32 dy, 
     sPortRegion=1;
     FlashTl_Draw(flash->root,NULL);
     sPortRegion=0;
-    Dma_AddScissor(0,511,0,447);
-}
-
-/* A named plate remains available when the parent team movie slides out after
-   confirmation. Measure its own quads rather than cropping a hidden movie. */
-void Port_FlashPlate(Flash *flash, char *name, f32 dx, f32 dy, f32 dw, f32 dh) {
-    extern FlashClip *FlashClipList_FindByName(FlashClipList *,char *);
-    extern void Dma_AddScissor(s32,s32,s32,s32);
-    FlashClip *clip=FlashClipList_FindByName(flash->clips,name);
-    f32 w,h;
-    if(!clip) return;
-    sPortPlateBounds[0]=sPortPlateBounds[1]=100000.0f;
-    sPortPlateBounds[2]=sPortPlateBounds[3]=-100000.0f;
-    sPortRegion=2;FlashTl_Draw(&clip->tl,&clip->prop);sPortRegion=0;
-    w=sPortPlateBounds[2]-sPortPlateBounds[0];h=sPortPlateBounds[3]-sPortPlateBounds[1];
-    if(w<=0 || h<=0) return;
-    sPortRegionRect[0]=sPortPlateBounds[0];sPortRegionRect[1]=sPortPlateBounds[1];
-    sPortRegionRect[2]=w;sPortRegionRect[3]=h;
-    sPortRegionRect[4]=dx;sPortRegionRect[5]=dy;sPortRegionRect[6]=dw;sPortRegionRect[7]=dh;
-    Gfx_AddDefaultEnv();Dma_AddScissor((s32)dx,(s32)(dx+dw-1),(s32)dy,(s32)(dy+dh-1));
-    sPortRegion=1;FlashTl_Draw(&clip->tl,&clip->prop);sPortRegion=0;
     Dma_AddScissor(0,511,0,447);
 }
 
