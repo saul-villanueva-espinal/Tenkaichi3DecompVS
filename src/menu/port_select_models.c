@@ -130,7 +130,9 @@ void Port_SelectModelsDraw(void) {
                 fit=height*2.3f+radius;
                 if (fit>dist) {
                     dist=fit;
-                    target=(obj->state.box.max[1]+obj->state.box.min[1])*.5f-height*.26f;
+                    /* World Y grows downward: aiming below the model's centre
+                       raises its feet above the selector's nameplates. */
+                    target=(obj->state.box.max[1]+obj->state.box.min[1])*.5f+height*.15f;
                 }
             }
         }
