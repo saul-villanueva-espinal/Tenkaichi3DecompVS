@@ -320,6 +320,11 @@ void BtlMember_NextSwitchTarget(BtlMemberChr *chr) {
     s32 i;
     s32 n;
 
+#ifdef PORT
+    { extern s32 Port_PcRelayCycle(BtlMemberChr *, s32);
+      if (Port_PcRelayCycle(chr, 1)) return; }
+#endif
+
     for (i = 0; i < chr->memberCount; i++) {
         n = (chr->switchTarget + i + 1) % chr->memberCount;
         if (n != chr->active && BtlMember_GetGauge(chr, n)->health > 0) {
@@ -333,6 +338,11 @@ void BtlMember_NextSwitchTarget(BtlMemberChr *chr) {
 void BtlMember_PrevSwitchTarget(BtlMemberChr *chr) {
     s32 i;
     s32 n;
+
+#ifdef PORT
+    { extern s32 Port_PcRelayCycle(BtlMemberChr *, s32);
+      if (Port_PcRelayCycle(chr, -1)) return; }
+#endif
 
     for (i = chr->memberCount - 1; i >= 0; i--) {
         n = (chr->switchTarget + i) % chr->memberCount;

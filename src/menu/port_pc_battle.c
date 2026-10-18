@@ -7,6 +7,7 @@
 #include "port_pc_battle.h"
 #include "port_fighters.h"
 #include "sys/save.h"
+#include "port_chara.h"
 extern s32 CpuLevel_FromSetting(s32);
 extern void Port_SettingSave(const char *, int);
 extern void Port_LocalPlayersSet(int);
@@ -18,6 +19,12 @@ extern int Port_NetActive(void), Port_NetSession(void);
 static PcBattle sBattle;
 static s32 sRelay, sNext[2], sLevel[2], sRelayMask = 3;
 static volatile s32 sRemaining[2];
+/* The original fighter/HUD ABI has five slots. Page the selected reserves into
+   those slots without changing the ABI or discarding their combat state. */
+static BtlMember sReserve[2][PORT_RELAY_MAX];
+static BattleMember sReserveSetup[2][PORT_RELAY_MAX];
+static s32 sReserveValid[2][PORT_RELAY_MAX], sSlotIndex[2][BTL_MEMBER_SLOTS];
+static s32 sBankReady[2];
 static s32 sNativeRules,sNativeCpuCpu,sNativeTraining,sNativeBgm;
 void Port_PcNativeRules(s32 players,s32 training,s32 bgm) {sNativeRules=1;sNativeCpuCpu=players==2;sNativeTraining=training;sNativeBgm=bgm;}
 
@@ -42,6 +49,7 @@ void Port_PcApplyTeams(void) {
         for (i=0;i<b.count[1] && i<5;i++) { b.fighter[1][i].chara=original->members[i].chara; b.fighter[1][i].costume=original->members[i].costume; }
     }
     sBattle = b; sRelay = 1; sRelayMask = Port_PcTeamsMask();
+    sBankReady[0] = sBankReady[1] = 0;
     for (s = 0; s < 2; s++) {
         BattleSide *side = &Battle_GetSetup()->sides[s];
         s32 level = side->members[0].cpuLevel;
@@ -56,7 +64,7 @@ void Port_PcApplyTeams(void) {
     }
 }
 
-void Port_PcRelayStop(void) { sRelay = 0; sRemaining[0] = sRemaining[1] = 0; }
+void Port_PcRelayStop(void) { sRelay = 0; sRemaining[0] = sRemaining[1] = 0; sBankReady[0] = sBankReady[1] = 0; }
 int Port_PcRelayRemaining(int side) { return side >= 0 && side < 2 ? sRemaining[side] : 0; }
 
 /* Slots own both loader buffers until Battle_Unload. A fresh member setup has
@@ -68,9 +76,102 @@ static void PcRelay_StoreMember(BattleMember *slot, BattleMember *fresh) {
     *slot = *fresh;
 }
 
+static void PcRelay_Portrait(s32 s, s32 slot) {
+    BattleMember *m = BattleSide_GetMember(s, slot);
+    if (m->buf[0] && File_LoadSync(CHARA_MEMBER_FILE_COSTUME(m->chara, m->costume, s), m->buf[0], 0)) {
+        Res_RelocateOffsets(&m->buf[0], m->buf[0], m->buf[0]);
+        m->data = m->buf[0];
+    }
+}
+
+static void PcRelay_Bank(s32 s, BtlMemberChr *chr) {
+    s32 i;
+    if (sBankReady[s]) return;
+    for (i = 0; i < PORT_RELAY_MAX; i++) sReserveValid[s][i] = 0;
+    for (i = 0; i < BTL_MEMBER_SLOTS; i++) {
+        sSlotIndex[s][i] = i < chr->memberCount ? i : -1;
+        /* A rematch may reuse a portrait buffer that held a later reserve. */
+        if (i < chr->memberCount) PcRelay_Portrait(s, i);
+    }
+    sBankReady[s] = 1;
+}
+
+static s32 PcRelay_FindSlot(s32 s, BtlMemberChr *chr, s32 index) {
+    s32 i;
+    for (i = 0; i < chr->memberCount; i++) if (sSlotIndex[s][i] == index) return i;
+    return -1;
+}
+
+static s32 PcRelay_Alive(s32 s, BtlMemberChr *chr, s32 index) {
+    s32 slot = PcRelay_FindSlot(s, chr, index);
+    if (slot >= 0) return chr->members[slot].present && chr->members[slot].gauge.health > 0;
+    return !sReserveValid[s][index] || (sReserve[s][index].present && sReserve[s][index].gauge.health > 0);
+}
+
+static void PcRelay_Page(s32 s, BtlMemberChr *chr, s32 slot, s32 index) {
+    s32 old = sSlotIndex[s][slot], i;
+    BattleMember fresh;
+    BtlMember *member = &chr->members[slot];
+    if (old >= 0) {
+        sReserve[s][old] = *member;
+        sReserveSetup[s][old] = *BattleSide_GetMember(s, slot);
+        sReserveValid[s][old] = 1;
+    }
+    if (sReserveValid[s][index]) {
+        *member = sReserve[s][index];
+        fresh = sReserveSetup[s][index];
+        fresh.chara = member->chara; fresh.costume = member->costume;
+        fresh.variant = member->gauge.variant;
+    } else {
+        BtlMember empty = {0};
+        PcFighter *f = &sBattle.fighter[s][index];
+        BtlMember_Init(&fresh, f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
+        *member = empty;
+        member->present = 1; member->chara = fresh.chara; member->costume = fresh.costume;
+        member->cpuLevel = fresh.cpuLevel; member->aiType = fresh.aiType;
+        for (i = 0; i < 4; i++) member->ability[i] = fresh.ability[i];
+        BtlMember_LoadParams(chr, slot, 1, fresh.health, fresh.variant);
+        for (i = 0; i < 7; i++) member->bonus[i] = fresh.bonus[i + 1];
+        if (index >= BTL_MEMBER_SLOTS) {
+            extern void Port_PcRelayLog(int, int, int);
+            sNext[s]++;
+            Port_PcRelayLog(s, index + 1, f->chara);
+        }
+    }
+    PcRelay_StoreMember(BattleSide_GetMember(s, slot), &fresh);
+    sSlotIndex[s][slot] = index;
+    PcRelay_Portrait(s, slot);
+}
+
+/* Called by the original right-stick navigation in both directions. The same
+   controls can now reach all ten choices before any teammate is defeated. */
+s32 Port_PcRelayCycle(BtlMemberChr *chr, s32 direction) {
+    s32 s, start, active, step, index, slot;
+    if (!sRelay || !chr) return 0;
+    s = chr->side;
+    if (s < 0 || s > 1 || !(sRelayMask & (1 << s)) || sBattle.count[s] <= BTL_MEMBER_SLOTS) return 0;
+    PcRelay_Bank(s, chr);
+    active = sSlotIndex[s][chr->active];
+    start = chr->switchTarget >= 0 && chr->switchTarget < chr->memberCount ? sSlotIndex[s][chr->switchTarget] : active;
+    for (step = 1; step <= sBattle.count[s]; step++) {
+        index = (start + direction * step + sBattle.count[s]) % sBattle.count[s];
+        if (index == active || !PcRelay_Alive(s, chr, index)) continue;
+        slot = PcRelay_FindSlot(s, chr, index);
+        if (slot < 0) {
+            slot = chr->switchTarget;
+            if (slot < 0 || slot >= chr->memberCount || slot == chr->active) slot = (chr->active + 1) % chr->memberCount;
+            PcRelay_Page(s, chr, slot, index);
+        }
+        chr->switchTarget = slot;
+        return 1;
+    }
+    return 1;
+}
+
 void Port_PcRelayRewind(void) {
     s32 s, i;
     if (!sRelay) return;
+    sBankReady[0] = sBankReady[1] = 0;
     for (s = 0; s < 2; s++) {
         BattleSide *side = &Battle_GetSetup()->sides[s];
         if (!(sRelayMask & (1 << s))) continue;
@@ -90,26 +191,27 @@ void Port_PcRelayRewind(void) {
     }
 }
 
-/* The engine's five native member slots remain intact. Defeated bench slots
-   are replenished from the ordered PC queue before the next-member checks. */
+/* Keep the native bank supplied, including reserves that were paged out while
+   browsing. Defeated members are never recreated as fresh fighters. */
 void Port_PcRelayTick(void) {
-    s32 s;
+    s32 s, i, slot;
     if (!sRelay) return;
     for (s = 0; s < 2; s++) {
         BtlMemberChr *chr = BtlChar_FindByObjId(s);
         if (!chr) continue;
-        while (sNext[s] < sBattle.count[s]) {
-            PcFighter *f = &sBattle.fighter[s][sNext[s]];
-            BattleMember m;
-            s32 slot;
-            BtlMember_Init(&m, f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
-            slot = BtlMember_Replace(chr, (BtlMemberSetup *)&m);
-            if (slot < 0) break;
-            PcRelay_StoreMember(BattleSide_GetMember(s, slot), &m);
-            sNext[s]++;
-            { extern void Port_PcRelayLog(int, int, int); Port_PcRelayLog(s, sNext[s], f->chara); }
+        if (!(sRelayMask & (1 << s))) { sRemaining[s] = BtlMember_CountAlive(chr); continue; }
+        PcRelay_Bank(s, chr);
+        for (slot = 0; slot < chr->memberCount; slot++) {
+            if (slot == chr->active || chr->members[slot].gauge.health > 0) continue;
+            for (i = 0; i < sBattle.count[s]; i++) {
+                if (PcRelay_FindSlot(s, chr, i) < 0 && PcRelay_Alive(s, chr, i)) {
+                    PcRelay_Page(s, chr, slot, i);
+                    break;
+                }
+            }
         }
-        sRemaining[s] = BtlMember_CountAlive(chr) + sBattle.count[s] - sNext[s];
+        sRemaining[s] = 0;
+        for (i = 0; i < sBattle.count[s]; i++) sRemaining[s] += PcRelay_Alive(s, chr, i) != 0;
     }
 }
 
@@ -125,6 +227,7 @@ int Port_PcBattleBuild(void) {
     {extern s32 Port_TourneyTestBots(void);if(Port_TourneyTestBots()) {sNativeRules=1;sNativeCpuCpu=1;}}
     { extern void Port_BattleRulesSet(const PcBattle *); Port_BattleRulesSet(&b); }
     sBattle = b; sRelayMask = 3;
+    sBankReady[0] = sBankReady[1] = 0;
     sRelay = b.mode == PC_RELAY || (b.mode == PC_DUEL && (b.count[0] > 5 || b.count[1] > 5));
     mode = b.mode == PC_FFA ? PORT_MODE_FFA : b.mode == PC_TAG ? PORT_MODE_TEAM : b.mode == PC_RAID ? PORT_MODE_RAID : PORT_MODE_NONE;
     Port_SettingSave("modes_fight", sNativeRules && sNativeTraining ? PORT_MODE_TRAINING : mode);
