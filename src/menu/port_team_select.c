@@ -14,11 +14,14 @@ int Port_TeamSelectLimit(void) {
     return Port_NetActive() || Port_NetSession() || Port_ModesFight()!=PORT_MODE_NONE ? TS_MEMBER_MAX : PORT_RELAY_MAX;
 }
 void Port_TeamSelectCapture(void) {
-    int s,k;
+    int s,k,bgm;
     Port_PcBattleDefault(&sChosen);
     sChosen.mode=PC_RELAY;sChosen.players=gTeamSel->players==TEAMSEL_PLAYERS_TWO?2:1;
     sChosen.stage=gTeamSel->stage->stage;
-    sChosen.rules.bgm1=gTeamSel->bgmIds[gTeamSel->stage->bgm];
+    bgm=gTeamSel->bgmIds[gTeamSel->stage->bgm];
+    /* PC presets encode a music index plus one; native/random tracks outside
+       that range stay in the native battle setup and never invalidate a team. */
+    sChosen.rules.bgm1=bgm>=0 && bgm<20 ? bgm+1 : 0;
     for(s=0;s<2;s++) {
         sChosen.count[s]=gTeamSel->side[s]->memberCount;
         for(k=0;k<sChosen.count[s];k++) {
