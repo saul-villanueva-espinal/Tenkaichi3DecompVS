@@ -7,7 +7,12 @@
 #include "sys/fade.h"
 #include "sys/file.h"
 #include "sys/heap.h"
+#include "menu/menu_d.h"
 #include "menu/port_screen.h"
+
+#ifndef MCHR_RANDOM
+#define MCHR_RANDOM 0xA1
+#endif
 
 #ifdef PORT
 extern void Port_MenuScene3D(int on);
