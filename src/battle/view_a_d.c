@@ -384,11 +384,18 @@ void ChrView_Init(void) {
     BtlObj_SetUnk44FC4(1.0f);
     OrbitCam_Init();
     Job_Clear();
+#ifdef PORT
+    {
+        ChrViewCommon *res = (ChrViewCommon *)gCommonRes->unk20;
+        res->stage = File_LoadSync(CHRVIEW_FILE_STAGE, NULL, 0);
+    }
+#else
     job = &ChrView_Get()->job;
     memset(job, 0, sizeof(ChrViewJob));
     job->step = ChrView_StepLoadStage;
     Job_Push((Job *)job);
     Load_RunBlocking();
+#endif
     StgModel_InitStage();
     StgAmb_Term();
     StgFx_Init();

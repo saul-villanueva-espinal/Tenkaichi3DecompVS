@@ -1030,8 +1030,13 @@ void TeamSel_Draw(void) {
                 row = gTeamSel->side[i]->member[cur].row;
             }
             Flash_ClipGetPos(flash, &ref, &nx, &ny);
-            if (gTeamSel->side[i]->state == TEAMSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gTeamSel->rows[i])
+            if (gTeamSel->side[i]->state == TEAMSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gTeamSel->rows[i]) {
                 Port_FormHint(i, nx, ny + 30, gTeamSel->cells[i][col + row * 7].formCount);
+                if (i == 1 || gTeamSel->players == 1) {
+                    Ps_Button(1, 260.0f, 268.0f, 15.0f);
+                    Ps_Text(280.0f, 261.0f, "Preview", 0.45f, 100.0f, 0);
+                }
+            }
         }
 #endif
         Flash_FindLabel(flash, NULL, i ? "mc_form_text_r" : "mc_form_text_l", &ref);
@@ -1768,6 +1773,15 @@ f32 TeamSel_Input(s32 *result) {
                         Snd_PlaySe(2, 0);
                     }
                 }
+                /* Preview 3D model with Square */
+                else if (gPad[i].pressed & PAD_SQUARE) {
+                    s32 targetChara = CUR_SIDE->chip[0][CUR_MEMBER.col];
+                    if (targetChara != TS_EMPTY && targetChara != TS_RANDOM) {
+                        extern s32 Port_ChrPreview_Run(s32 chara, s32 costume, s32 bgm, s32 isConfirm);
+                        s32 bgmId = (gTeamSel->stage && gTeamSel->stage->bgm < gTeamSel->bgmCount) ? gTeamSel->bgmIds[gTeamSel->stage->bgm] : 0;
+                        Port_ChrPreview_Run(targetChara, CUR_MEMBER.color, bgmId, 0);
+                    }
+                }
 #endif
                 else if (gPad[i].gamePressed & 0x200) {
                     if (CUR_CELL.id == TS_RANDOM) {
@@ -2134,6 +2148,20 @@ f32 TeamSel_Input(s32 *result) {
                     if (CUR_SIDE->flags & TEAMSEL_SIDE_CUSTOM) {
                         CUR_SIDE->flags ^= TEAMSEL_SIDE_CUSTOM;
                     }
+#ifdef PORT
+                    if (CUR_N == 0 && CUR_MEMBER.chara != TS_RANDOM && CUR_MEMBER.chara >= 0) {
+                        extern s32 Port_ChrPreview_Run(s32 chara, s32 costume, s32 bgm, s32 isConfirm);
+                        s32 bgmId = (gTeamSel->stage && gTeamSel->stage->bgm < gTeamSel->bgmCount) ? gTeamSel->bgmIds[gTeamSel->stage->bgm] : 0;
+                        s32 conf = Port_ChrPreview_Run(CUR_MEMBER.chara, CUR_MEMBER.color, bgmId, 1);
+                        if (conf < 0) {
+                            Flash_GotoLabel(&gTeamSel->flash[CUR_N + 5], "fl_color_in", 1);
+                            TeamSel_ClipGoto(CUR_N + 5, CUR_N, TEAMSEL_CLIP_COLOR_PLATE, "fl_on_start");
+                            CUR_SIDE->state = TEAMSEL_ST_COLOR;
+                            continue;
+                        }
+                        CUR_MEMBER.color = conf;
+                    }
+#endif
                     CUR_SIDE->state = TEAMSEL_ST_TEAM;
                     Snd_PlaySe(1, 1);
                 } else if (gPad[i].gamePressed & 0x400) {

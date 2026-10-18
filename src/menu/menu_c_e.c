@@ -944,8 +944,13 @@ void CharSel_Draw(void) {
             s32 nx = 0, ny = 0;
             s32 col = gCharSel->side[i]->col, row = gCharSel->side[i]->row;
             Flash_ClipGetPos(f, &ref, &nx, &ny);
-            if (gCharSel->side[i]->state == CHARSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gCharSel->rows[i])
+            if (gCharSel->side[i]->state == CHARSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gCharSel->rows[i]) {
                 Port_FormHint(i, nx, ny + 30, gCharSel->cells[i][col + row * 7].formCount);
+                if (i == 1 || gCharSel->players == 1) {
+                    Ps_Button(1, 260.0f, 268.0f, 15.0f);
+                    Ps_Text(280.0f, 261.0f, "Preview", 0.45f, 100.0f, 0);
+                }
+            }
         }
 #endif
         Flash_FindLabel(f, NULL, i ? "mc_form_text_r" : "mc_form_text_l", &ref);
@@ -1590,6 +1595,15 @@ void CharSel_Input(s32 *running) {
                     Snd_PlaySe(2, 0);
                 }
             }
+            /* Preview 3D model with Square */
+            else if (gPad[i].pressed & PAD_SQUARE) {
+                s32 targetChara = CS_SIDE->chip[CS_SIDE->col];
+                if (targetChara != MCHR_EMPTY && targetChara != MCHR_RANDOM) {
+                    extern s32 Port_ChrPreview_Run(s32 chara, s32 costume, s32 bgm, s32 isConfirm);
+                    s32 bgmId = (gCharSel->stage && gCharSel->stage->bgmPlaying < gCharSel->bgmCount) ? gCharSel->bgmIds[gCharSel->stage->bgmPlaying] : 0;
+                    Port_ChrPreview_Run(targetChara, CS_SIDE->colorPlate, bgmId, 0);
+                }
+            }
 #endif
             else if (gPad[i].gamePressed & 0x200) {
                 if (CS_CELL.id == MCHR_RANDOM) {
@@ -1905,6 +1919,20 @@ void CharSel_Input(s32 *running) {
                     }
                     CharSel_ClipGoto(CS_N + 1, CS_N, CHARSEL_CLIP_CHIP, "fl_off_start");
                 }
+#ifdef PORT
+                if (i == 0 && CS_SIDE->picked != MCHR_RANDOM && CS_SIDE->picked >= 0) {
+                    extern s32 Port_ChrPreview_Run(s32 chara, s32 costume, s32 bgm, s32 isConfirm);
+                    s32 bgmId = (gCharSel->stage && gCharSel->stage->bgmPlaying < gCharSel->bgmCount) ? gCharSel->bgmIds[gCharSel->stage->bgmPlaying] : 0;
+                    s32 conf = Port_ChrPreview_Run(CS_SIDE->picked, CS_SIDE->colorPlate, bgmId, 1);
+                    if (conf < 0) {
+                        Flash_GotoLabel(CS_PLATE, "fl_color_in", 1);
+                        CharSel_ClipGoto(CS_N + 3, CS_N, CHARSEL_CLIP_COLOR_PLATE, "fl_on_start");
+                        CS_SIDE->state = CHARSEL_ST_COLOR;
+                        continue;
+                    }
+                    CS_SIDE->colorPlate = conf;
+                }
+#endif
                 CS_SIDE->state = CHARSEL_ST_DONE;
                 if (gCharSel->players != 1 && gCharSel->turn == 0) {
                     /* one pad: now choose for the other side */
