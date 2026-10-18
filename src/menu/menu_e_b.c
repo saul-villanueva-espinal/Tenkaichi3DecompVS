@@ -432,7 +432,7 @@ void TeamSel_ClipGoto(s32 flash, s32 side, s32 kind, char *label) {
     MFlash *f = &gTeamSel->flash[flash];
 
 #ifdef PORT
-    if(kind==TEAMSEL_CLIP_TEAM && Port_TeamSelectLimit()>TS_MEMBER_MAX) return;
+    if(kind==TEAMSEL_CLIP_TEAM && Port_TeamSelectLimit()>TS_MEMBER_MAX && gTeamSel->side[side]->cur!=TS_CUR_MENU) return;
 #endif
     switch (kind) {
     case TEAMSEL_CLIP_CHIP:
