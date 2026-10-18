@@ -27,7 +27,12 @@
  * is confirmed, on 0xA3 it opens the list of the fourteen saved custom characters.
  */
 #define TS_CUSTOM_ROWS 2           /* rows of the custom-character list */
+#ifdef PORT
+s32 Port_TeamSelectLimit(void);
+#define TS_CUR_MENU (Port_TeamSelectLimit())
+#else
 #define TS_CUR_MENU 5              /* TeamSelSide.cur on the "team complete" plate */
+#endif
 #define TS_BGM_LOCKED 0x19         /* music list id of a locked entry (BgmList_ApplyUnlocks) */
 #define TS_BGM_FILE 0x10B16        /* Bgm_Play id of music list id 0 */
 

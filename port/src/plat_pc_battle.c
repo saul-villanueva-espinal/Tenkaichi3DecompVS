@@ -158,6 +158,13 @@ int Port_PcRosterQueue(const PcBattle *b) {
     pthread_mutex_lock(&sLock); sPending = *b; sRequested = 1; pthread_mutex_unlock(&sLock);
     return 1;
 }
+/* The original team selector supplies both ordered ten-member benches. */
+int Port_PcNativeTeamsQueue(const PcBattle *b) {
+    char why[160];
+    if (Port_NetActive() || Port_NetSession() || Port_ModesFight() != 0 || !Port_PcBattleValidate(b,why,sizeof(why))) return 0;
+    pthread_mutex_lock(&sLock); sTeams=*b;sTeamsMask=3;sTeamsPending=1;pthread_mutex_unlock(&sLock);
+    return 1;
+}
 int Port_PcRosterPlayerQueue(const PcBattle *b, int dp) {
     char why[160]; int i,cost=0;
     if (Port_NetActive() || Port_NetSession() || !Port_PcBattleValidate(b,why,sizeof(why))) return 0;

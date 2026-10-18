@@ -1,6 +1,7 @@
 #include "common.h"
 #ifdef PORT
 #include "port_select_models.h"
+#include "port_team_select.h"
 #include "port_pc_battle.h"
 extern int Port_NetActive(void),Port_NetSession(void);
 #endif
@@ -177,7 +178,7 @@ void TeamSel_SetChips(s32 side) {
     s32 i;
 
     for (i = 0; i < 7; i++) {
-        s32 id = gTeamSel->cells[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur].row * 7 + i].id;
+        s32 id = gTeamSel->cells[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].row * 7 + i].id;
         MTexRes *res;
 
         gTeamSel->side[side]->chip[1][i] = gTeamSel->side[side]->chip[0][i];
@@ -197,10 +198,10 @@ void TeamSel_SetGridFormChips(s32 side) {
         s32 id;
         MTexRes *res;
 
-        if (i < gTeamSel->cells[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur].col +
-                                      gTeamSel->side[side]->member[gTeamSel->side[side]->cur].row * 7].formCount) {
-            id = gTeamSel->cells[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur].col +
-                                       gTeamSel->side[side]->member[gTeamSel->side[side]->cur].row * 7].form[i];
+        if (i < gTeamSel->cells[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].col +
+                                      gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].row * 7].formCount) {
+            id = gTeamSel->cells[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].col +
+                                       gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].row * 7].form[i];
         } else {
             id = TS_EMPTY;
         }
@@ -218,7 +219,7 @@ void TeamSel_SetCustomChips(s32 side) {
     s32 i;
 
     for (i = 0; i < 7; i++) {
-        s32 id = gTeamSel->custom[side][i + gTeamSel->side[side]->member[gTeamSel->side[side]->cur].customRow * 7].id;
+        s32 id = gTeamSel->custom[side][i + gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].customRow * 7].id;
         MTexRes *res;
 
         gTeamSel->side[side]->chip[1][i] = gTeamSel->side[side]->chip[0][i];
@@ -238,10 +239,10 @@ void TeamSel_SetFormChips(s32 side) {
         s32 id;
         MTexRes *res;
 
-        if (i < gTeamSel->custom[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur].customCol +
-                                       gTeamSel->side[side]->member[gTeamSel->side[side]->cur].customRow * 7].formCount) {
-            id = gTeamSel->custom[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur].customCol +
-                                        gTeamSel->side[side]->member[gTeamSel->side[side]->cur].customRow * 7].form[i];
+        if (i < gTeamSel->custom[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].customCol +
+                                       gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].customRow * 7].formCount) {
+            id = gTeamSel->custom[side][gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].customCol +
+                                        gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].customRow * 7].form[i];
         } else {
             id = TS_EMPTY;
         }
@@ -273,6 +274,9 @@ void TeamSel_SetTeamTex(s32 side) {
             }
         }
     }
+#ifdef PORT
+    TeamSel_SumCost(side,0);
+#endif
 }
 
 /* One step of the background loader of the two portraits. */
@@ -304,7 +308,7 @@ void TeamSel_UpdateFaceLoad(void) {
                 gTeamSel->faceState = TEAMSEL_LOAD_IDLE;
             }
         } else {
-            File_Request(CHARA_FACE_FILE_COSTUME(gTeamSel->side[gTeamSel->faceSide]->chara, gTeamSel->side[gTeamSel->faceSide]->member[gTeamSel->side[gTeamSel->faceSide]->cur].color),
+            File_Request(CHARA_FACE_FILE_COSTUME(gTeamSel->side[gTeamSel->faceSide]->chara, gTeamSel->side[gTeamSel->faceSide]->member[gTeamSel->side[gTeamSel->faceSide]->cur < TS_SELECTION_MAX ? gTeamSel->side[gTeamSel->faceSide]->cur : 0].color),
                          gTeamSel->faceFile[gTeamSel->faceSide], 0x16800);
             gTeamSel->faceState = TEAMSEL_LOAD_READ;
         }
@@ -427,31 +431,28 @@ void TeamSel_ClipGoto(s32 flash, s32 side, s32 kind, char *label) {
     char name[64];
     MFlash *f = &gTeamSel->flash[flash];
 
+#ifdef PORT
+    if(kind==TEAMSEL_CLIP_TEAM && Port_TeamSelectLimit()>TS_MEMBER_MAX) return;
+#endif
     switch (kind) {
     case TEAMSEL_CLIP_CHIP:
-        sprintf(name, "mc_chara_chip_%03d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur].col);
+        sprintf(name, "mc_chara_chip_%03d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].col);
         break;
     case TEAMSEL_CLIP_FORM_CHIP:
-        sprintf(name, "mc_chara_chip_%03d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur].form);
+        sprintf(name, "mc_chara_chip_%03d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].form);
         break;
     case TEAMSEL_CLIP_CUSTOM_PLATE:
-        sprintf(name, "mc_custom_plate_%d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur].plate + 1);
+        sprintf(name, "mc_custom_plate_%d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].plate + 1);
         break;
     case TEAMSEL_CLIP_COLOR_PLATE:
-        sprintf(name, "mc_color_plate_%d", (gTeamSel->side[side]->member[gTeamSel->side[side]->cur].color % 4) + 1);
+        sprintf(name, "mc_color_plate_%d", (gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].color % 4) + 1);
         break;
     case TEAMSEL_CLIP_TEAM:
-        switch (gTeamSel->side[side]->cur) {
-        case TS_MEMBER_MAX:
-            sprintf(name, "mc_menu_plate");
-            break;
-        default:
-            sprintf(name, "mc_team_%d", gTeamSel->side[side]->cur);
-            break;
-        }
+        if (gTeamSel->side[side]->cur == TS_CUR_MENU) sprintf(name, "mc_menu_plate");
+        else sprintf(name, "mc_team_%d", gTeamSel->side[side]->cur);
         break;
     case TEAMSEL_CLIP_CUSTOM_CHIP:
-        sprintf(name, "mc_chara_chip_%03d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur].customCol);
+        sprintf(name, "mc_chara_chip_%03d", gTeamSel->side[side]->member[gTeamSel->side[side]->cur < TS_SELECTION_MAX ? gTeamSel->side[side]->cur : 0].customCol);
         break;
     case TEAMSEL_CLIP_STAGE_CHIP:
         if (gTeamSel->stage->col == 6) {
@@ -848,7 +849,7 @@ void TeamSel_Init(s32 section) {
     gTeamSel->stage->stage = gTeamSel->stageIds[gTeamSel->stage->row * TS_STAGE_COLS + gTeamSel->stage->col];
     gTeamSel->stage->bgm = gTeamSel->stage->bgmCursor;
     for (i = 0; i < TEAMSEL_SIDES; i++) {
-        for (j = 0; j < TS_MEMBER_MAX; j++) {
+        for (j = 0; j < TS_SELECTION_MAX; j++) {
             gTeamSel->side[i]->member[j].chara = -1;
         }
     }
@@ -997,7 +998,7 @@ void TeamSel_Draw(void) {
         Sprite_DrawPicture(gTeamSel->bg[i], 0, 0, gTeamSel->bgAlpha[i]);
     }
 #ifdef PORT
-    for (i = 0; i < 2; i++) Port_SelectModelsSet(i, gTeamSel->side[i]->chara, (gTeamSel->side[i]->cur < 5 ? gTeamSel->side[i]->member[gTeamSel->side[i]->cur].color : gTeamSel->side[i]->member[0].color));
+    for (i = 0; i < 2; i++) Port_SelectModelsSet(i, gTeamSel->side[i]->chara, (gTeamSel->side[i]->cur < TS_SELECTION_MAX ? gTeamSel->side[i]->member[gTeamSel->side[i]->cur < TS_SELECTION_MAX ? gTeamSel->side[i]->cur : 0].color : gTeamSel->side[i]->member[0].color));
     Port_SelectModelsDraw();
 #endif
     flash = &gTeamSel->flash[0];
@@ -1034,17 +1035,13 @@ void TeamSel_Draw(void) {
             s32 nx = 0, ny = 0;
             s32 cur = gTeamSel->side[i]->cur;
             s32 col = -1, row = -1;
-            if (cur >= 0 && cur < TS_MEMBER_MAX) {
+            if (cur >= 0 && cur < TS_SELECTION_MAX) {
                 col = gTeamSel->side[i]->member[cur].col;
                 row = gTeamSel->side[i]->member[cur].row;
             }
             Flash_ClipGetPos(flash, &ref, &nx, &ny);
             if (gTeamSel->side[i]->state == TEAMSEL_ST_GRID && col >= 0 && col < 7 && row >= 0 && row < gTeamSel->rows[i]) {
                 Port_FormHint(i, nx, ny + 30, gTeamSel->cells[i][col + row * 7].formCount);
-                if (i == 1 || gTeamSel->players == 1) {
-                    Ps_Button(1, 260.0f, 268.0f, 15.0f);
-                    Ps_Text(280.0f, 261.0f, "Preview", 0.45f, 100.0f, 0);
-                }
             }
         }
 #endif
@@ -1246,8 +1243,8 @@ void TeamSel_Draw(void) {
             } else {
                 Flash_FindLabel(flash, name, "mc_yajirusi", &ref);
                 Flash_ClipSetFlags(flash, &ref, 2,
-                                   gTeamSel->cells[i][gTeamSel->side[i]->member[gTeamSel->side[i]->cur].col +
-                                                      gTeamSel->side[i]->member[gTeamSel->side[i]->cur].row * 7].id !=
+                                   gTeamSel->cells[i][gTeamSel->side[i]->member[gTeamSel->side[i]->cur < TS_SELECTION_MAX ? gTeamSel->side[i]->cur : 0].col +
+                                                      gTeamSel->side[i]->member[gTeamSel->side[i]->cur < TS_SELECTION_MAX ? gTeamSel->side[i]->cur : 0].row * 7].id !=
                                        TS_RANDOM);
             }
         }
@@ -1286,7 +1283,7 @@ void TeamSel_Draw(void) {
             Flash_FindLabel(flash, NULL, "mc_color_plate_1", &ref);
             if (ref.id >= 0) {
                 s32 cur = gTeamSel->side[i]->cur;
-                s32 curColor = (cur >= 0 && cur < TS_MEMBER_MAX) ? gTeamSel->side[i]->member[cur].color : 0;
+                s32 curColor = (cur >= 0 && cur < TS_SELECTION_MAX) ? gTeamSel->side[i]->member[cur].color : 0;
                 Flash_ClipGetPos(flash, &ref, &px, &py);
                 snprintf(costumeStr, sizeof(costumeStr), "TRAJE %d / %d", curColor + 1, gTeamSel->colorCount[i]);
                 FontStyle saved = gFontStyle;
@@ -1445,8 +1442,14 @@ void TeamSel_Draw(void) {
         }
     }
     for (i = 0; i < TEAMSEL_FLASH_NUM; i++) {
+#ifdef PORT
+        if((i==1 || i==2) && Port_TeamSelectLimit()>TS_MEMBER_MAX) continue;
+#endif
         Flash_Draw(&gTeamSel->flash[i]);
     }
+#ifdef PORT
+    Port_TeamSelectDraw();
+#endif
     Font_FlushAll();
     IconWin_Draw();
     ItemPanel_Draw(0);
@@ -1519,7 +1522,7 @@ void TeamSel_Update(void) {
 /* The side pad i is choosing for, that side's work, and the member under its cursor. */
 #define CUR_N (i + gTeamSel->base)
 #define CUR_SIDE (gTeamSel->side[i + gTeamSel->base])
-#define CUR_MEMBER (gTeamSel->side[i + gTeamSel->base]->member[gTeamSel->side[i + gTeamSel->base]->cur])
+#define CUR_MEMBER (gTeamSel->side[i + gTeamSel->base]->member[gTeamSel->side[i + gTeamSel->base]->cur < TS_SELECTION_MAX ? gTeamSel->side[i + gTeamSel->base]->cur : 0])
 /* The same member's items (one object, copied whole). */
 #define CUR_ITEMS (CUR_MEMBER.items)
 #define CUR_CELL                                                                                                        \
@@ -2483,24 +2486,27 @@ s32 TeamSel_Run(s32 section) {
                             gTeamSel->stage->stage, gSaveData->rule[5] ^ 1);
         switch (gTeamSel->players) {
         case TEAMSEL_PLAYERS_VS_CPU:
-            BattleSetup_SetSide(0, 0, 0, gTeamSel->side[0]->memberCount, 1, 1, 0, NULL);
-            BattleSetup_SetSide(1, 2, 1, gTeamSel->side[1]->memberCount, handicap[1], 1, 0, NULL);
+            BattleSetup_SetSide(0, 0, 0, (gTeamSel->side[0]->memberCount > TS_MEMBER_MAX ? TS_MEMBER_MAX : gTeamSel->side[0]->memberCount), 1, 1, 0, NULL);
+            BattleSetup_SetSide(1, 2, 1, (gTeamSel->side[1]->memberCount > TS_MEMBER_MAX ? TS_MEMBER_MAX : gTeamSel->side[1]->memberCount), handicap[1], 1, 0, NULL);
             break;
         case TEAMSEL_PLAYERS_TWO:
-            BattleSetup_SetSide(0, 0, 0, gTeamSel->side[0]->memberCount, 1, 1, 0, NULL);
-            BattleSetup_SetSide(1, 0, 1, gTeamSel->side[1]->memberCount, 1, 1, 0, NULL);
+            BattleSetup_SetSide(0, 0, 0, (gTeamSel->side[0]->memberCount > TS_MEMBER_MAX ? TS_MEMBER_MAX : gTeamSel->side[0]->memberCount), 1, 1, 0, NULL);
+            BattleSetup_SetSide(1, 0, 1, (gTeamSel->side[1]->memberCount > TS_MEMBER_MAX ? TS_MEMBER_MAX : gTeamSel->side[1]->memberCount), 1, 1, 0, NULL);
             break;
         case TEAMSEL_PLAYERS_CPU_CPU:
-            BattleSetup_SetSide(0, 2, 0, gTeamSel->side[0]->memberCount, handicap[0], 1, 0, NULL);
-            BattleSetup_SetSide(1, 2, 1, gTeamSel->side[1]->memberCount, handicap[1], 1, 0, NULL);
+            BattleSetup_SetSide(0, 2, 0, (gTeamSel->side[0]->memberCount > TS_MEMBER_MAX ? TS_MEMBER_MAX : gTeamSel->side[0]->memberCount), handicap[0], 1, 0, NULL);
+            BattleSetup_SetSide(1, 2, 1, (gTeamSel->side[1]->memberCount > TS_MEMBER_MAX ? TS_MEMBER_MAX : gTeamSel->side[1]->memberCount), handicap[1], 1, 0, NULL);
             break;
         }
         for (i = 0; i < TEAMSEL_SIDES; i++) {
-            for (j = 0; j < gTeamSel->side[i]->memberCount; j++) {
+            for (j = 0; j < gTeamSel->side[i]->memberCount && j < TS_MEMBER_MAX; j++) {
                 BattleSetup_SetMember(i, j, gTeamSel->side[i]->member[j].chara, gTeamSel->side[i]->member[j].color,
                                       0, cpuLevel, 100.0f, gTeamSel->side[i]->member[j].items.id);
             }
         }
+#ifdef PORT
+        Port_TeamSelectCapture();
+#endif
         BattleSetup_Finish();
     }
     TeamSel_Term();

@@ -60,7 +60,12 @@ typedef struct TsMember {
     /* 0x20 */ TsItemSet items; /* equipped items (BattleItemSet) */
 } TsMember; /* 0x30 */
 
-#define TS_MEMBER_MAX 5
+#define TS_MEMBER_MAX 5 /* saved-game and engine bank size: do not change */
+#ifdef PORT
+#define TS_SELECTION_MAX PORT_RELAY_MAX
+#else
+#define TS_SELECTION_MAX TS_MEMBER_MAX
+#endif
 
 typedef struct TsTeam {
     TsMember member[TS_MEMBER_MAX];
@@ -89,7 +94,8 @@ typedef struct TsProgress {
 
 /* One side of the team select. */
 typedef struct TeamSelSide {
-    /* 0x000 */ TsMember member[TS_MEMBER_MAX];
+    /* PC selection owns ten members; TsTeam above retains its five-member save layout. */
+    TsMember member[TS_SELECTION_MAX];
     /* 0x0F0 */ s32 chip[2][TS_COLS]; /* [0] character ids on the seven chips of the reel, [1] before the last change */
     /* 0x128 */ s32 flags;          /* TEAMSEL_SIDE_ */
     /* 0x12C */ s32 cur;            /* member being chosen; 5 = on the menu plate */

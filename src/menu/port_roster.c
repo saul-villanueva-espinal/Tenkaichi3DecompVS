@@ -8,6 +8,7 @@
 #include "sys/save.h"
 #include "sys/load_sprite.h"
 #include "port_pc_battle.h"
+#include "port_team_select.h"
 #include "port_coop.h"
 #include "port_fighters.h"
 #include "port_chara.h"
@@ -179,6 +180,9 @@ static void Nr_Selected(s32 side) {
 }
 static void Nr_StageRequest(void) {
     gTeamSel->stage->stage=sNr.stage;TeamSel_RequestStage();
+}
+void Port_TeamChip(int chara,float x,float y,float w,float h,int alpha) {
+    Nr_Chip(chara,x,y,w,h,alpha);
 }
 static void Nr_Star(f32 x,f32 y,f32 r) {
     s32 k;for(k=0;k<5;k++) {f32 a=-1.5707963f+k*1.2566371f,b=a+0.6283185f,c=a+1.2566371f;u32 red=Ps_Rgba(255,160,20,128);
@@ -383,19 +387,18 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
                     gTsProgress->team[1].member[k].color = out->fighter[1][k].costume;
                 }
             }
+            Port_TeamSelectSetLimit(out && out->mode==PC_RAID ? 4 : out && (out->mode==PC_TAG || out->mode==PC_FFA) ? 5 : PORT_RELAY_MAX);
             ok = TeamSel_Run(2);
+            Port_TeamSelectSetLimit(0);
             if (ok && out != NULL) {
-                s32 k, c = 0;
-                for (k = 0; k < 10; k++) {
-                    if (k < 5 && gTsProgress->team[0].member[k].chara >= 0) {
-                        out->fighter[0][k].chara = gTsProgress->team[0].member[k].chara;
-                        out->fighter[0][k].costume = gTsProgress->team[0].member[k].color;
-                        c++;
-                    }
+                PcBattle picked;
+                s32 k;
+                if (Port_TeamSelectCopy(&picked)) {
+                    out->count[0] = picked.count[0];
+                    for (k=0;k<picked.count[0];k++) out->fighter[0][k]=picked.fighter[0][k];
+                    out->stage=picked.stage;
+                    out->rules.bgm1=picked.rules.bgm1;
                 }
-                if (c > 0) out->count[0] = c;
-                out->stage = gTsProgress->stageCell;
-                if (gTsProgress->bgm > 0) out->rules.bgm1 = gTsProgress->bgm;
             }
         }
         return ok;

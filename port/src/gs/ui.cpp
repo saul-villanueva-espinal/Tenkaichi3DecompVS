@@ -2448,6 +2448,29 @@ static bool feature_overlay_on(void) {
     SDL_UnlockSpinlock(&sFeatureLock);
     return on || gPortPcTeamReady;
 }
+// Relay counts live below the action, away from character portraits, life and Ki.
+static void Port_DrawRelayCounts(ImDrawList *dl, ImFont *font, float sx, float sy, int a, int b) {
+    float w = 244.0f * sx, h = 48.0f * sy;
+    float x = gUiPresentX + (gUiPresentW-w)*0.5f;
+    float y = gUiPresentY + gUiPresentH - h - 7.0f*sy;
+    dl->AddRectFilled(ImVec2(x+2*sx,y+3*sy),ImVec2(x+w+2*sx,y+h+3*sy),IM_COL32(0,0,0,160),7*sy);
+    dl->AddRectFilled(ImVec2(x,y),ImVec2(x+w,y+h),IM_COL32(7,12,24,242),7*sy);
+    dl->AddRect(ImVec2(x,y),ImVec2(x+w,y+h),IM_COL32(255,201,45,255),7*sy,0,2*sy);
+    const char *title="BATALLA POR RELEVOS";
+    float titleSize=10*sy;
+    ImVec2 t=font->CalcTextSizeA(titleSize,FLT_MAX,0,title);
+    dl->AddText(font,titleSize,ImVec2(x+(w-t.x)*.5f,y+3*sy),IM_COL32(255,220,95,255),title);
+    for(int side=0;side<2;side++) {
+        float px=x+(side?126.0f:7.0f)*sx;
+        ImU32 color=side?IM_COL32(255,95,110,255):IM_COL32(95,185,255,255);
+        char text[48];
+        snprintf(text,sizeof(text),"J%d",side+1);
+        dl->AddText(font,14*sy,ImVec2(px,y+22*sy),color,text);
+        snprintf(text,sizeof(text),"%02d",side?b:a);
+        dl->AddText(font,24*sy,ImVec2(px+25*sx,y+15*sy),IM_COL32(255,255,255,255),text);
+        dl->AddText(font,8.5f*sy,ImVec2(px+61*sx,y+26*sy),color,"RESTANTES");
+    }
+}
 static void Port_DrawFeatureHints(ImDrawList *dl) {
     if (Port_HudHidden() || gUiPresentW <= 0 || gUiPresentH <= 0) return;
     SDL_LockSpinlock(&sFeatureLock);
@@ -2473,7 +2496,7 @@ static void Port_DrawFeatureHints(ImDrawList *dl) {
     if (active && GsDraw_HudShown()) {
         int a = Port_PcRelayRemaining(0), b = Port_PcRelayRemaining(1);
         char text[100] = "";
-        if (a || b) snprintf(text, sizeof(text), "RELEVOS  Equipo 1: %d restantes  |  Equipo 2: %d restantes", a, b);
+        if ((a || b) && !Port_CoopEnabled() && !Port_TourneyEnabled()) Port_DrawRelayCounts(dl,font,sx,sy,a,b);
         if (Port_CoopEnabled()) snprintf(text, sizeof(text), "RAID ONLINE  Jugador %d (mando local 1)", Port_CoopMe() + 1);
         if(Port_TourneyEnabled()) {
             PortTourney t;int a,b;

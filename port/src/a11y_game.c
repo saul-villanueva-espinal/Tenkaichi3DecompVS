@@ -11,6 +11,7 @@
  * include/; the port's files do not include the game's headers).
  */
 #include <stddef.h>
+#include "port_limits.h"
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -1838,7 +1839,7 @@ typedef struct {
 } A11yTsMember;       /* include/menu/menu_e.h: TsMember */
 
 typedef struct {
-    A11yTsMember member[5]; /* 0x000 */
+    A11yTsMember member[PORT_RELAY_MAX]; /* 0x000 */
     char unkF0[0x128 - 0xF0];
     int flags;        /* 0x128: TEAMSEL_SIDE_ */
     int cur;          /* 0x12C: member being chosen; TS_CUR_MENU = on the plate that confirms the team */
@@ -1847,7 +1848,7 @@ typedef struct {
     int chara;        /* 0x138: character under the cursor, line of the name files */
     int state;        /* 0x13C: TEAMSEL_ST_ */
 } A11yTeamSide;       /* include/menu/menu_e.h: TeamSelSide */
-_Static_assert(sizeof(A11yTsMember) == 0x30 && offsetof(A11yTeamSide, state) == 0x13C, "TeamSelSide");
+_Static_assert(sizeof(A11yTsMember) == 0x30 && offsetof(A11yTeamSide, state) == 0x13C + (PORT_RELAY_MAX-5)*0x30, "TeamSelSide");
 
 typedef struct {
     char unk0[0x28];
@@ -1855,7 +1856,7 @@ typedef struct {
     uint32_t GAME_PTR formText;     /* 0x02C: section 44 */
     char unk30[0x3BC - 0x30];
     int flags;                      /* 0x3BC: TEAMSEL_ */
-    char unk3C0[0x8E8 - 0x3C0];
+    char unk3C0[0x8E8 - 0x3C0 + (PORT_RELAY_MAX-5)*0x60];
     A11yTeamSide GAME_PTR side[2];  /* 0x8E8 */
     char unk8F0[0x9A4 - 0x8F0];
     A11yCharStage GAME_PTR stage;   /* 0x9A4: TeamSelStage, the versus select's layout; states 9 and 10 */
@@ -1879,10 +1880,10 @@ typedef struct {
     int stageCount;                 /* 0x3C64 */
     int bgmCount;                   /* 0x3C68 */
 } A11yTeamSel;
-_Static_assert(offsetof(A11yTeamSel, flags) == 0x3BC && offsetof(A11yTeamSel, side) == 0x8E8 &&
-               offsetof(A11yTeamSel, stage) == 0x9A4 && offsetof(A11yTeamSel, cells) == 0x9B0, "TeamSel");
-_Static_assert(offsetof(A11yTeamSel, customCount) == 0x3828 && offsetof(A11yTeamSel, rows) == 0x3C20 &&
-               offsetof(A11yTeamSel, base) == 0x3C58 && offsetof(A11yTeamSel, bgmCount) == 0x3C68, "TeamSel");
+_Static_assert(offsetof(A11yTeamSel, flags) == 0x3BC && offsetof(A11yTeamSel, side) == 0x8E8 + (PORT_RELAY_MAX-5)*0x60 &&
+               offsetof(A11yTeamSel, stage) == 0x9A4 + (PORT_RELAY_MAX-5)*0x60 && offsetof(A11yTeamSel, cells) == 0x9B0 + (PORT_RELAY_MAX-5)*0x60, "TeamSel");
+_Static_assert(offsetof(A11yTeamSel, customCount) == 0x3828 + (PORT_RELAY_MAX-5)*0x60 && offsetof(A11yTeamSel, rows) == 0x3C20 + (PORT_RELAY_MAX-5)*0x60 &&
+               offsetof(A11yTeamSel, base) == 0x3C58 + (PORT_RELAY_MAX-5)*0x60 && offsetof(A11yTeamSel, bgmCount) == 0x3C68 + (PORT_RELAY_MAX-5)*0x60, "TeamSel");
 extern A11yTeamSel GAME_PTR gTeamSel;
 #define TEAMSEL_STARTED 2
 #define TEAMSEL_STAGE_PHASE 4
@@ -1901,8 +1902,9 @@ extern A11yTeamSel GAME_PTR gTeamSel;
 #define TEAMSEL_ST_DONE 8
 #define TEAMSEL_STAGE_GRID 9
 #define TEAMSEL_STAGE_BGM 10
-#define TS_MEMBERS 5
-#define TS_CUR_MENU 5
+#define TS_MEMBERS PORT_RELAY_MAX
+extern int Port_TeamSelectLimit(void);
+#define TS_CUR_MENU (Port_TeamSelectLimit())
 
 /* One side of the team select, as char_side does it for the versus select; in the member list, the member under the
    cursor (or the plate that confirms the team) and, with a DP limit, the team's total. */
