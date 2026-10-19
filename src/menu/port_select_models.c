@@ -140,8 +140,10 @@ void Port_SelectModelsDraw(void) {
                 /* Normal roster coverage, independent of wings/tail width.
                    Keep the feet anchored while allowing the native plates to
                    cover the lower legs, as in the original giant previews. */
-                dist=height*1.35f;
-                target=floor-height*.56f;
+                dist=height*1.5f;
+                /* Native 448-line canvas: keep the ground near line 367,
+                   just above the bottom carousel, throughout rotation. */
+                target=floor-dist*.33f;
             }
         }
         OrbitCam_SetTarget(0.0f,target,0.0f);
