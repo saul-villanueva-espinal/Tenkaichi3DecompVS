@@ -10,6 +10,7 @@
 #ifdef PORT
 extern void BtlObjAnim_PlayModel(BtlObj *obj, s32 anim, s32 mode);
 extern void BtlObj_SetPartVisible(BtlObj *obj, u32 part, s32 on);
+extern BtlObjPart *BtlObj_GetNode(BtlObj *obj, s32 node);
 extern void BtlObjDraw_Draw(void);
 extern void Gfx_MarkPass(s32 pass);
 extern void Gfx_AddDefaultEnv(void);
@@ -94,9 +95,10 @@ static void SelectModel_Load(s32 side) {
 void Port_SelectModelsDraw(void) {
     s32 i, j;
     BtlObj *obj;
+    BtlObjPart *root,*head;
     SelectModel *m;
     ChrViewInfo *info;
-    f32 target,dist,height;
+    f32 target,dist,height,bodyHeight,floor;
     if (!sSelectModelsOn) return;
     for (i = 0; i < 2; i++) {
         SelectModel_Load(i);
@@ -123,11 +125,23 @@ void Port_SelectModelsDraw(void) {
             obj=BtlObj_Get(m->object);
             height=obj->state.box.max[1]-obj->state.box.min[1];
             if (height>.01f && height<1000.0f) {
-                /* Match the normal roster's on-screen height. Wings, tails and
-                   wide poses must not push the camera back and shrink the body.
-                   Native nameplates can cover the lower legs, as with Ozaru. */
-                dist=height*1.6f;
-                target=(obj->state.box.max[1]+obj->state.box.min[1])*.5f-height*.06f;
+                /* Collision bounds differ between imported models. Use the
+                   standard root/head bones to reserve anatomical headroom too:
+                   otherwise Cell looks short while Broly's hair gets cropped. */
+                root=BtlObj_GetNode(obj,0);
+                head=BtlObj_GetNode(obj,0x2e);
+                floor=obj->state.box.max[1];
+                if (root && head) {
+                    floor=root->mtx.m[3][1];
+                    bodyHeight=(floor-head->mtx.m[3][1])*1.35f;
+                    if (bodyHeight>height && bodyHeight<height*1.5f)
+                        height=bodyHeight;
+                }
+                /* Normal roster coverage, independent of wings/tail width.
+                   Keep the feet anchored while allowing the native plates to
+                   cover the lower legs, as in the original giant previews. */
+                dist=height*1.35f;
+                target=floor-height*.56f;
             }
         }
         OrbitCam_SetTarget(0.0f,target,0.0f);
