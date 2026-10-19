@@ -192,7 +192,8 @@ static int kind_of(const char *name) {
         /* Voice banks */
         {"_voice_jp.pak", F_VOICE}, {"_voice_us.pak", F_VOICE + 1},
     };
-    size_t l = strlen(name), i, k;
+    size_t l = strlen(name), i, k, longest = 0;
+    int kind = -1;
     for (i = 0; i < sizeof(kEnds) / sizeof(kEnds[0]); i++) {
         size_t el = strlen(kEnds[i].end);
         if (l < el) {
@@ -200,11 +201,12 @@ static int kind_of(const char *name) {
         }
         for (k = 0; k < el && tolower((unsigned char)name[l - el + k]) == kEnds[i].end[k]; k++) {
         }
-        if (k == el) {
-            return kEnds[i].kind;
+        if (k == el && el > longest) {
+            longest = el;
+            kind = kEnds[i].kind;
         }
     }
-    return -1;
+    return kind;
 }
 
 static int name_cmp(const void *a, const void *b) {
@@ -854,6 +856,7 @@ static void resolve(Chara *c) {
             continue;
         }
         c->target[k] = 0xFF;
+        if (same_nocase(want, "none")) continue; /* explicit terminal form */
         if (strncmp(want, "disc:", 5) == 0) {
             int id;
             c->target[k] = number(want + 5, 0, DISC_CHARAS - 1, &id) ? id : 0xFF;
@@ -1090,10 +1093,17 @@ static int alias_replaced(int arc, int index, char *out, unsigned n) {
             int k = (id - 0x590) % 10;
             c = repl_of((id - 0x590) / 10);
             if (c != NULL) {
-                if (c->file[k][0] == '\0' && k >= 4 && k < 8 && c->file[k - 4][0] != '\0') {
-                    k -= 4; /* its costume without a damaged model of its own: the costume as it is */
+                /* Disc IDs retain four normal/four damaged model slots.
+                   Costumes 5..8 use only the virtual 34-file bank. */
+                if (k >= 4 && k < 8) {
+                    int damaged = F_D0 + k - 4;
+                    path = c->file[damaged][0] ? c->file[damaged] : c->file[k - 4];
+                    if (!path[0]) path = c->file[0];
+                    if (!path[0]) return 0;
+                    snprintf(out, n, "%s", path);
+                    return 1;
                 }
-                if (c->file[k][0] == '\0' && k < 8 && c->file[0][0] != '\0' && (c->file[16][0] != '\0' || c->file[24][0] != '\0' || c->anm_shared[0] != '\0' || c->eff_shared[0] != '\0')) {
+                if (c->file[k][0] == '\0' && k < 4 && c->file[0][0] != '\0' && (c->file[16][0] != '\0' || c->file[24][0] != '\0' || c->anm_shared[0] != '\0' || c->eff_shared[0] != '\0')) {
                     k = 0;
                 }
                 if (k == 8) {

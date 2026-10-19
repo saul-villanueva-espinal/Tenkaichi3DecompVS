@@ -15,4 +15,5 @@ cc -std=c11 -D_POSIX_C_SOURCE=200809L -Iport/include port/tests/pc_battle_test.c
 python3 port/tests/run_coop_test.py
 python3 port/tests/run_relay_test.py
 python3 port/tests/run_battle_rules_test.py
+python3 port/tests/run_costume_routes_test.py
 python3 port/tests/run_tournament_net_test.py

@@ -372,9 +372,17 @@ s32 BtlLoad_StepObject(BtlJob *job) {
         id = job->chara + BTL_FILE_OBJECT;
         if (job->chara < 0x100) {
             if (job->unk1C != 0) {
+#ifdef PORT
+                id = CHARA_DMG_FILE(job->chara, job->animChara);
+#else
                 id = CHARA_FILE10(job->chara) + job->animChara + (BTL_FILE_CHARA + 4);
+#endif
             } else {
+#ifdef PORT
+                id = CHARA_MODEL_FILE(job->chara, job->animChara);
+#else
                 id = CHARA_FILE10(job->chara) + job->animChara + BTL_FILE_CHARA;
+#endif
             }
         }
         gBtlLoadHandle = BtlRes_Request(0, id, -1, -1);

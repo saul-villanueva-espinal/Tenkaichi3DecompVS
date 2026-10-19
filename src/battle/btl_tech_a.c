@@ -1369,6 +1369,10 @@ static s32 BtlParam_PortTarget(BtlTechChr *chr, s32 slot, s32 own) {
 s32 BtlParam_GetUnkAC(BtlTechChr *chr) {
     s32 def = BtlChar_GetObj(chr)->param->transDefault;
 #ifdef PORT
+    /* A package's Up link is its next form. Neutral R3 must advance that
+       chain even when an imported costume defaults to its Down/revert slot. */
+    if (Port_CharaFormTarget(*(s32 *)((u8 *)BtlChar_GetObj(chr) + 0xC), 1) >= 0 &&
+        BtlParam_PortTarget(chr, 1, 0xFF) != 0xFF) return 1;
     if (def < 0 || def >= 4 || BtlParam_PortTarget(chr, def, 0xFF) == 0xFF) {
         if (BtlParam_PortTarget(chr, 1, 0xFF) != 0xFF) return 1; /* Up */
         if (BtlParam_PortTarget(chr, 0, 0xFF) != 0xFF) return 0; /* Left */
