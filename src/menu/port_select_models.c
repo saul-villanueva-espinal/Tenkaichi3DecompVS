@@ -19,7 +19,6 @@ extern int Port_NetSession(void);
 extern int Port_Setting(const char *name, int def);
 extern void Dma_AddScissor(s32 x0, s32 x1, s32 y0, s32 y1);
 extern s32 ChrTbl_WrapCostume(s32 chara, s32 *costume);
-extern f32 sqrtf(f32);
 
 typedef struct SelectModel {
     s32 wanted, costume, loaded, loadedCostume, stable, object;
@@ -97,7 +96,7 @@ void Port_SelectModelsDraw(void) {
     BtlObj *obj;
     SelectModel *m;
     ChrViewInfo *info;
-    f32 target,dist,height,radius,rx,rz;
+    f32 target,dist,height;
     if (!sSelectModelsOn) return;
     for (i = 0; i < 2; i++) {
         SelectModel_Load(i);
@@ -123,14 +122,11 @@ void Port_SelectModelsDraw(void) {
         if (m->object>=0 && m->loaded>=PORT_CHARA_FIRST) {
             obj=BtlObj_Get(m->object);
             height=obj->state.box.max[1]-obj->state.box.min[1];
-            rx=(obj->state.box.max[0]-obj->state.box.min[0])*.5f;
-            rz=(obj->state.box.max[2]-obj->state.box.min[2])*.5f;
-            radius=sqrtf(rx*rx+rz*rz);
-            if (height>.01f && height<1000.0f && radius<1000.0f) {
-                /* Match the generous original giant preview: the figure fills
-                   the panel, with its lower legs behind the native nameplates.
-                   The rotation radius leaves room for shoulders and ornaments. */
-                dist=height*1.35f+radius;
+            if (height>.01f && height<1000.0f) {
+                /* Match the normal roster's on-screen height. Wings, tails and
+                   wide poses must not push the camera back and shrink the body.
+                   Native nameplates can cover the lower legs, as with Ozaru. */
+                dist=height*1.6f;
                 target=(obj->state.box.max[1]+obj->state.box.min[1])*.5f-height*.06f;
             }
         }
