@@ -97,7 +97,7 @@ void Port_SelectModelsDraw(void) {
     BtlObj *obj;
     SelectModel *m;
     ChrViewInfo *info;
-    f32 target,dist,height,radius,rx,rz,fit;
+    f32 target,dist,height,radius,rx,rz;
     if (!sSelectModelsOn) return;
     for (i = 0; i < 2; i++) {
         SelectModel_Load(i);
@@ -118,22 +118,20 @@ void Port_SelectModelsDraw(void) {
         View_InitLayout(&gOrbitCam->view, i ? VIEW_LAYOUT_RIGHT : VIEW_LAYOUT_LEFT);
         target=info ? info->targetY : 1.2f;
         dist=info ? info->dist*1.15f : 5.75f;
-        /* Use the loaded model's real animated bounds. Modded giants often
-           borrow the camera table of an ordinary-sized base character. */
-        if (m->object>=0) {
+        /* Added models use their own bounds rather than a borrowed base
+           character's camera. Keep the original roster's camera unchanged. */
+        if (m->object>=0 && m->loaded>=PORT_CHARA_FIRST) {
             obj=BtlObj_Get(m->object);
             height=obj->state.box.max[1]-obj->state.box.min[1];
             rx=(obj->state.box.max[0]-obj->state.box.min[0])*.5f;
             rz=(obj->state.box.max[2]-obj->state.box.min[2])*.5f;
             radius=sqrtf(rx*rx+rz*rz);
-            if (m->loaded>=PORT_CHARA_FIRST && height>target*2.6f && height<1000.0f && radius<1000.0f) {
-                fit=height*2.3f+radius;
-                if (fit>dist) {
-                    dist=fit;
-                    /* World Y grows downward: aiming below the model's centre
-                       raises its feet above the selector's nameplates. */
-                    target=(obj->state.box.max[1]+obj->state.box.min[1])*.5f+height*.15f;
-                }
+            if (height>.01f && height<1000.0f && radius<1000.0f) {
+                /* Match the generous original giant preview: the figure fills
+                   the panel, with its lower legs behind the native nameplates.
+                   The rotation radius leaves room for shoulders and ornaments. */
+                dist=height*1.35f+radius;
+                target=(obj->state.box.max[1]+obj->state.box.min[1])*.5f-height*.06f;
             }
         }
         OrbitCam_SetTarget(0.0f,target,0.0f);
