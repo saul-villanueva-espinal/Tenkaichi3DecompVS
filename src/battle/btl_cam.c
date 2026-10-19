@@ -542,6 +542,13 @@ void BtlCam_UpdateView(s32 side) {
         sPortViewObj[side] = objId;
     }
 #endif
+#ifdef PORT
+    {extern s32 Port_CoopEnabled(void),Port_CoopMe(void),Port_Spectated(s32),Port_FighterObjId(s32);
+     if(Port_CoopEnabled() && Port_ModesFight()==PORT_MODE_RAID) {
+         s32 me=Port_CoopMe(),fighter=me>0?me+1:0;
+         objId=Port_FighterObjId(Port_Spectated(fighter));sPortViewObj[side]=objId;
+     }}
+#endif
     BtlCharApi_GetCamPose(objId, &view->pos, &view->rot);
     view->priority = BtlCharApi_HasCamPriority(objId);
     BtlCam_BuildView(view, 1);

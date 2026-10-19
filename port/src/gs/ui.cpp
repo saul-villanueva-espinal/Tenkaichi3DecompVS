@@ -768,7 +768,7 @@ static void build_net(void) {
             if (!service) {
                 ImGui::TextWrapped("Edición modificada: juega por IP directa con otra PC que tenga esta misma edición y los mismos personajes.");
                 ImGui::TextWrapped("Los códigos de sala y la partida rápida del servicio oficial requieren una compilación autorizada. Cambiar el número de versión no habilita ese acceso.");
-                ImGui::TextDisabled("Duelo: 2 jugadores, puerto UDP 7000. Cooperativo contra jefe: usa la sala del modo Raid, hasta 4 jugadores, UDP 29740.");
+                ImGui::TextDisabled("Duelo: 2 jugadores, puerto UDP 7000. Cooperativo contra jefe: usa la sala del modo Raid, hasta 6 jugadores, UDP 29740.");
                 ImGui::Separator();
             } else if (min > mine) {
                 ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.55f, 0.35f, 1.0f));

@@ -1342,10 +1342,11 @@ static void Port_LoadExtras(void) {
             team->members[team->memberCount++] = team->members[team->lead];
             allies++;
         }
-        setup->rule.screenMode = Port_LocalPlayers() > 1 ? 1 : 0;
+        {extern s32 Port_CoopEnabled(void);
+         setup->rule.screenMode = !Port_CoopEnabled() && Port_LocalPlayers() > 1 ? 1 : 0;}
         boss->control = BTL_CONTROL_CPU;
         boss->pad = 1; /* CPU control ignores the pad; keep a valid index for setup bitfields. */
-        boss->members[boss->lead].cpuLevel = 29;
+        /* Preserve the boss difficulty chosen in the raid profile. */
     }
     roster = Port_ExtraSetup(Battle_GetMode(), setup->sides[0].memberCount, setup->sides[1].memberCount, Battle_IsSplitScreen(),
                              BattleReplay_IsActive(), Battle_GetScript() >= 0);
@@ -1368,6 +1369,12 @@ static void Port_LoadExtras(void) {
             Port_ExtraAdd(s, i, m->chara, m->costume, m->cpuLevel);
         }
         side->memberCount = 1;
+    }
+    if(roster==PORT_MODE_RAID) {
+        extern s32 Port_PcRaidOverflow(s32 *,s32 *),Port_ExtraRaidAdd(s32,s32,s32);
+        s32 chara,costume;
+        if(Port_PcRaidOverflow(&chara,&costume))
+            Port_ExtraRaidAdd(chara,costume,setup->sides[0].members[0].cpuLevel);
     }
     Port_ExtraDone();
 }

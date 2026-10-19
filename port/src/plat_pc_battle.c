@@ -58,9 +58,10 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
     int s, i;
     const char *error = NULL;
     if (!b || b->mode < 0 || b->mode >= PC_MODE_COUNT) error = "Modo no valido";
-    else if (b->players < 1 || b->players > PORT_COOP_MAX) error = "Elige entre 1 y 4 jugadores";
+    else if (b->players < 1 || b->players > PORT_COOP_MAX) error = "Elige entre 1 y 6 jugadores";
     else if (b->stage < 0 || b->stage >= 36) error = "Escenario no valido";
     else if ((b->mode == PC_DUEL || b->mode == PC_RELAY) && b->players > 2) error = "Duelo por relevos admite uno o dos mandos";
+    else if ((b->mode == PC_TAG || b->mode == PC_FFA) && b->players > 4) error = "Tag Team local admite hasta cuatro mandos";
     else if (b->mode == PC_TRAINING && b->players != 1) error = "Entrenamiento utiliza un mando";
     if(b && !error) {
         const PcBattleRules *r=&b->rules;
@@ -74,7 +75,7 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
         else if(b->mode!=PC_RAID && (r->bossHp || r->bossDamagePct || r->enragePct)) error="Reglas de jefe fuera de Raid";
     }
     for (s = 0; b && !error && s < 2; s++) {
-        int max = b->mode == PC_RELAY || b->mode == PC_DUEL ? PORT_RELAY_MAX : (b->mode == PC_TAG || b->mode == PC_FFA) ? 5 : b->mode == PC_RAID && s == 0 ? 4 : 1;
+        int max = b->mode == PC_RELAY || b->mode == PC_DUEL ? PORT_RELAY_MAX : (b->mode == PC_TAG || b->mode == PC_FFA) ? 5 : b->mode == PC_RAID && s == 0 ? PORT_COOP_MAX : 1;
         if (b->count[s] < 1 || b->count[s] > max) { error = "Cantidad de integrantes no valida para el modo"; break; }
         for (i = 0; i < b->count[s]; i++) {
             const PcFighter *f = &b->fighter[s][i];

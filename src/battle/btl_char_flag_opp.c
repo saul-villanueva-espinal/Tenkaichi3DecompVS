@@ -200,7 +200,7 @@ static void Port_TargetChoose(s32 i) {
     }
     dir = BtlInput_IsPressed(me, 0x400) ? 1 : BtlInput_IsPressed(me, 0x100) ? -1 : Port_TargetTestFlick(i);
 #ifdef PORT
-    if (dir == 0 && (u32)me->pad < 4) {
+    if (dir == 0 && (u32)me->pad < 6) {
         extern u32 Port_PadPressed(s32 pad);
         if (Port_PadPressed(me->pad) & 0x0002) { /* L3 (0x0002) cycles target lock-on (PS2 Tag Team mod parity) */
             dir = 1;
@@ -367,7 +367,7 @@ static void Port_UpdateSpectate(void) {
             }
         } else {
             s32 pad = BtlChar_Get(p)->pad;
-            if ((u32)pad < 4) {
+            if ((u32)pad < 6) {
                 u32 pressed = Port_PadPressed(pad);
                 if (pressed & 0x0004) { /* (R3 in the pad's own button bits: sys/pad.h, gs_input.c B_R3) */
                     sPortWatch[p] = Port_WatchNext(p, sPortWatch[p]);
@@ -424,6 +424,10 @@ s32 Port_HudFighter(s32 side) {
             return Port_Spectated(Port_QuarterFighter(side));
         }
     }
+    {extern s32 Port_CoopEnabled(void),Port_CoopMe(void),Port_ModesFight(void);
+     if(Port_CoopEnabled() && Port_ModesFight()==3) {
+         s32 p=Port_CoopMe();return side==1?1:Port_Spectated(p>0?p+1:0);
+     }}
     if (Port_TargetHuman(0) && Port_TargetHuman(1)) {
         return Port_Spectated(side);
     }

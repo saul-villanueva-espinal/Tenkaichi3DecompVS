@@ -55,6 +55,8 @@ extern void Port_SettingSave(const char *name, int value);
 extern void Port_SettingsWrite(void);
 extern int Port_FilePath(int ptid, int flid, const char *fname, char *out, int size); /* plat_file.c */
 extern int Port_NetSession(void);
+extern int Port_CoopEnabled(void);
+static int sOnlinePlayers;
 extern int Port_NetActive(void);                                    /* gs/net.c */
 extern int PortA11y_Utf8(char *out, int cap, const uint16_t *str); /* gs/a11y.c: the game's text as UTF-8 */
 
@@ -92,6 +94,7 @@ int Port_ExtraCount(void) {
    quarters (src/battle/btl_cam.c). 2: the game's own two. */
 int Port_LocalPlayers(void) {
     int n = Port_Setting("local_players", 2);
+    if(Port_CoopEnabled() && sOnlinePlayers>=2 && sOnlinePlayers<=PORT_COOP_MAX) return sOnlinePlayers;
     return n < 1 ? 1 : n > 4 ? 4 : n;
 }
 
@@ -103,10 +106,11 @@ static int fight_mode(int *forced);
 int Port_LocalQuadFight(int mode, int members0, int members1, int replay, int script) {
     int forced = 0, page = fight_mode(&forced);
 
-    return !Port_NetActive() && Port_LocalPlayers() >= 3 && (page == PORT_MODE_TEAM || page == PORT_MODE_FFA || page == PORT_MODE_RAID) &&
+    return !Port_NetActive() && !Port_CoopEnabled() && Port_LocalPlayers() >= 3 && (page == PORT_MODE_TEAM || page == PORT_MODE_FFA || page == PORT_MODE_RAID) &&
            members0 + members1 > 2 && (forced || mode == 0) && !replay && !script;
 }
 void Port_LocalPlayersSet(int n) {
+    sOnlinePlayers=n;
     Port_SettingSave("local_players", n < 1 ? 1 : n > 4 ? 4 : n);
     Port_SettingsWrite();
 }
@@ -380,6 +384,10 @@ int Port_ExtraAdd(int side, int index, int chara, int costume, int level) {
     return fight_add(chara, costume, team, level < 0 ? -1 : level,
                      side * 8 + index);
 }
+/* Sixth raid ally is outside the original five-member BattleSide ABI. */
+int Port_ExtraRaidAdd(int chara,int costume,int level) {
+    return sFightRoster==PORT_MODE_RAID && fight_add(chara,costume,0,level,-1);
+}
 void Port_ExtraDone(void) {
     int local = Port_LocalPlayers(), pad, k, pass;
 
@@ -389,7 +397,7 @@ void Port_ExtraDone(void) {
         sFight[k].pad = -1;
     }
     for (pad = sFightRoster == PORT_MODE_RAID ? 1 : 2;
-         sFightSplit && sFightRoster != 0 && pad < local; pad++) {
+         (sFightSplit || Port_CoopEnabled()) && sFightRoster != 0 && pad < local; pad++) {
         for (pass = 0; pass < 2; pass++) {
             for (k = 0; k < sFightCount; k++) {
                 int m = sFight[k].member;
@@ -454,7 +462,7 @@ int Port_FightPad(int k) {
         if (c != NULL) {
             pad = atoi(c + 1) - 1;
         }
-        if (f == k + 2 && pad >= 0 && pad < 4) {
+        if (f == k + 2 && pad >= 0 && pad < PORT_COOP_MAX) {
             return pad;
         }
         p = strchr(p, ',');

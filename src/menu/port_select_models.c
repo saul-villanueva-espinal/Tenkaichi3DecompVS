@@ -28,6 +28,7 @@ typedef struct SelectModel {
 } SelectModel;
 static SelectModel sSelectModel[2];
 static s32 sSelectModelsOn;
+static s32 sSelectRaidLayout;
 
 int Port_SelectModelsActive(void) { return sSelectModelsOn; }
 
@@ -115,6 +116,7 @@ void Port_SelectModelsDraw(void) {
         m = &sSelectModel[i];
         for (j = 0; j < 2; j++)
             if (sSelectModel[j].object >= 0) BtlObj_Get(sSelectModel[j].object)->active = i == j && m->loaded == m->wanted && m->loadedCostume == m->costume;
+        if (m->object < 0 || m->loaded != m->wanted || (sSelectRaidLayout && i)) continue;
         info = ChrView_GetCharaInfo(m->loaded);
         View_InitLayout(&gOrbitCam->view, i ? VIEW_LAYOUT_RIGHT : VIEW_LAYOUT_LEFT);
         target=info ? info->targetY : 1.2f;
@@ -146,6 +148,33 @@ void Port_SelectModelsDraw(void) {
                 target=floor-dist*.33f;
             }
         }
+        if (sSelectRaidLayout && m->object >= 0) {
+            Vec4 size;
+            f32 width, depth;
+            obj=BtlObj_Get(m->object);
+            height=obj->state.box.max[1]-obj->state.box.min[1];
+            width=obj->state.box.max[0]-obj->state.box.min[0];
+            depth=obj->state.box.max[2]-obj->state.box.min[2];
+            floor=obj->state.box.max[1];
+            root=BtlObj_GetNode(obj,0);head=BtlObj_GetNode(obj,0x2e);
+            if(root && head) {
+                floor=root->mtx.m[3][1];bodyHeight=(floor-head->mtx.m[3][1])*1.35f;
+                if(bodyHeight>height && bodyHeight<height*1.6f) height=bodyHeight;
+            }
+            if(height>.01f && height<1000.0f) {
+                dist=height*2.55f;
+                /* Fit wide giants as well as tall imports throughout rotation. */
+                if(width>0 && width*2.6f>dist) dist=width*2.6f;
+                if(depth>0 && depth*2.6f>dist) dist=depth*2.6f;
+                target=floor-height*.5f;
+            }
+            View_InitLayout(&gOrbitCam->view,VIEW_LAYOUT_FULL);
+            size=gOrbitCam->view.screenSize;
+            View_SetProjection(&gOrbitCam->view,&size,433.0f,1.0f,gOrbitCam->view.aspect,
+                               2178.0f,1988.0f,1.0f,10877000.0f,.3f,65536.0f,1.0f);
+            gOrbitCam->view.scissorX0=262;gOrbitCam->view.scissorX1=511;
+            gOrbitCam->view.scissorY0=35;gOrbitCam->view.scissorY1=269;
+        }
         OrbitCam_SetTarget(0.0f,target,0.0f);
         OrbitCam_SetDist(dist);
         OrbitCam_SetDistRange(0.1f, 1000.0f);
@@ -170,6 +199,12 @@ void Port_SelectModelsDraw(void) {
     Gfx_MarkPass(0);
     Gfx_AddDefaultEnv();
     Dma_AddScissor(0, 511, 0, 447);
+}
+
+/* Independent single-boss presentation; the original two-player view keeps
+   its camera, sizing and split layout. */
+void Port_SelectModelsDrawRaid(void) {
+    sSelectRaidLayout=1;Port_SelectModelsDraw();sSelectRaidLayout=0;
 }
 
 void Port_SelectModelsEnd(void) {

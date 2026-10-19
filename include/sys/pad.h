@@ -132,7 +132,7 @@ extern Pad gPad[PAD_COUNT];
 #ifdef PORT
 /* The PC build's controllers 3 and 4, for fights of more than two fighters (pad.c): the game has two ports. A
    fighter's pad number 2 or 3 is one of these. Port_Pad: the state of pad number 0..3. */
-#define PORT_PAD_EXTRA 2
+#define PORT_PAD_EXTRA 4
 extern Pad gPortPad[PORT_PAD_EXTRA];
 Pad *Port_Pad(s32 pad);
 #endif

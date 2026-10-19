@@ -40,6 +40,12 @@ int main(void) {
     b.mode=PC_RAID;b.players=4;b.count[0]=4;b.count[1]=1;
     assert(Port_PcBattleValidate(&b,why,sizeof(why)));
     b.count[0]=3;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
+    b.players=5;b.count[0]=5;assert(Port_PcBattleValidate(&b,why,sizeof(why)));
+    b.players=6;b.count[0]=6;assert(Port_PcBattleValidate(&b,why,sizeof(why)));
+    b.count[0]=5;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
+    b.players=7;b.count[0]=7;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
+    b.mode=PC_TAG;b.players=5;b.count[0]=b.count[1]=5;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
+    b.mode=PC_RAID;b.players=4;b.count[0]=4;b.count[1]=1;
     assert(Port_PcRosterCount()==169&&Port_PcRosterId(161)==198&&Port_PcRosterId(169)==-1);
     {
         char text[1200];size_t used=0;unsigned k;int *v=(int *)&b;

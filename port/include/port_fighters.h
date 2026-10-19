@@ -21,6 +21,7 @@ int Port_LocalPlayers(void);
 /* port/src/plat_fighters.c: the extra fighters of the fight being loaded or fought, 0 <= k < Port_FightExtras().
    Extra k is roster index 2 + k. Decided once per fight (Port_ExtraSetup). */
 int Port_FightExtras(void);
+int Port_ExtraRaidAdd(int chara,int costume,int level);
 int Port_FightChara(int k);   /* character 0..160 */
 int Port_FightCostume(int k);
 int Port_FightTeam(int k);    /* team number 0..PORT_TEAM_MAX-1 */

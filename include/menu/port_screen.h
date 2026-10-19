@@ -12,7 +12,7 @@ enum {
     PORT_SCREEN_PC_BATTLE,
     PORT_SCREEN_TBO, /* Tenkaichi Budokai Online (menu/port_tbo.c) */
     PORT_SCREEN_CHALLENGE, /* Torre de Desafios y Batallas Personalizadas (menu/port_challenge.c) */
-    PORT_SCREEN_RAID, /* Raid Boss Online Cooperativo 4v1 (menu/port_raid.c) */
+    PORT_SCREEN_RAID, /* Jefe Final Online Cooperativo, hasta 6v1 (menu/port_raid.c) */
     PORT_SCREEN_TOURNAMENT, /* Torneo Online con Cuadro en Vivo (menu/port_tournament.c) */
 };
 

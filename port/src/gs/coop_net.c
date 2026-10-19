@@ -23,7 +23,7 @@ typedef int socklen_t;
 #include "../../include/port_tournament.h"
 #include <pthread.h>
 #include <setjmp.h>
-enum { CMAGIC = 0x42543343, CVERSION = 4, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
+enum { CMAGIC = 0x42543343, CVERSION = 5, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
        CRING = 4096, CPAD = 18, CREDUNDANT = 16, CDELAY = 3, CHEAD = 48 };
 _Static_assert(sizeof(PcBattle) == 228, "Update the co-op protocol when PcBattle changes");
 static int sSock = -1, sHost, sMe, sPlayers, sReady;
@@ -181,7 +181,7 @@ int Port_CoopConfig(PcBattle *out) {
     if(sTournament) {
         if(!Port_TourneyInit(&sTourney,sPlayers)) fail("Torneo requiere 4, 8 o 16 participantes");
         sTourney.fighters[0]=sMyHero;
-    } else if(sPlayers<2 || sPlayers>4) fail("Raid online requiere de dos a cuatro jugadores");
+    } else if(sPlayers<2 || sPlayers>PORT_COOP_MAX) fail("Raid online requiere de dos a seis jugadores");
     if(sHost) {
         int port=atoi(getenv("BT3_COOP_HOST")); if(port<1||port>65535) fail("Puerto no valido");
         if(!Port_PcBattleValidate(&sBattle,why,sizeof(why)) || sBattle.mode!=(sTournament?PC_DUEL:PC_RAID) || (sTournament && sBattle.players!=2)) fail("Plantilla de sala no valida");
@@ -247,7 +247,7 @@ int Port_CoopConfig(PcBattle *out) {
                 sMe=(int)get32(p+16);sPlayers=(int)get32(p+20);sNonce=get32(p+12);sEpoch=get32(p+32);
                 __atomic_store_n(&sLobbyTotal,sPlayers,__ATOMIC_RELEASE);
                 __atomic_store_n(&sLobbyKnown,(int)get32(p+40),__ATOMIC_RELEASE);
-                if(sMe<1||sMe>=sPlayers||sPlayers>(sTournament?PORT_TOURNEY_MAX:4)) fail("Asignacion de jugador no valida");
+                if(sMe<1||sMe>=sPlayers||sPlayers>(sTournament?PORT_TOURNEY_MAX:PORT_COOP_MAX)) fail("Asignacion de jugador no valida");
                 for(k=0;k<sizeof(PcBattle)/4;k++) v[k]=(int)get32(p+CHEAD+k*4);
                 if(sBattle.mode!=(sTournament?PC_DUEL:PC_RAID)||sBattle.players!=(sTournament?2:sPlayers)||!Port_PcBattleValidate(&sBattle,why,sizeof(why))) fail("Plantilla del anfitrion no valida");
                 if(sTournament) {

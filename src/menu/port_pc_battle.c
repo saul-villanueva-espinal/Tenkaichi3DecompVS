@@ -249,6 +249,11 @@ void Port_PcRelayTick(void) {
     }
 }
 
+/* Read-only overflow accessor: never index BattleSide.members[5]. */
+int Port_PcRaidOverflow(s32 *chara,s32 *costume) {
+    if(sBattle.mode!=PC_RAID || sBattle.count[0]<=5) return 0;
+    *chara=sBattle.fighter[0][5].chara;*costume=sBattle.fighter[0][5].costume;return 1;
+}
 int Port_PcBattleBuild(void) {
     PcBattle b;
     s32 s, i, mode;
@@ -287,6 +292,7 @@ int Port_PcBattleBuild(void) {
             BattleSetup_SetMember(s, i, f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
         }
     }
+    if(Port_CoopEnabled()) Battle_GetSetup()->rule.screenMode=0;
     BattleSetup_Finish();
     sNativeRules=sNativeCpuCpu=sNativeTraining=0;
     /* Return to the main menu after a PC battle; there is no legacy selector

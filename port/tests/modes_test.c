@@ -8,6 +8,7 @@ typedef int s32;
 #define PORT
 #include "../../include/port_chara.h"
 
+static int coop;
 static int mode, players = 2, online, session, missing, last_file, extras, mode_extras;
 unsigned gGsFrame;
 int Port_Setting(const char *name, int def) {
@@ -25,6 +26,7 @@ void Port_SettingSave(const char *name, int value) {
 void Port_SettingsWrite(void) {}
 int Port_NetActive(void) { return online; }
 int Port_NetSession(void) { return session; }
+int Port_CoopEnabled(void) { return coop; }
 int Port_FilePath(int part, int file, const char *name, char *out, int size) {
     (void)name;
     assert(part == 2); /* match File_OpenById's global-to-partition translation */
@@ -48,9 +50,25 @@ static void raid_players(int n) {
         assert(Port_FightPad(k) == (k < n - 1 ? k + 1 : -1));
     }
 }
+static void raid_online(int n) {
+    int k;coop=1;mode=PORT_MODE_RAID;Port_LocalPlayersSet(n);
+    assert(Port_LocalPlayers()==n);
+    assert(!Port_LocalQuadFight(0,5,1,0,0));
+    assert(Port_ExtraSetup(0,5,1,0,0,0)==PORT_MODE_RAID);
+    for(k=0;k<4;k++) assert(Port_ExtraAdd(0,k+1,k,7,13));
+    if(n==6) assert(Port_ExtraRaidAdd(91,1,13));
+    Port_ExtraDone();assert(Port_FightExtras()==(n==6?5:4));
+    for(k=0;k<Port_FightExtras();k++) {
+        assert(Port_FightPad(k)==(k<n-1?k+1:-1));
+        assert(Port_FightTeam(k)==0);
+    }
+    if(n==6) {assert(Port_FightChara(4)==91);assert(Port_FightCostume(4)==1);assert(Port_FightMember(4)==-1);}
+    coop=0;Port_LocalPlayersSet(2);
+}
 int main(void) {
     int n;
     char why[160];
+    raid_online(4);raid_online(5);raid_online(6);
     /* A saved training experiment must never add fighters to ordinary Duel. */
     mode = PORT_MODE_NONE;
     extras = 1;

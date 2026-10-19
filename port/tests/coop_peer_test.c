@@ -37,7 +37,7 @@ int main(int argc,char **argv) {
     assert(b.rules.regenPerSec==150 && b.rules.damagePct==125 && b.rules.armorSides==2);
     assert(b.rules.cpuLevel1==30 && b.rules.bgm1==14 && b.rules.infiniteKiChara1==134);
     assert(b.fighter[0][Port_CoopMe()].chara==(getenv("FIXTURE_HERO")?atoi(getenv("FIXTURE_HERO")):0));
-    for(p=0;p<4;p++) {int k,found=0;for(k=0;k<4;k++) found+=b.fighter[0][k].chara==p*2;assert(found==1);}
+    for(p=0;p<b.players;p++) {int k,found=0;for(k=0;k<b.players;k++) found+=b.fighter[0][k].chara==p*2;assert(found==1);}
     for(frame=0;frame<300;frame++) {
         Port_CoopBeginTick(frame);
         for(p=0;p<b.players;p++) {
@@ -46,5 +46,5 @@ int main(int argc,char **argv) {
             if(frame>=3) assert(pad[1]==(unsigned char)(frame-3));
         }
     }
-    puts("coop_peer_test: all four distinct pads match for 300 ticks");
+    printf("coop_peer_test: all %d distinct pads match for 300 ticks\n",b.players);
 }

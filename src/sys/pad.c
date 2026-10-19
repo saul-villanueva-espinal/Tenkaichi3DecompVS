@@ -35,7 +35,8 @@ static void Port_PadUpdateExtra(void) {
     extern void Pad_Update(void);
     static s32 inside;
     static Pad kept[PAD_COUNT];
-    s32 i;
+    s32 i,base,limit;
+    extern s32 Port_CoopEnabled(void);
 
     if (inside || !Port_ExtraPadsOn()) {
         return;
@@ -48,14 +49,11 @@ static void Port_PadUpdateExtra(void) {
         }
     }
     inside = 1;
-    for (i = 0; i < PAD_COUNT; i++) {
-        kept[i] = gPad[i];
-        gPad[i] = gPortPad[i];
-    }
-    Pad_Update();
-    for (i = 0; i < PAD_COUNT; i++) {
-        gPortPad[i] = gPad[i];
-        gPad[i] = kept[i];
+    limit=Port_CoopEnabled()?PORT_PAD_EXTRA:2;
+    for (base=0;base<limit;base+=PAD_COUNT) {
+        for (i=0;i<PAD_COUNT;i++) {kept[i]=gPad[i];gPad[i]=gPortPad[base+i];}
+        Pad_Update();
+        for (i=0;i<PAD_COUNT;i++) {gPortPad[base+i]=gPad[i];gPad[i]=kept[i];}
     }
     inside = 0;
 }
