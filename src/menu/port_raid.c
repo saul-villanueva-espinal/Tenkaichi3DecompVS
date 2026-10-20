@@ -107,7 +107,7 @@ static void Rd_Draw(void) {
     }
     Rd_Text(19,84,R->page==RD_ALLY?"ELEGIR ALIADO  /  L1-R1: TRAJE":"SELECCIONAR JEFE  /  L1-R1: TRAJE",.40f,240,0);
     if(R->page==RD_LOBBY) {
-        Rd_Row(0,"Jefe",(char *)Port_PcRosterName(Rd_Boss()->chara));
+        Rd_Row(0,"Jefe",Port_PcRosterName(Rd_Boss()->chara));
         Rd_Row(1,"Conexion",R->connection==0?"Practica + CPU":R->connection==1?"Crear sala UDP":"Unirse por IP");
         sprintf(buf,"%d aliados vs 1 jefe",R->count);Rd_Row(2,"Jugadores",buf);
         Rd_Row(3,"Dificultad",R->difficulty==0?"Guerrero Z":R->difficulty==1?"Super Saiyan":"Extrema");
@@ -115,14 +115,14 @@ static void Rd_Draw(void) {
         Rd_Row(5,"Personalizar","Vida, poder y furia");Rd_Row(6,"Red","Direccion y puerto");
         Rd_Row(7,"Mi guerrero","Elegir personaje");Rd_Row(8,"Comprobar","Archivos de la sala");
     } else if(R->page==RD_CUSTOM) {
-        Rd_Row(0,"Personaje",(char *)Port_PcRosterName(f->chara));sprintf(buf,"%d / 8",f->costume+1);Rd_Row(1,"Traje",buf);
+        Rd_Row(0,"Personaje",Port_PcRosterName(f->chara));sprintf(buf,"%d / 8",f->costume+1);Rd_Row(1,"Traje",buf);
         sprintf(buf,"%d PV",rules->bossHp);Rd_Row(2,"Vida",buf);sprintf(buf,"%d %%",rules->bossDamagePct);Rd_Row(3,"Dano",buf);
         sprintf(buf,"Nivel %d / 30",rules->cpuLevel1);Rd_Row(4,"IA del jefe",buf);
         if(rules->enragePct) sprintf(buf,"Furia al %d %% PV",rules->enragePct);else Ps_Copy(buf,"Sin furia",sizeof(buf));Rd_Row(5,"Fases",buf);
         Rd_Row(6,"Armadura",rules->armorSides?"Activada":"Normal");Rd_Row(7,"Ki infinito",rules->infiniteKiChara1?"Activado":"Desactivado");
         Rd_Row(8,"Guardar","Perfil de este traje");
     } else if(R->page==RD_ALLY) {
-        sprintf(buf,"J%d - PERSONAJE",R->ally+1);Rd_Row(0,buf,(char *)Port_PcRosterName(f->chara));
+        sprintf(buf,"J%d - PERSONAJE",R->ally+1);Rd_Row(0,buf,Port_PcRosterName(f->chara));
         sprintf(buf,"Traje %d / 8",f->costume+1);Rd_Row(1,"Vestuario",buf);Rd_Plate(16,165,239,104,0,0);
         Rd_Text(27,177,"Izquierda / Derecha: personaje",.48f,218,0);Rd_Text(27,199,"Arriba / Abajo: plaza del equipo",.46f,218,0);
         Rd_Text(27,221,"Los personajes repetidos se permiten.",.43f,218,1);Rd_Text(27,242,"X: confirmar y volver a la sala",.45f,218,0);
@@ -132,13 +132,13 @@ static void Rd_Draw(void) {
         Rd_Text(22,242,"Izquierda / Derecha: cambiar valor",.44f,234,0);Rd_Text(22,263,"Cuadrado: +10. X: volver a la sala.",.44f,234,0);
         Rd_Text(22,288,"Internet requiere una ruta UDP accesible.",.40f,234,1);
     }
-    Rd_Plate(270,270,234,28,0,0);Rd_Text(282,277,(char *)Port_PcRosterName(f->chara),.63f,210,0);
+    Rd_Plate(270,270,234,28,0,0);Rd_Text(282,277,Port_PcRosterName(f->chara),.63f,210,0);
     sprintf(buf,"TRAJE %d  /  VISTA 3D",f->costume+1);Rd_Text(310,299,buf,.41f,180,1);
     Rd_Plate(8,331,496,78,0,0);Rd_Text(20,316,"EQUIPO COOPERATIVO",.60f,240,0);
     for(i=0;i<PORT_COOP_MAX;i++) {
         f32 x=16+i*80.0f;PcFighter *hero=&R->battle.fighter[0][i];Rd_Plate(x,337,78,67,R->page==RD_ALLY&&R->ally==i,0);
         if(i<R->count) Port_TeamChip(hero->chara,x+6,343,65,31,128);sprintf(buf,"J%d",i+1);Rd_Text(x+7,340,buf,.46f,25,0);
-        Rd_Text(x+6,374,i<R->count?(char *)Port_PcRosterName(hero->chara):"Cerrada",.38f,65,0);
+        Rd_Text(x+6,374,i<R->count?Port_PcRosterName(hero->chara):"Cerrada",.38f,65,0);
         Rd_Text(x+8,389,i>=R->count?"--":R->connection==0?(i?"CPU":"JUGADOR"):i?"ESPERANDO":"MI ELECCION",.32f,64,1);
     }
     Ps_Rect(0,412,512,448,Ps_Rgba(7,18,37,118),Ps_Rgba(3,7,17,128));Rd_Text(12,417,"X: elegir   Triangulo: personalizar   O: volver",.41f,330,0);
