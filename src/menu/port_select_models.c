@@ -118,67 +118,36 @@ void Port_SelectModelsDraw(void) {
             if (sSelectModel[j].object >= 0) BtlObj_Get(sSelectModel[j].object)->active = i == j && m->loaded == m->wanted && m->loadedCostume == m->costume;
         if (m->object < 0 || m->loaded != m->wanted || (sSelectRaidLayout && i)) continue;
         info = ChrView_GetCharaInfo(m->loaded);
-        View_InitLayout(&gOrbitCam->view, i ? VIEW_LAYOUT_RIGHT : VIEW_LAYOUT_LEFT);
-        target=info ? info->targetY : 1.2f;
-        dist=info ? info->dist*1.15f : 5.75f;
+        if (sSelectRaidLayout == 2) {
+            View_InitLayout(&gOrbitCam->view, VIEW_LAYOUT_FULL);
+        } else if (sSelectRaidLayout == 1) {
+            View_InitLayout(&gOrbitCam->view, VIEW_LAYOUT_RIGHT);
+        } else {
+            View_InitLayout(&gOrbitCam->view, i ? VIEW_LAYOUT_RIGHT : VIEW_LAYOUT_LEFT);
+        }
+        target = info ? info->targetY : 1.2f;
+        dist = info ? info->dist * 1.15f : 5.75f;
+        if (sSelectRaidLayout) {
+            dist *= 1.10f;
+            target += 0.05f;
+        }
         /* Added models use their own bounds rather than a borrowed base
            character's camera. Keep the original roster's camera unchanged. */
-        if (m->object>=0 && m->loaded>=PORT_CHARA_FIRST) {
-            obj=BtlObj_Get(m->object);
-            height=obj->state.box.max[1]-obj->state.box.min[1];
-            if (height>.01f && height<1000.0f) {
-                /* Collision bounds differ between imported models. Use the
-                   standard root/head bones to reserve anatomical headroom too:
-                   otherwise Cell looks short while Broly's hair gets cropped. */
-                root=BtlObj_GetNode(obj,0);
-                head=BtlObj_GetNode(obj,0x2e);
-                floor=obj->state.box.max[1];
+        if (m->object >= 0 && m->loaded >= PORT_CHARA_FIRST) {
+            obj = BtlObj_Get(m->object);
+            height = obj->state.box.max[1] - obj->state.box.min[1];
+            if (height > .01f && height < 1000.0f) {
+                root = BtlObj_GetNode(obj, 0);
+                head = BtlObj_GetNode(obj, 0x2e);
+                floor = obj->state.box.max[1];
                 if (root && head) {
-                    floor=root->mtx.m[3][1];
-                    bodyHeight=(floor-head->mtx.m[3][1])*1.35f;
-                    if (bodyHeight>height && bodyHeight<height*1.5f)
-                        height=bodyHeight;
+                    floor = root->mtx.m[3][1];
+                    bodyHeight = (floor - head->mtx.m[3][1]) * 1.35f;
+                    if (bodyHeight > height && bodyHeight < height * 1.5f)
+                        height = bodyHeight;
                 }
-                /* Normal roster coverage, independent of wings/tail width.
-                   Keep the feet anchored while allowing the native plates to
-                   cover the lower legs, as in the original giant previews. */
-                dist=height*1.5f;
-                /* Native 448-line canvas: keep the ground near line 367,
-                   just above the bottom carousel, throughout rotation. */
-                target=floor-dist*.33f;
-            }
-        }
-        if (sSelectRaidLayout && m->object >= 0) {
-            Vec4 size;
-            f32 width, depth;
-            obj=BtlObj_Get(m->object);
-            height=obj->state.box.max[1]-obj->state.box.min[1];
-            width=obj->state.box.max[0]-obj->state.box.min[0];
-            depth=obj->state.box.max[2]-obj->state.box.min[2];
-            floor=obj->state.box.max[1];
-            root=BtlObj_GetNode(obj,0);head=BtlObj_GetNode(obj,0x2e);
-            if(root && head) {
-                floor=root->mtx.m[3][1];bodyHeight=(floor-head->mtx.m[3][1])*1.35f;
-                if(bodyHeight>height && bodyHeight<height*1.6f) height=bodyHeight;
-            }
-            if(height>.01f && height<1000.0f) {
-                dist=height*2.55f;
-                /* Fit wide giants as well as tall imports throughout rotation. */
-                if(width>0 && width*2.6f>dist) dist=width*2.6f;
-                if(depth>0 && depth*2.6f>dist) dist=depth*2.6f;
-                target=floor-height*.5f;
-            }
-            f32 cx = (sSelectRaidLayout == 2) ? 2048.0f : 2178.0f;
-            View_InitLayout(&gOrbitCam->view,VIEW_LAYOUT_FULL);
-            size=gOrbitCam->view.screenSize;
-            View_SetProjection(&gOrbitCam->view,&size,433.0f,1.0f,gOrbitCam->view.aspect,
-                               cx,1988.0f,1.0f,10877000.0f,.3f,65536.0f,1.0f);
-            if (sSelectRaidLayout == 2) {
-                gOrbitCam->view.scissorX0=175;gOrbitCam->view.scissorX1=345;
-                gOrbitCam->view.scissorY0=35;gOrbitCam->view.scissorY1=380;
-            } else {
-                gOrbitCam->view.scissorX0=262;gOrbitCam->view.scissorX1=511;
-                gOrbitCam->view.scissorY0=35;gOrbitCam->view.scissorY1=269;
+                dist = height * 1.5f;
+                target = floor - dist * .33f;
             }
         }
         OrbitCam_SetTarget(0.0f,target,0.0f);
