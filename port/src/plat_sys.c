@@ -35,3 +35,19 @@ int Port_Rand(void) {
     gPortRandNext = gPortRandNext * 6364136223846793005ull + 1;
     return (int)((gPortRandNext >> 32) & 0x7FFFFFFF);
 }
+
+/* Personal raid cameras and HUDs render different things on each computer.
+   Their jitter must never advance the simulation's random generator. */
+int Port_VisualRaid(void) {
+    return (getenv("BT3_COOP_HOST") || getenv("BT3_COOP_JOIN")) && !getenv("BT3_TOURNAMENT");
+}
+int Port_VisualRand(void) {
+    static uint64_t visual=0x42543343u;
+    if(!Port_VisualRaid()) return Port_Rand();
+    visual=visual*6364136223846793005ull+1;
+    return (int)((visual>>32)&0x7fffffff);
+}
+int Port_VisualRandIntRange(int a,int b) {
+    int t;if(a==b) return a;if(b<a) {t=a;a=b;b=t;}
+    return a+Port_VisualRand()%(b-a+1);
+}

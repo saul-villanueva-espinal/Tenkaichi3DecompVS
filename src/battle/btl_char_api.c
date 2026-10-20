@@ -663,6 +663,10 @@ s32 Port_WatchedStopped(void) {
     extern s32 Port_QuarterFighter(s32 q);
     extern s32 Port_Spectated(s32 p);
     s32 quad = Port_QuadMode(); /* (four quarters: the four players' fighters; their targets are not looked at) */
+    /* Shared world effects keep moving independently of a local player's
+       hit-stop. Per-character stop remains applied by the fighter itself. */
+    {extern s32 Port_CoopEnabled(void),Port_ModesFight(void);
+     if(Port_CoopEnabled() && Port_ModesFight()==3) return 0;}
 
     extern s32 Port_QuadThree(void);
     for (s = 0; s < (quad ? (Port_QuadThree() ? 3 : 4) : 2); s++) {

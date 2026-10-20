@@ -13,6 +13,11 @@
 
 extern void *memset(void *dst, s32 c, u32 n);
 extern s32 rand(void);
+#ifdef PORT
+extern s32 Port_VisualRand(void);
+#undef rand
+#define rand Port_VisualRand
+#endif
 
 /* Vector / matrix maths (VU0 macro-mode routines at 0x120098..0x1222xx). */
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);

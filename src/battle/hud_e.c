@@ -7,6 +7,9 @@
 #include "sys/rand.h"
 #include "sys/save.h"
 #include "sys/adx.h"
+#ifdef PORT
+extern s32 Port_VisualRaid(void),Port_VisualRand(void);
+#endif
 
 /*
  * Battle HUD, notice part (the full-screen announcements), second half: 0x22A750-0x22B4F8.
@@ -211,7 +214,13 @@ void HudNotice_Show(s32 id) {
             HudNode_SetPos(node, 256, 224);
             node->update = HudNotice_UpdateBandB;
             node->draw = HudNotice_DrawBandB;
-            if (Rand_Range(2)) {
+            if (
+#ifdef PORT
+                (Port_VisualRaid() ? Port_VisualRand()%2 : Rand_Range(2))
+#else
+                Rand_Range(2)
+#endif
+            ) {
                 StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7 + 2);
             } else {
                 StreamSe_PlayDefault(0, HudNotice_GetVoiceBase() + Battle_GetAnnouncer() * 7 + 3);

@@ -3,6 +3,10 @@
 #include "battle/battle.h"
 #include "sys/randf.h"
 #include "sys/heap.h"
+#ifdef PORT
+extern s32 Port_VisualRandIntRange(s32,s32);
+#define Rand_IntRange Port_VisualRandIntRange
+#endif
 
 #ifdef PORT
 /* PC build, online play: the player who joined is side 1 of the game, and would have their own gauges, team, prompts

@@ -4,6 +4,10 @@
 #include "sys/randf.h"
 #include "sys/heap.h"
 #ifdef PORT
+extern s32 Port_VisualRandIntRange(s32,s32);
+#define Rand_IntRange Port_VisualRandIntRange
+#endif
+#ifdef PORT
 /* More than two fighters: the fighter a side's gauge shows (btl_char_flag_opp.c, Port_HudFighter), or, while the
    small copy of the gauge of another fighter is drawn (HudExtra_DrawMini), that fighter. */
 extern s32 Port_HudFighter(s32 side);

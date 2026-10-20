@@ -4,6 +4,10 @@
 #include "sys/gfx.h"
 #include "sys/mathf.h"
 #include "sys/randf.h"
+#ifdef PORT
+extern s32 Port_VisualRandIntRange(s32,s32);
+#define Rand_IntRange Port_VisualRandIntRange
+#endif
 
 /*
  * Battle HUD, notice part: the animations of the full-screen announcements, 0x226500-0x22A750.
