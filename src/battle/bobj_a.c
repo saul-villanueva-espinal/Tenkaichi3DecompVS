@@ -18,6 +18,12 @@
 extern void *memset(void *dst, s32 c, u32 n);
 extern s32 memcmp(const void *a, const void *b, u32 n);
 extern s32 rand(void);
+#ifdef PORT
+/* Blinks and lip-sync follow local voice playback and visibility. Their random
+   choices must never advance the online raid's shared combat generator. */
+extern s32 Port_VisualRand(void);
+#define rand Port_VisualRand
+#endif
 
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);
 extern void Vec4_Copy(Vec4 *dst, Vec4 *src);

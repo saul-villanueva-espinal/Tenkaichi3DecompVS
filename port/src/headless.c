@@ -337,6 +337,20 @@ unsigned long long Port_NetDigest(void) {
             memcpy(d.pos[k], q, 12);
         }
     }
+    if(Port_CoopEnabled() && !Port_TourneyEnabled() && getenv("BT3_COOP_DIAG")) {
+        extern unsigned gRandState[624],gPortVu0R;
+        extern int gRandIndex;
+        extern unsigned long long gPortRandNext;
+        extern int Port_FighterCount(void);
+        unsigned mt=2166136261u;
+        for(i=0;i<624;i++) mt=(mt^gRandState[i])*16777619u;
+        fprintf(stderr,"bt3: raid-state: clock %d seq %d rng %016llx mt %08x:%d vu %08x",d.clock,d.seq,gPortRandNext,mt,gRandIndex,gPortVu0R);
+        for(k=0;k<11;k++) {
+            unsigned pos[3];BtlCharApi_GetPos(k,q);memcpy(pos,q,12);
+            fprintf(stderr," | %d:%d:%08x,%08x,%08x",k,BtlCharApi_GetHp(k),pos[0],pos[1],pos[2]);
+        }
+        fputc('\n',stderr);
+    }
     for (i = 0; i < sizeof(d); i++) { /* FNV-1a */
         h = (h ^ b[i]) * 0x100000001B3ull;
     }
