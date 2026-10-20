@@ -325,8 +325,8 @@ static void Rd_Draw(void) {
     else if (gTeamSel->bg[1]) Sprite_DrawPicture(gTeamSel->bg[1], 0, 0, 128);
     else Ps_Rect(0, 0, 512, 448, Ps_Rgba(90, 177, 222, 128), Ps_Rgba(60, 118, 46, 128));
 
-    Port_SelectModelsSet(0, f->chara, f->costume);
-    Port_SelectModelsSet(1, -1, 0);
+    Port_SelectModelsSet(0, -1, 0);
+    Port_SelectModelsSet(1, f->chara, f->costume);
     Port_SelectModelsDrawRaidEx(R->page == RD_CUSTOM ? 2 : 1);
     Ps_PageFull();
 

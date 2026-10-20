@@ -100,10 +100,9 @@ void Port_SelectModelsDraw(void) {
     SelectModel *m;
     ChrViewInfo *info;
     f32 target,dist,height,bodyHeight,floor;
-    s32 maxViews;
+    static s32 sLoggedDiag;
     if (!sSelectModelsOn) return;
-    maxViews = sSelectRaidLayout ? 1 : 2;
-    for (i = 0; i < maxViews; i++) {
+    for (i = 0; i < 2; i++) {
         SelectModel_Load(i);
         m = &sSelectModel[i];
         if (m->object >= 0) {
@@ -114,17 +113,14 @@ void Port_SelectModelsDraw(void) {
     }
     gBtlStage->flags &= ~1;
     BtlObj_UpdateAll();
-    for (i = 0; i < maxViews; i++) {
+    for (i = 0; i < 2; i++) {
         m = &sSelectModel[i];
         for (j = 0; j < 2; j++)
             if (sSelectModel[j].object >= 0)
-                BtlObj_Get(sSelectModel[j].object)->active = (sSelectRaidLayout ? (j == 0) : (i == j)) && sSelectModel[j].loaded == sSelectModel[j].wanted && sSelectModel[j].loadedCostume == sSelectModel[j].costume;
-        if (m->object < 0 || m->loaded != m->wanted) continue;
+                BtlObj_Get(sSelectModel[j].object)->active = i == j && sSelectModel[j].loaded == sSelectModel[j].wanted && sSelectModel[j].loadedCostume == sSelectModel[j].costume;
         info = ChrView_GetCharaInfo(m->loaded);
         if (sSelectRaidLayout == 2) {
             View_InitLayout(&gOrbitCam->view, VIEW_LAYOUT_FULL);
-        } else if (sSelectRaidLayout == 1) {
-            View_InitLayout(&gOrbitCam->view, VIEW_LAYOUT_RIGHT);
         } else {
             View_InitLayout(&gOrbitCam->view, i ? VIEW_LAYOUT_RIGHT : VIEW_LAYOUT_LEFT);
         }
@@ -166,14 +162,19 @@ void Port_SelectModelsDraw(void) {
         View_Apply(&m->view, 1);
         BtlObj_UpdateVisibility(i);
     }
-    for (i = 0; i < maxViews; i++)
+    for (i = 0; i < 2; i++)
         if (sSelectModel[i].object >= 0) {
             m = &sSelectModel[i];
             BtlObj_Get(m->object)->active = m->loaded == m->wanted && m->loadedCostume == m->costume;
         }
-    BtlObj_FinishVisibility(sSelectRaidLayout ? 0 : 1);
-    if (sSelectRaidLayout && sSelectModel[0].object >= 0) {
-        View_Apply(&sSelectModel[0].view, 1);
+    BtlObj_FinishVisibility(1);
+    if (sSelectRaidLayout && !sLoggedDiag) {
+        if (sSelectModel[1].object >= 0) {
+            sLoggedDiag = 1;
+            fprintf(stderr, "bt3: Boss 3D model loaded: obj=%d chara=%d costume=%d visFlags=0x%x\n",
+                    sSelectModel[1].object, sSelectModel[1].loaded, sSelectModel[1].loadedCostume,
+                    BtlObjVis_Get()->flags);
+        }
     }
     Gfx_MarkPass(2);
     BtlObjDraw_Draw();
