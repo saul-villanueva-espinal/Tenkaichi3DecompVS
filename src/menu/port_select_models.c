@@ -168,12 +168,18 @@ void Port_SelectModelsDraw(void) {
                 if(depth>0 && depth*2.6f>dist) dist=depth*2.6f;
                 target=floor-height*.5f;
             }
+            f32 cx = (sSelectRaidLayout == 2) ? 2048.0f : 2178.0f;
             View_InitLayout(&gOrbitCam->view,VIEW_LAYOUT_FULL);
             size=gOrbitCam->view.screenSize;
             View_SetProjection(&gOrbitCam->view,&size,433.0f,1.0f,gOrbitCam->view.aspect,
-                               2178.0f,1988.0f,1.0f,10877000.0f,.3f,65536.0f,1.0f);
-            gOrbitCam->view.scissorX0=262;gOrbitCam->view.scissorX1=511;
-            gOrbitCam->view.scissorY0=35;gOrbitCam->view.scissorY1=269;
+                               cx,1988.0f,1.0f,10877000.0f,.3f,65536.0f,1.0f);
+            if (sSelectRaidLayout == 2) {
+                gOrbitCam->view.scissorX0=175;gOrbitCam->view.scissorX1=345;
+                gOrbitCam->view.scissorY0=35;gOrbitCam->view.scissorY1=380;
+            } else {
+                gOrbitCam->view.scissorX0=262;gOrbitCam->view.scissorX1=511;
+                gOrbitCam->view.scissorY0=35;gOrbitCam->view.scissorY1=269;
+            }
         }
         OrbitCam_SetTarget(0.0f,target,0.0f);
         OrbitCam_SetDist(dist);
@@ -193,7 +199,7 @@ void Port_SelectModelsDraw(void) {
             m = &sSelectModel[i];
             BtlObj_Get(m->object)->active = m->loaded == m->wanted && m->loadedCostume == m->costume;
         }
-    BtlObj_FinishVisibility(1);
+    BtlObj_FinishVisibility(sSelectRaidLayout ? 0 : 1);
     Gfx_MarkPass(2);
     BtlObjDraw_Draw();
     Gfx_MarkPass(0);
@@ -207,13 +213,17 @@ void Port_SelectModelsDrawRaid(void) {
     sSelectRaidLayout=1;Port_SelectModelsDraw();sSelectRaidLayout=0;
 }
 
+void Port_SelectModelsDrawRaidEx(s32 layout) {
+    sSelectRaidLayout=layout>0?layout:1;Port_SelectModelsDraw();sSelectRaidLayout=0;
+}
+
 void Port_SelectModelsEnd(void) {
     s32 i;
     if (!sSelectModelsOn) return;
     for (i = 0; i < 2; i++)
         if (sSelectModel[i].object >= 0) BtlObj_Destroy(sSelectModel[i].object);
     ChrView_Term();
-    gBtlCamView = NULL;
+    if (gOrbitCam) gBtlCamView = &gOrbitCam->view;
     sSelectModelsOn = 0;
 }
 #endif

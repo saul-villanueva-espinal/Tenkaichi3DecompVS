@@ -77,80 +77,355 @@ static void Rd_Init(void) {
 }
 /* Original metallic/blue hierarchy, full-width 512x448 native canvas. */
 extern void Port_RosterName(char *,s32,s32);
+extern int Port_CharaForms(int chara, int *out, int max);
+extern void Dma_AddScissor(s32 x0, s32 x1, s32 y0, s32 y1);
 static char sRaidName[128];
 static char *Rd_Name(s32 chara) {
-    /* The package metadata strings are host allocations, possibly above 4 GB.
-       Copy before any native text routine stores its 32-bit string pointer. */
     Port_RosterName(sRaidName,sizeof(sRaidName),chara);return sRaidName;
 }
-static void Rd_Plate(f32 x,f32 y,f32 w,f32 h,s32 selected,s32 gold) {
-    u32 silver=Ps_Rgba(184,203,211,128),black=Ps_Rgba(7,13,24,128);
-    Ps_Quad(x+5,y,x+w,y,x+w-5,y+h,x,y+h,silver,silver,Ps_Rgba(58,73,85,128),silver);
-    Ps_Quad(x+6,y+2,x+w-2,y+2,x+w-6,y+h-2,x+2,y+h-2,black,black,black,black);
-    Ps_Quad(x+8,y+4,x+w-4,y+4,x+w-8,y+h-4,x+4,y+h-4,
-        gold?Ps_Rgba(255,242,80,128):Ps_Rgba(selected?33:15,selected?117:60,selected?210:144,128),
-        gold?Ps_Rgba(255,185,12,128):Ps_Rgba(12,31,71,128),gold?Ps_Rgba(185,99,0,128):Ps_Rgba(3,9,24,128),
-        gold?Ps_Rgba(249,189,13,128):Ps_Rgba(4,20,55,128));
-    if(selected) Ps_Rect(x+7,y+h-3,x+w-7,y+h-1,Ps_Rgba(255,234,55,128),Ps_Rgba(255,234,55,128));
-}
-static void Rd_Text(f32 x,f32 y,char *text,f32 scale,f32 width,s32 gold) {
-    Ps_TextExOuter(x,y,text,scale,width,Ps_Rgba(255,255,gold?105:255,128),gold?Ps_Rgba(255,204,12,128):Ps_Rgba(195,210,231,128),
-        Ps_Rgba(0,0,0,128),Ps_Rgba(0,0,0,128),1.0f);
-}
-static void Rd_Row(s32 row,char *label,char *value) {
-    f32 y=102+row*25;Rd_Plate(16,y,239,24,R->cursor==row,0);
-    Rd_Text(25,y+4,label,.48f,87,0);Rd_Text(117,y+4,value,.48f,127,1);
-}
-static void Rd_Draw(void) {
-    s32 i,index=Rd_Index(Rd_Shown()->chara),n=Port_PcRosterCount();char buf[96];PcFighter *f=Rd_Shown();PcBattleRules *rules=&R->battle.rules;
-    Ps_PageFull();
-    if(gTeamSel->flags&TEAMSEL_STAGE_READY) Sprite_DrawPicture(gTeamSel->bg[0],0,0,128);
-    else if(gTeamSel->bg[1]) Sprite_DrawPicture(gTeamSel->bg[1],0,0,128);
-    else Ps_Rect(0,0,512,448,Ps_Rgba(90,177,222,128),Ps_Rgba(60,118,46,128));
-    Port_SelectModelsSet(0,f->chara,f->costume);Port_SelectModelsSet(1,-1,0);Port_SelectModelsDrawRaid();Ps_PageFull();
-    Rd_Plate(-8,3,350,32,0,0);Rd_Text(23,9,R->page==RD_CUSTOM?"PERSONALIZAR JEFE":"JEFE FINAL - SALA ONLINE",.83f,307,0);
-    for(i=0;i<8;i++) {
-        f32 x=18+i*30.0f;s32 id=Port_PcRosterId(Rd_Wrap(index+i-3,n));Rd_Plate(x,42,29,43,i==3,0);Port_TeamChip(id,x+4,47,21,31,128);
+
+static const char *const sStageNames[35] = {
+    "Montañas", "Páramo", "Desierto", "Llanura", "Ciudad", "Carretera", "Islas", "Glaciar",
+    "Volcán", "Ruinas", "Namek", "Namek destruido", "Planeta Vegeta", "Espacio", "Torneo Mundial",
+    "Torneo Más Allá", "Juegos de Cell", "Juegos de Bojack", "Palacio de Kami", "Sala del Tiempo",
+    "Mundo Kaioshin", "Infierno", "Aldea Pingüino", "Capital del Este", "Archipiélago", "Cueva",
+    "Templo Sagrado", "Rocoso noche", "Desierto noche", "Ciudad noche", "Torneo noche", "Juegos noche",
+    "Páramo tarde", "Namek noche", "Espacio profundo"
+};
+static const char *const sDiffNames[3] = { "Guerrero Z", "Super Saiyan", "Extrema" };
+
+static s32 Rd_Forms(s32 chara, s32 *out, s32 max) {
+    s32 count = 0, i, k;
+    if (chara < 0 || max < 1) return 0;
+    count = Port_CharaForms(chara, out, max);
+    if (count > 0) {
+        for (i = count; i < max; i++) out[i] = out[count - 1];
+        return count;
     }
-    Rd_Text(19,84,R->page==RD_ALLY?"ELEGIR ALIADO  /  L1-R1: TRAJE":"SELECCIONAR JEFE  /  L1-R1: TRAJE",.40f,240,0);
-    if(R->page==RD_LOBBY) {
-        Rd_Row(0,"Jefe",Rd_Name(Rd_Boss()->chara));
-        Rd_Row(1,"Conexion",R->connection==0?"Practica + CPU":R->connection==1?"Crear sala UDP":"Unirse por IP");
-        sprintf(buf,"%d aliados vs 1 jefe",R->count);Rd_Row(2,"Jugadores",buf);
-        Rd_Row(3,"Dificultad",R->difficulty==0?"Guerrero Z":R->difficulty==1?"Super Saiyan":"Extrema");
-        sprintf(buf,"Arena %02d",R->battle.stage+1);Rd_Row(4,"Escenario",buf);
-        Rd_Row(5,"Personalizar","Vida, poder y furia");Rd_Row(6,"Red","Direccion y puerto");
-        Rd_Row(7,"Mi guerrero","Elegir personaje");Rd_Row(8,"Comprobar","Archivos de la sala");
-    } else if(R->page==RD_CUSTOM) {
-        Rd_Row(0,"Personaje",Rd_Name(f->chara));sprintf(buf,"%d / 8",f->costume+1);Rd_Row(1,"Traje",buf);
-        sprintf(buf,"%d PV",rules->bossHp);Rd_Row(2,"Vida",buf);sprintf(buf,"%d %%",rules->bossDamagePct);Rd_Row(3,"Dano",buf);
-        sprintf(buf,"Nivel %d / 30",rules->cpuLevel1);Rd_Row(4,"IA del jefe",buf);
-        if(rules->enragePct) sprintf(buf,"Furia al %d %% PV",rules->enragePct);else Ps_Copy(buf,"Sin furia",sizeof(buf));Rd_Row(5,"Fases",buf);
-        Rd_Row(6,"Armadura",rules->armorSides?"Activada":"Normal");Rd_Row(7,"Ki infinito",rules->infiniteKiChara1?"Activado":"Desactivado");
-        Rd_Row(8,"Guardar","Perfil de este traje");
-    } else if(R->page==RD_ALLY) {
-        sprintf(buf,"J%d - PERSONAJE",R->ally+1);Rd_Row(0,buf,Rd_Name(f->chara));
-        sprintf(buf,"Traje %d / 8",f->costume+1);Rd_Row(1,"Vestuario",buf);Rd_Plate(16,165,239,104,0,0);
-        Rd_Text(27,177,"Izquierda / Derecha: personaje",.48f,218,0);Rd_Text(27,199,"Arriba / Abajo: plaza del equipo",.46f,218,0);
-        Rd_Text(27,221,"Los personajes repetidos se permiten.",.43f,218,1);Rd_Text(27,242,"X: confirmar y volver a la sala",.45f,218,0);
-        Rd_Text(21,286,R->connection==0?"Practica: J1 humano y aliados CPU.":"Online: cada PC elige su propio J1.",.42f,238,1);
+    if (gTeamSel && gTeamSel->cells[0]) {
+        TsCell *cells = gTeamSel->cells[0];
+        s32 n = gTeamSel->masterCount[0];
+        for (i = 0; i < n; i++) {
+            if (cells[i].id == chara) {
+                count = cells[i].formCount; if (count > max) count = max;
+                for (k = 0; k < count; k++) out[k] = cells[i].form[k];
+                for (k = count; k < max; k++) out[k] = out[count ? count - 1 : 0];
+                return count;
+            }
+            for (k = 0; k < cells[i].formCount; k++) {
+                if (cells[i].form[k] == chara) {
+                    count = cells[i].formCount; if (count > max) count = max;
+                    for (i = 0; i < count; i++) out[i] = cells[i].form[i];
+                    for (i = count; i < max; i++) out[i] = out[count ? count - 1 : 0];
+                    return count;
+                }
+            }
+        }
+    }
+    for (i = 0; i < max; i++) out[i] = chara;
+    return 1;
+}
+
+static void Rd_Text(f32 x, f32 y, char *text, f32 scale, f32 width, s32 gold) {
+    Ps_TextExOuter(x, y, text, scale, width,
+                   Ps_Rgba(255, 255, gold ? 95 : 255, 128),
+                   gold ? Ps_Rgba(255, 204, 12, 128) : Ps_Rgba(195, 210, 235, 128),
+                   Ps_Rgba(0, 0, 0, 128), Ps_Rgba(0, 0, 0, 128), 1.0f);
+}
+
+static void Rd_Header(const char *title, const char *badge) {
+    u32 silver = Ps_Rgba(180, 205, 225, 128), dark = Ps_Rgba(10, 22, 45, 128), black = Ps_Rgba(4, 8, 16, 128);
+    u32 topNavy = Ps_Rgba(24, 60, 120, 128), botNavy = Ps_Rgba(8, 20, 48, 128);
+    u32 redBorder = Ps_Rgba(220, 60, 80, 128);
+    f32 w = 230, h = 22;
+    Ps_Quad(9, 3, w, 3, w - 12, 3 + h, -5, 3 + h, silver, silver, dark, silver);
+    Ps_Quad(11, 5, w - 2, 5, w - 14, 1 + h, -3, 1 + h, black, black, black, black);
+    Ps_Quad(13, 6, w - 4, 6, w - 16, h, -1, h, topNavy, topNavy, botNavy, botNavy);
+    Ps_TextExOuter(18, 7, (char*)title, 0.70f, 205, Ps_Rgba(255, 255, 255, 128), Ps_Rgba(200, 230, 255, 128), Ps_Rgba(0, 0, 0, 128), Ps_Rgba(10, 30, 60, 128), 1.2f);
+    if (badge) {
+        Ps_Quad(405, 4, 506, 4, 503, 20, 402, 20, redBorder, redBorder, redBorder, redBorder);
+        Ps_Rect(404, 5, 504, 19, Ps_Rgba(160, 20, 42, 128), Ps_Rgba(95, 10, 25, 128));
+        Ps_TextExOuter(409, 8, (char*)badge, 0.32f, 96, Ps_Rgba(255, 225, 230, 128), Ps_Rgba(255, 180, 190, 128), Ps_Rgba(0, 0, 0, 128), Ps_Rgba(40, 0, 10, 128), 1.0f);
+    }
+}
+
+static void Rd_Arrow(f32 cx, f32 cy, s32 dir, s32 gold) {
+    u32 color = gold ? Ps_Rgba(255, 180, 20, 128) : Ps_Rgba(200, 210, 230, 128);
+    f32 s = dir > 0 ? 5.0f : -5.0f;
+    Ps_ScreenQuad(cx - s, cy - 6, cx + s, cy, cx - s, cy + 6, cx - s, cy, color, color, color, color);
+}
+
+static void Rd_ChipSlot(f32 x, f32 y, f32 w, f32 h, s32 isBoss) {
+    u32 silver = Ps_Rgba(180, 205, 225, 128), black = Ps_Rgba(6, 12, 22, 128), dark = Ps_Rgba(20, 40, 70, 128);
+    if (isBoss) {
+        Ps_Quad(x - 2, y - 2, x + w + 2, y - 2, x + w + 2, y + h + 2, x - 2, y + h + 2,
+                Ps_Rgba(80, 255, 60, 128), Ps_Rgba(80, 255, 60, 128), Ps_Rgba(255, 235, 50, 128), Ps_Rgba(255, 235, 50, 128));
+        Ps_Quad(x, y, x + w, y, x + w, y + h, x, y + h, black, black, black, black);
     } else {
-        for(i=0;i<5;i++) {sprintf(buf,"%d",R->ip[i]);Rd_Row(i,i==4?"Puerto UDP":i==0?"IP - campo 1":i==1?"IP - campo 2":i==2?"IP - campo 3":"IP - campo 4",buf);}
-        Rd_Text(22,242,"Izquierda / Derecha: cambiar valor",.44f,234,0);Rd_Text(22,263,"Cuadrado: +10. X: volver a la sala.",.44f,234,0);
-        Rd_Text(22,288,"Internet requiere una ruta UDP accesible.",.40f,234,1);
+        Ps_Quad(x, y, x + w, y, x + w, y + h, x, y + h, silver, silver, dark, dark);
+        Ps_Quad(x + 1, y + 1, x + w - 1, y + 1, x + w - 1, y + h - 1, x + 1, y + h - 1, black, black, black, black);
     }
-    Rd_Plate(270,270,234,28,0,0);Rd_Text(282,277,Rd_Name(f->chara),.63f,210,0);
-    sprintf(buf,"TRAJE %d  /  VISTA 3D",f->costume+1);Rd_Text(310,299,buf,.41f,180,1);
-    Rd_Plate(8,331,496,78,0,0);Rd_Text(20,316,"EQUIPO COOPERATIVO",.60f,240,0);
-    for(i=0;i<PORT_COOP_MAX;i++) {
-        f32 x=16+i*80.0f;PcFighter *hero=&R->battle.fighter[0][i];Rd_Plate(x,337,78,67,R->page==RD_ALLY&&R->ally==i,0);
-        if(i<R->count) Port_TeamChip(hero->chara,x+6,343,65,31,128);sprintf(buf,"J%d",i+1);Rd_Text(x+7,340,buf,.46f,25,0);
-        Rd_Text(x+6,374,i<R->count?Rd_Name(hero->chara):"Cerrada",.38f,65,0);
-        Rd_Text(x+8,389,i>=R->count?"--":R->connection==0?(i?"CPU":"JUGADOR"):i?"ESPERANDO":"MI ELECCION",.32f,64,1);
+}
+
+static void Rd_Card(f32 x, f32 y, f32 w, f32 h, s32 redBorder) {
+    u32 silver = redBorder ? Ps_Rgba(240, 45, 100, 128) : Ps_Rgba(150, 185, 215, 128);
+    u32 dark   = redBorder ? Ps_Rgba(140, 15, 50, 128) : Ps_Rgba(35, 60, 95, 128);
+    u32 bgTop  = Ps_Rgba(14, 38, 76, 115);
+    u32 bgBot  = Ps_Rgba(6, 16, 36, 128);
+    Ps_Quad(x + 5, y, x + w - 5, y, x + w, y + 5, x, y + 5, silver, silver, dark, dark);
+    Ps_Quad(x, y + 5, x + w, y + 5, x + w, y + h - 5, x, y + h - 5, dark, dark, dark, dark);
+    Ps_Quad(x, y + h - 5, x + w, y + h - 5, x + w - 5, y + h, x + 5, y + h, dark, dark, silver, silver);
+    Ps_Rect(x + 2, y + 2, x + w - 2, y + h - 2, bgTop, bgBot);
+}
+
+static void Rd_Button(f32 x, f32 y, f32 w, f32 h, const char *label, s32 isGold, f32 scale) {
+    u32 silver = isGold ? Ps_Rgba(255, 245, 120, 128) : Ps_Rgba(175, 205, 230, 128);
+    u32 black = Ps_Rgba(6, 12, 22, 128);
+    Ps_Quad(x + 5, y, x + w, y, x + w - 5, y + h, x, y + h, silver, silver, black, silver);
+    Ps_Quad(x + 6, y + 2, x + w - 2, y + 2, x + w - 6, y + h - 2, x + 2, y + h - 2, black, black, black, black);
+    Ps_Quad(x + 7, y + 3, x + w - 3, y + 3, x + w - 7, y + h - 3, x + 3, y + h - 3,
+            isGold ? Ps_Rgba(255, 242, 80, 128) : Ps_Rgba(30, 85, 160, 128),
+            isGold ? Ps_Rgba(255, 185, 12, 128) : Ps_Rgba(16, 45, 95, 128),
+            isGold ? Ps_Rgba(185, 99, 0, 128) : Ps_Rgba(6, 18, 42, 128),
+            isGold ? Ps_Rgba(249, 189, 13, 128) : Ps_Rgba(10, 32, 70, 128));
+    if (isGold) {
+        Ps_TextExOuter(x + 8, y + 4, (char*)label, scale, w - 16,
+                       Ps_Rgba(12, 22, 38, 128), Ps_Rgba(5, 10, 20, 128),
+                       Ps_Rgba(255, 240, 160, 128), Ps_Rgba(255, 240, 160, 128), 0.8f);
+    } else {
+        Ps_TextExOuter(x + 8, y + 4, (char*)label, scale, w - 16,
+                       Ps_Rgba(255, 255, 255, 128), Ps_Rgba(200, 225, 245, 128),
+                       Ps_Rgba(0, 0, 0, 128), Ps_Rgba(0, 0, 0, 128), 1.0f);
     }
-    Ps_Rect(0,412,512,448,Ps_Rgba(7,18,37,118),Ps_Rgba(3,7,17,128));Rd_Text(12,417,"X: elegir   Triangulo: personalizar   O: volver",.41f,330,0);
-    Rd_Plate(383,415,121,29,R->page==RD_LOBBY,1);Rd_Text(407,421,"INICIAR",.64f,92,0);
-    Rd_Text(13,434,R->message[0]?R->message:"START: iniciar  |  Misma version y mismos mods en todos los PC",.34f,488,1);
+}
+
+static void Rd_Tab(f32 x, f32 y, f32 w, f32 h, const char *label, s32 active) {
+    Rd_Button(x, y, w, h, label, active, 0.44f);
+}
+
+static void Rd_Row(f32 x, f32 y, f32 w, f32 h, const char *label, const char *value, s32 selected) {
+    if (selected) {
+        Ps_Rect(x, y, x + w, y + h, Ps_Rgba(25, 90, 175, 100), Ps_Rgba(10, 40, 90, 120));
+        Ps_Rect(x + 1, y + h - 2, x + w - 1, y + h, Ps_Rgba(255, 230, 40, 128), Ps_Rgba(255, 230, 40, 128));
+    }
+    Rd_Text(x + 4, y + 3, (char*)label, 0.42f, (w * 0.5f) - 6, 0);
+    Rd_Text(x + (w * 0.48f), y + 3, (char*)value, 0.42f, (w * 0.48f) - 14, selected ? 1 : 0);
+    Rd_Arrow(x + w - 6, y + (h * 0.5f), 1, selected ? 1 : 0);
+}
+
+static void Rd_StageThumb(f32 x, f32 y, f32 w, f32 h, s32 stage) {
+    u32 silver = Ps_Rgba(170, 200, 225, 128), black = Ps_Rgba(5, 10, 20, 128);
+    Ps_Rect(x, y, x + w, y + h, silver, silver);
+    Ps_Rect(x + 1, y + 1, x + w - 1, y + h - 1, black, black);
+    if ((gTeamSel->flags & TEAMSEL_STAGE_READY) && gTeamSel->bg[0]) {
+        Dma_AddScissor((s32)(x + 2), (s32)(x + w - 2), (s32)(y + 2), (s32)(y + h - 2));
+        Sprite_DrawPicture(gTeamSel->bg[0], x - 10, y - 5, 128);
+        Dma_AddScissor(0, 511, 0, 447);
+    } else {
+        Ps_Rect(x + 2, y + 2, x + w - 2, y + h - 2, Ps_Rgba(50, 90, 120, 128), Ps_Rgba(20, 45, 60, 128));
+    }
+    Ps_Rect(x + 2, y + h - 16, x + w - 2, y + h - 2, Ps_Rgba(5, 12, 25, 120), Ps_Rgba(5, 12, 25, 128));
+    Rd_Text(x + 4, y + h - 14, (char*)sStageNames[stage % 35], 0.32f, w - 8, 1);
+}
+
+static void Rd_Vista3D(f32 cx, f32 cy) {
+    u32 orange = Ps_Rgba(255, 175, 20, 128);
+    Ps_Quad(cx - 15, cy - 4, cx - 10, cy - 6, cx - 10, cy - 4, cx - 15, cy - 2, orange, orange, orange, orange);
+    Ps_Quad(cx - 10, cy - 6, cx + 10, cy - 6, cx + 10, cy - 4, cx - 10, cy - 4, orange, orange, orange, orange);
+    Ps_Quad(cx + 10, cy - 6, cx + 15, cy - 2, cx + 13, cy - 1, cx + 10, cy - 4, orange, orange, orange, orange);
+    Ps_Quad(cx + 15, cy - 5, cx + 18, cy - 1, cx + 12, cy - 1, cx + 15, cy - 3, orange, orange, orange, orange);
+    Rd_Text(cx - 10, cy + 3, "Vista 3D", 0.44f, 60, 1);
+}
+
+static void Rd_Badge(f32 x, f32 y, f32 w, f32 h, const char *name, const char *sub) {
+    u32 silver = Ps_Rgba(180, 205, 225, 128), dark = Ps_Rgba(10, 18, 30, 128);
+    u32 redTop = Ps_Rgba(55, 12, 22, 128), redBot = Ps_Rgba(18, 6, 12, 128);
+    Ps_Quad(x + 8, y, x + w - 8, y, x + w, y + (h * 0.5f), x, y + (h * 0.5f), silver, silver, dark, dark);
+    Ps_Quad(x, y + (h * 0.5f), x + w, y + (h * 0.5f), x + w - 8, y + h, x + 8, y + h, dark, dark, silver, silver);
+    Ps_Quad(x + 9, y + 2, x + w - 9, y + 2, x + w - 2, y + (h * 0.5f), x + 2, y + (h * 0.5f), redTop, redTop, redBot, redBot);
+    Ps_Quad(x + 2, y + (h * 0.5f), x + w - 2, y + (h * 0.5f), x + w - 9, y + h - 2, x + 9, y + h - 2, redBot, redBot, redBot, redBot);
+    Rd_Text(x + 14, y + 2, (char*)name, 0.58f, w - 28, 0);
+    Rd_Text(x + 22, y + 15, (char*)sub, 0.32f, w - 44, 1);
+}
+
+static void Rd_SectionBanner(f32 x, f32 y, f32 w, f32 h, const char *text) {
+    u32 silver = Ps_Rgba(170, 200, 225, 128), dark = Ps_Rgba(10, 24, 52, 128);
+    Ps_Quad(x + 10, y, x + w, y, x + w - 8, y + h, x, y + h, silver, silver, dark, dark);
+    Ps_Quad(x + 11, y + 1, x + w - 1, y + 1, x + w - 9, y + h - 1, x + 1, y + h - 1, dark, dark, dark, dark);
+    Rd_Text(x + 12, y + 2, (char*)text, 0.50f, w - 20, 0);
+}
+
+static void Rd_PlayerCard(f32 x, f32 y, f32 w, f32 h, s32 idx, PcFighter *hero, s32 isChoosing) {
+    char tag[16];
+    Rd_Card(x, y, w, h, isChoosing);
+    sprintf(tag, "J%d", idx + 1);
+    if (isChoosing) {
+        Ps_Rect(x + 4, y + 3, x + 24, y + 15, Ps_Rgba(240, 40, 90, 128), Ps_Rgba(180, 20, 60, 128));
+    } else {
+        Ps_Rect(x + 4, y + 3, x + 24, y + 15, Ps_Rgba(25, 75, 140, 128), Ps_Rgba(10, 30, 70, 128));
+    }
+    Rd_Text(x + 6, y + 4, tag, 0.34f, 18, 0);
+    Port_TeamChip(hero->chara, x + 8, y + 16, 60, 40, 128);
+    Rd_Text(x + 6, y + 58, Rd_Name(hero->chara), 0.36f, w - 12, 0);
+    if (isChoosing) {
+        Ps_Quad(x + 6, y + 73, x + w - 6, y + 73, x + w - 6, y + 87, x + 6, y + 87,
+                Ps_Rgba(240, 40, 90, 128), Ps_Rgba(240, 40, 90, 128), Ps_Rgba(240, 40, 90, 128), Ps_Rgba(240, 40, 90, 128));
+        Ps_Rect(x + 7, y + 74, x + w - 7, y + 86, Ps_Rgba(50, 10, 25, 128), Ps_Rgba(30, 5, 15, 128));
+        Rd_Text(x + 18, y + 75, "Elegir", 0.38f, w - 36, 1);
+    } else {
+        Ps_Quad(x + 6, y + 73, x + w - 6, y + 73, x + w - 6, y + 87, x + 6, y + 87,
+                Ps_Rgba(60, 130, 200, 128), Ps_Rgba(60, 130, 200, 128), Ps_Rgba(30, 70, 130, 128), Ps_Rgba(30, 70, 130, 128));
+        Ps_Rect(x + 7, y + 74, x + w - 7, y + 86, Ps_Rgba(15, 45, 90, 128), Ps_Rgba(8, 22, 50, 128));
+        Rd_Text(x + 18, y + 75, "Listo", 0.36f, w - 36, 0);
+    }
+}
+
+static void Rd_Draw(void) {
+    s32 i, index = Rd_Index(Rd_Shown()->chara), n = Port_PcRosterCount();
+    char buf[96];
+    PcFighter *f = Rd_Shown();
+    PcBattleRules *rules = &R->battle.rules;
+
+    Ps_PageFull();
+    if (gTeamSel->flags & TEAMSEL_STAGE_READY) Sprite_DrawPicture(gTeamSel->bg[0], 0, 0, 128);
+    else if (gTeamSel->bg[1]) Sprite_DrawPicture(gTeamSel->bg[1], 0, 0, 128);
+    else Ps_Rect(0, 0, 512, 448, Ps_Rgba(90, 177, 222, 128), Ps_Rgba(60, 118, 46, 128));
+
+    Port_SelectModelsSet(0, f->chara, f->costume);
+    Port_SelectModelsSet(1, -1, 0);
+    Port_SelectModelsDrawRaidEx(R->page == RD_CUSTOM ? 2 : 1);
+    Ps_PageFull();
+
+    if (R->page == RD_LOBBY) {
+        Rd_Header("JEFE FINAL - SALA ONLINE", "PROPUESTA • SIN IMPLEMENTAR");
+        /* Top Carousel */
+        Rd_Arrow(14, 47, -1, 1);
+        Rd_Arrow(498, 47, 1, 1);
+        for (i = 0; i < 8; i++) {
+            f32 x = 24 + i * 58.0f;
+            s32 id = Port_PcRosterId(Rd_Wrap(index + i - 1, n));
+            s32 isBoss = (i == 1);
+            Rd_ChipSlot(x, 28, 54, 38, isBoss);
+            Port_TeamChip(id, x + 2, 30, 50, 34, 128);
+        }
+        /* Settings Card on Left */
+        Rd_Card(14, 74, 224, 94, 0);
+        Rd_Row(18, 78, 136, 21, "Modalidad:", R->connection == 0 ? "Asalto cooperativo" : R->connection == 1 ? "Crear sala UDP" : "Unirse por IP", R->cursor == 1);
+        sprintf(buf, "%d / 6", R->count);
+        Rd_Row(18, 100, 136, 21, "Jugadores:", buf, R->cursor == 2);
+        Rd_Row(18, 122, 136, 21, "Dificultad:", sDiffNames[R->difficulty], R->cursor == 3);
+        Rd_Row(18, 144, 136, 21, "Escenario:", sStageNames[R->battle.stage % 35], R->cursor == 4);
+        Rd_StageThumb(158, 78, 74, 86, R->battle.stage);
+        /* Action buttons below settings */
+        Rd_Button(18, 172, 106, 22, "Seleccionar jefe", R->cursor == 0, 0.44f);
+        Rd_Button(128, 172, 104, 22, "Personalizar", R->cursor == 5, 0.44f);
+        /* 3D Model indicators */
+        Rd_Vista3D(426, 114);
+        Rd_Badge(320, 172, 174, 28, Rd_Name(Rd_Boss()->chara), "JEFE SELECCIONADO");
+        /* Bottom: Equipo Cooperativo */
+        Rd_SectionBanner(14, 202, 180, 18, "EQUIPO COOPERATIVO");
+        Rd_Card(14, 218, 484, 100, 0);
+        for (i = 0; i < PORT_COOP_MAX; i++) {
+            f32 x = 20 + i * 79.0f;
+            s32 isChoosing = (i == 5 || (R->page == RD_ALLY && R->ally == i));
+            Rd_PlayerCard(x, 222, 76, 92, i, &R->battle.fighter[0][i], isChoosing);
+        }
+        /* Footer */
+        Ps_Rect(0, 412, 512, 448, Ps_Rgba(7, 18, 37, 118), Ps_Rgba(3, 7, 17, 128));
+        Rd_Button(14, 416, 116, 24, "🔧 Comprobar mods", R->cursor == 8, 0.40f);
+        Rd_Text(148, 421, "(X) Listo    (Δ) Personalizar    (O) Volver", 0.40f, 230, 0);
+        Rd_Button(398, 414, 102, 28, "INICIAR", 1, 0.65f);
+        if (R->message[0]) Rd_Text(14, 439, R->message, 0.33f, 484, 1);
+    } else if (R->page == RD_CUSTOM) {
+        s32 forms[3], nf;
+        Rd_Header("PERSONALIZAR JEFE", "PROPUESTA • SIN IMPLEMENTAR");
+        Rd_Tab(24, 28, 76, 20, "Asalto", 1);
+        Rd_Tab(106, 28, 86, 20, "Parejas Tag", 0);
+        Rd_Tab(198, 28, 74, 20, "Desafío", 0);
+        /* Left Options Card */
+        Rd_Card(16, 52, 196, 264, 0);
+        Rd_Row(20, 56, 188, 30, "Personaje:", Rd_Name(f->chara), R->cursor == 0);
+        sprintf(buf, "%d / 8", f->costume + 1);
+        Rd_Row(20, 88, 188, 30, "Traje:", buf, R->cursor == 1);
+        sprintf(buf, rules->bossHp >= 150000 ? "Muy alta" : rules->bossHp >= 100000 ? "Alta" : "Normal");
+        Rd_Row(20, 120, 188, 30, "Vida:", buf, R->cursor == 2);
+        sprintf(buf, rules->bossDamagePct >= 200 ? "Extremo" : rules->bossDamagePct >= 150 ? "Alto" : "Normal");
+        Rd_Row(20, 152, 188, 30, "Daño:", buf, R->cursor == 3);
+        sprintf(buf, rules->cpuLevel1 >= 25 ? "Agresivo" : rules->cpuLevel1 >= 18 ? "Equilibrado" : "Normal");
+        Rd_Row(20, 184, 188, 30, "Comportamiento:", buf, R->cursor == 4);
+        sprintf(buf, rules->enragePct ? "3" : "1");
+        Rd_Row(20, 216, 188, 30, "Fases:", buf, R->cursor == 5);
+        Rd_Row(20, 248, 188, 30, "Reanimaciones:", "Compartidas", R->cursor == 6);
+        Rd_Row(20, 280, 188, 30, "Victoria:", "Derrotar al jefe", R->cursor == 7);
+        /* Right Fases Card */
+        Rd_Card(338, 52, 164, 90, 0);
+        Rd_Text(344, 56, "Fases del jefe", 0.44f, 150, 0);
+        nf = Rd_Forms(f->chara, forms, 3);
+        (void)nf;
+        Rd_ChipSlot(344, 72, 38, 30, 0);
+        Port_TeamChip(forms[0], 346, 73, 34, 28, 128);
+        Rd_Text(344, 104, "NORMAL", 0.30f, 38, 0);
+        Rd_Arrow(392, 86, 1, 1);
+        Rd_ChipSlot(400, 72, 38, 30, 0);
+        Port_TeamChip(forms[1], 402, 73, 34, 28, 128);
+        Rd_Text(402, 104, "FURIA", 0.30f, 38, 0);
+        Rd_Arrow(448, 86, 1, 1);
+        Rd_ChipSlot(456, 72, 38, 30, 0);
+        Port_TeamChip(forms[2], 458, 73, 34, 28, 128);
+        Rd_Text(452, 104, "PODER MÁXIMO", 0.28f, 48, 0);
+        /* Repeated characters option card */
+        Rd_Card(338, 148, 164, 26, 0);
+        Rd_Text(344, 153, "Personajes repetidos:", 0.36f, 96, 0);
+        Rd_Text(440, 153, "< Permitidos >", 0.34f, 60, 1);
+        /* Footer buttons */
+        Ps_Rect(0, 412, 512, 448, Ps_Rgba(7, 18, 37, 118), Ps_Rgba(3, 7, 17, 128));
+        Rd_Button(145, 414, 114, 26, "GUARDAR PERFIL", R->cursor == 8, 0.46f);
+        Rd_Button(268, 414, 114, 26, "VOLVER A LA SALA", 0, 0.44f);
+        Rd_Text(390, 421, "(X) Confirmar  (O) Volver  (L1/R1) Traje", 0.35f, 120, 0);
+    } else if (R->page == RD_ALLY) {
+        sprintf(buf, "ELEGIR ALIADO J%d", R->ally + 1);
+        Rd_Header(buf, "PROPUESTA • SIN IMPLEMENTAR");
+        Rd_Arrow(14, 47, -1, 1);
+        Rd_Arrow(498, 47, 1, 1);
+        for (i = 0; i < 8; i++) {
+            f32 x = 24 + i * 58.0f;
+            s32 id = Port_PcRosterId(Rd_Wrap(index + i - 1, n));
+            s32 isCur = (i == 1);
+            Rd_ChipSlot(x, 28, 54, 38, isCur);
+            Port_TeamChip(id, x + 2, 30, 50, 34, 128);
+        }
+        Rd_Card(14, 74, 224, 114, 0);
+        sprintf(buf, "J%d - %s", R->ally + 1, Rd_Name(f->chara));
+        Rd_Text(22, 80, buf, 0.52f, 206, 1);
+        sprintf(buf, "Traje %d / 8", f->costume + 1);
+        Rd_Text(22, 100, buf, 0.42f, 206, 0);
+        Rd_Text(22, 122, "Izquierda / Derecha: personaje", 0.38f, 206, 0);
+        Rd_Text(22, 138, "Arriba / Abajo: cambiar plaza J1..J6", 0.38f, 206, 0);
+        Rd_Text(22, 154, "L1 / R1: cambiar traje", 0.38f, 206, 0);
+        Rd_Text(22, 170, "X: confirmar y volver a la sala", 0.38f, 206, 1);
+        Rd_Vista3D(426, 114);
+        Rd_Badge(320, 172, 174, 28, Rd_Name(f->chara), "ALIADO SELECCIONADO");
+        Rd_SectionBanner(14, 202, 180, 18, "EQUIPO COOPERATIVO");
+        Rd_Card(14, 218, 484, 100, 0);
+        for (i = 0; i < PORT_COOP_MAX; i++) {
+            f32 x = 20 + i * 79.0f;
+            s32 isChoosing = (R->ally == i);
+            Rd_PlayerCard(x, 222, 76, 92, i, &R->battle.fighter[0][i], isChoosing);
+        }
+        Ps_Rect(0, 412, 512, 448, Ps_Rgba(7, 18, 37, 118), Ps_Rgba(3, 7, 17, 128));
+        Rd_Text(148, 421, "(X) Confirmar    (O) Volver", 0.44f, 230, 0);
+    } else {
+        Rd_Header("CONFIGURACIÓN DE RED UDP", "PROPUESTA • SIN IMPLEMENTAR");
+        Rd_Card(14, 74, 240, 160, 0);
+        for (i = 0; i < 5; i++) {
+            sprintf(buf, "%d", R->ip[i]);
+            Rd_Row(18, 78 + i * 28, 230, 26, i == 4 ? "Puerto UDP:" : i == 0 ? "IP - octeto 1:" : i == 1 ? "IP - octeto 2:" : i == 2 ? "IP - octeto 3:" : "IP - octeto 4:", buf, R->cursor == i);
+        }
+        Rd_Text(22, 248, "Izquierda / Derecha: cambiar valor  |  Cuadrado: +10", 0.38f, 230, 0);
+        Rd_Text(22, 266, "X: confirmar y volver a la sala", 0.38f, 230, 1);
+        Ps_Rect(0, 412, 512, 448, Ps_Rgba(7, 18, 37, 118), Ps_Rgba(3, 7, 17, 128));
+        Rd_Text(148, 421, "(X) Volver a la sala", 0.44f, 230, 0);
+    }
 }
 static s32 Rd_Check(void) {
     char why[160];R->battle.players=R->connection==0?1:R->count;R->battle.count[0]=R->count;
