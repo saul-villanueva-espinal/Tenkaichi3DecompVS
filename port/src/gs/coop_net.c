@@ -26,7 +26,7 @@ typedef int socklen_t;
 enum { CMAGIC = 0x42543343, CVERSION = 6, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
        CRING = 4096, CPAD = 18, CREDUNDANT = 16, CDELAY = 3, CHEAD = 48 };
 _Static_assert(sizeof(PcBattle) == 420, "Update the co-op protocol when PcBattle changes");
-static int sSock = -1, sHost, sMe, sPlayers, sReady;
+static int sSock = -1, sHost, sMe, sPlayers, sReady, sSimulationPaused;
 static uint32_t sNonce, sTick, sStartTick, sSampled;
 static PcBattle sBattle;
 static PcFighter sMyHero;
@@ -322,9 +322,10 @@ static void receive_inputs(void) {
         }
     }
 }
+void Port_CoopPauseSimulation(int paused) {sSimulationPaused=paused!=0;}
 void Port_CoopBeginTick(unsigned tick) {
     uint64_t begun,last=0;int i,j,all;
-    if(!sReady || sFailed) return;
+    if(!sReady || sFailed || sSimulationPaused) return;
     if(setjmp(sFailureJump)) {sJumpActive=0;return;}
     sJumpActive=1;
     if(sStartTick==UINT32_MAX) sStartTick=tick;

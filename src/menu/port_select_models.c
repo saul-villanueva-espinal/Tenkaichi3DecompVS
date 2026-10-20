@@ -255,7 +255,12 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         m->angle+=.003f;if(m->angle>3.14159265f) m->angle-=6.2831853f;
         OrbitCam_SetAngles(0,m->angle,0);OrbitCam_Update(0);m->view=gOrbitCam->view;
         View_Apply(&m->view,1);BtlObj_UpdateVisibility(0);BtlObj_FinishVisibility(0);
-        Gfx_MarkPass(2);BtlObjDraw_Draw();Gfx_MarkPass(0);Gfx_AddDefaultEnv();Dma_AddScissor(0,511,0,447);
+        /* Independent menu previews must not run the full-screen battle
+           post pass five times: its alpha copies overwrite the previous
+           preview and the room. Draw each native lit model directly. */
+        {extern void BtlObjLight_FindRes0(void),BtlObjDraw_DrawLists(s32);
+         Gfx_MarkPass(2);BtlObjLight_FindRes0();BtlObjDraw_DrawLists(1);}
+        Gfx_MarkPass(0);Gfx_AddDefaultEnv();Dma_AddScissor(0,511,0,447);
     }
 }
 void Port_RaidModelsEnd(void) {

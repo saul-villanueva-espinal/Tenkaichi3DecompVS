@@ -75,7 +75,7 @@ static void Rd_Init(void) {
     if(!Port_ExtraCostumeOk(Rd_Boss()->chara,Rd_Boss()->costume,why,sizeof(why))) Rd_Boss()->costume=0;
     for(i=0;i<PORT_COOP_MAX;i++) R->battle.fighter[0][i].chara=heroes[i];
     R->battle.stage=Rd_Clamp(Port_Setting("raid_stage",0),0,34);
-    {static const s32 bosses[PORT_RAID_BOSSES]={133,138,95,205,139};
+    {static const s32 bosses[PORT_RAID_BOSSES]={133,138,95,204,139};
      for(i=0;i<PORT_RAID_BOSSES;i++) {R->boss=i;if(i) Rd_Boss()->chara=Port_PcRosterId(Rd_Index(bosses[i]));Rd_ProfileLoad();}R->boss=0;}
 }
 
@@ -115,7 +115,7 @@ static void Rd_Row(s32 index,char *label,char *value) {
 }
 static void Rd_Thumb(f32 x,f32 y,f32 w,f32 h) {
     LoadSprite list[9];s32 row,col,i;void *res;
-    Rd_Frame(x-2,y-2,w+4,h+4,R->cursor==6);
+    Rd_Frame(x-2,y-2,w+4,h+4,R->cursor==7);
     res=(gTeamSel->flags&TEAMSEL_STAGE_READY)?gTeamSel->bg[0]:gTeamSel->bg[1];
     if(!res) return;
     memset(list,0,sizeof(list));list[8].flags=LOAD_SPR_END;
@@ -160,7 +160,8 @@ static void Rd_Allies(void) {
 }
 static void Rd_Draw(void) {
     s32 i,focus=-1;char buf[96];PcBattleRules *r=Rd_Rules();PcFighter *shown=Rd_Shown();
-    Ps_PageFull();Ps_Sprite(TBO_RAID_ENERGY,0,0,512,448,0,0,1,1,PS_PLAIN,128);
+    {extern void Gfx_AddDefaultEnv(void);Gfx_AddDefaultEnv();}
+    Ps_PageFull();Ps_SetShift(0);Ps_Sprite(TBO_RAID_ENERGY,0,0,512,448,0,0,1,1,PS_PLAIN,128);
     for(i=0;i<PORT_RAID_BOSSES;i++) Port_RaidModelsSet(i,i<R->battle.count[1]?R->battle.fighter[1][i].chara:-1,R->battle.fighter[1][i].costume);
     if(R->page==RD_ALLY) {Port_RaidModelsSet(0,shown->chara,shown->costume);focus=0;}
     else if(R->page==RD_CUSTOM || R->page==RD_BOSS_PICK) focus=R->boss;
@@ -346,6 +347,7 @@ void PortRaid_WaitFrame(void) {
     }
 }
 void PortRaid_WaitEnd(void) {
+    Port_CoopPauseSimulation(1);
     if(sRaidWaitLoaded) {
         while(gTeamSel->faceState!=TEAMSEL_LOAD_IDLE || gTeamSel->stageState!=TEAMSEL_LOAD_IDLE) {
             Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
@@ -355,6 +357,6 @@ void PortRaid_WaitEnd(void) {
         gTsProgress->players=sWaitPlayers;gTsProgress->battleType=sWaitType;gTsProgress->dpLevel=sWaitDp;
         gTsProgress->stageCell=sWaitStage;gTsProgress->bgm=sWaitBgm;
     }
-    sRaidWaitLoaded=sRaidRoomOn=0;
+    sRaidWaitLoaded=sRaidRoomOn=0;Port_CoopPauseSimulation(0);
 }
 #endif

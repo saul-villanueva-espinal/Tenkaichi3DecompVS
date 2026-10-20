@@ -42,6 +42,8 @@ int main(int argc,char **argv) {
     assert(b.rules.cpuLevel1==30 && b.rules.bgm1==14 && b.rules.infiniteKiChara1==134);
     assert(b.fighter[0][Port_CoopMe()].chara==(getenv("FIXTURE_HERO")?atoi(getenv("FIXTURE_HERO")):0));
     for(p=0;p<b.players;p++) {int k,found=0;for(k=0;k<b.players;k++) found+=b.fighter[0][k].chara==p*2;assert(found==1);}
+    /* Unequal local menu cleanup must not consume synchronized input ticks. */
+    Port_CoopPauseSimulation(1);Port_CoopBeginTick(76543);Port_CoopPauseSimulation(0);
     for(frame=0;frame<300;frame++) {
         Port_CoopBeginTick(frame);
         for(p=0;p<b.players;p++) {
