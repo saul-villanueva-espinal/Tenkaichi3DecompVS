@@ -98,14 +98,14 @@ static void Rd_Text(f32 x,f32 y,char *text,f32 scale,f32 width,s32 gold) {
 }
 static void Rd_Frame(f32 x,f32 y,f32 w,f32 h,s32 gold) {
     u32 edge=gold?Ps_Rgba(255,239,93,128):Ps_Rgba(174,206,239,128),dark=Ps_Rgba(3,8,20,128);
-    Ps_Quad(x+5,y,x+w,y,x+w-5,y+h,x,y+h,edge,edge,Ps_Rgba(56,85,118,128),edge);
-    Ps_Quad(x+6,y+2,x+w-2,y+2,x+w-6,y+h-2,x+2,y+h-2,dark,dark,dark,dark);
-    Ps_Quad(x+8,y+4,x+w-4,y+4,x+w-8,y+h-4,x+4,y+h-4,
+    Ps_Quad(x+5,y,x+w,y,x,y+h,x+w-5,y+h,edge,edge,edge,Ps_Rgba(56,85,118,128));
+    Ps_Quad(x+6,y+2,x+w-2,y+2,x+2,y+h-2,x+w-6,y+h-2,dark,dark,dark,dark);
+    Ps_Quad(x+8,y+4,x+w-4,y+4,x+4,y+h-4,x+w-8,y+h-4,
         Ps_Rgba(13,48,100,120),Ps_Rgba(8,26,58,124),Ps_Rgba(2,8,20,128),Ps_Rgba(4,13,30,128));
 }
 static void Rd_Button(f32 x,f32 y,f32 w,f32 h,char *label,s32 selected) {
     Rd_Frame(x,y,w,h,selected);
-    if(selected) Ps_Quad(x+7,y+4,x+w-4,y+4,x+w-7,y+h-4,x+4,y+h-4,
+    if(selected) Ps_Quad(x+7,y+4,x+w-4,y+4,x+4,y+h-4,x+w-7,y+h-4,
         Ps_Rgba(255,244,104,128),Ps_Rgba(255,200,15,128),Ps_Rgba(150,92,0,128),Ps_Rgba(255,212,24,128));
     Rd_Text(x+9,y+4,label,.65f,w-18,0);
 }

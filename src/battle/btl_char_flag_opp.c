@@ -165,6 +165,15 @@ static s32 Port_NextOnScreen(s32 i, s32 dir) {
     s32 bestD = 0, wrapD = 0, d;
     Vec4 pos;
 
+    /* Personal online cameras differ: shared target changes use enemy roster
+       order instead of a projection from this computer's camera. */
+    {extern s32 Port_CoopEnabled(void),Port_ModesFight(void);
+     if(Port_CoopEnabled() && Port_ModesFight()==3) {
+         for(k=1;k<=count;k++) {
+             s32 candidate=(cur+dir*k+count*2)%count;
+             if(Port_IsEnemy(i,candidate) && !BtlChar_IsDead(BtlChar_Get(candidate))) return candidate;
+         }return -1;
+     }}
     if ((u32)cur < (u32)count) {
         BtlChar_GetSnapPos(BtlChar_Get(cur), &pos, 6);
         if (!Port_ProjectPoint(&pos, &cx, &cy)) {
