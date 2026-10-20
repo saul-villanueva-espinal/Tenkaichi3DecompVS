@@ -84,15 +84,49 @@ static char *Rd_Name(s32 chara) {
     Port_RosterName(sRaidName,sizeof(sRaidName),chara);return sRaidName;
 }
 
-static const char *const sStageNames[35] = {
-    "Montañas", "Páramo", "Desierto", "Llanura", "Ciudad", "Carretera", "Islas", "Glaciar",
-    "Volcán", "Ruinas", "Namek", "Namek destruido", "Planeta Vegeta", "Espacio", "Torneo Mundial",
-    "Torneo Más Allá", "Juegos de Cell", "Juegos de Bojack", "Palacio de Kami", "Sala del Tiempo",
-    "Mundo Kaioshin", "Infierno", "Aldea Pingüino", "Capital del Este", "Archipiélago", "Cueva",
-    "Templo Sagrado", "Rocoso noche", "Desierto noche", "Ciudad noche", "Torneo noche", "Juegos noche",
-    "Páramo tarde", "Namek noche", "Espacio profundo"
-};
-static const char *const sDiffNames[3] = { "Guerrero Z", "Super Saiyan", "Extrema" };
+static const char *Rd_StageName(s32 stage) {
+    switch (stage % 35) {
+    case 0: return "Montanas";
+    case 1: return "Paramo";
+    case 2: return "Desierto";
+    case 3: return "Llanura";
+    case 4: return "Ciudad";
+    case 5: return "Carretera";
+    case 6: return "Islas";
+    case 7: return "Glaciar";
+    case 8: return "Volcan";
+    case 9: return "Ruinas";
+    case 10: return "Namek";
+    case 11: return "Namek destruido";
+    case 12: return "Planeta Vegeta";
+    case 13: return "Espacio";
+    case 14: return "Torneo Mundial";
+    case 15: return "Torneo Mas Alla";
+    case 16: return "Juegos de Cell";
+    case 17: return "Juegos de Bojack";
+    case 18: return "Palacio de Kami";
+    case 19: return "Sala del Tiempo";
+    case 20: return "Mundo Kaioshin";
+    case 21: return "Infierno";
+    case 22: return "Aldea Pinguino";
+    case 23: return "Capital del Este";
+    case 24: return "Archipielago";
+    case 25: return "Cueva";
+    case 26: return "Templo Sagrado";
+    case 27: return "Rocoso noche";
+    case 28: return "Desierto noche";
+    case 29: return "Ciudad noche";
+    case 30: return "Torneo noche";
+    case 31: return "Juegos noche";
+    case 32: return "Paramo tarde";
+    case 33: return "Namek noche";
+    default: return "Espacio profundo";
+    }
+}
+
+static const char *Rd_DiffName(s32 diff) {
+    return diff == 0 ? "Guerrero Z" : diff == 1 ? "Super Saiyan" : "Extrema";
+}
 
 static s32 Rd_Forms(s32 chara, s32 *out, s32 max) {
     s32 count = 0, i, k;
@@ -225,7 +259,7 @@ static void Rd_StageThumb(f32 x, f32 y, f32 w, f32 h, s32 stage) {
         Ps_Rect(x + 2, y + 2, x + w - 2, y + h - 2, Ps_Rgba(50, 90, 120, 128), Ps_Rgba(20, 45, 60, 128));
     }
     Ps_Rect(x + 2, y + h - 16, x + w - 2, y + h - 2, Ps_Rgba(5, 12, 25, 120), Ps_Rgba(5, 12, 25, 128));
-    Rd_Text(x + 4, y + h - 14, (char*)sStageNames[stage % 35], 0.32f, w - 8, 1);
+    Rd_Text(x + 4, y + h - 14, (char*)Rd_StageName(stage), 0.32f, w - 8, 1);
 }
 
 static void Rd_Vista3D(f32 cx, f32 cy) {
@@ -313,8 +347,8 @@ static void Rd_Draw(void) {
         Rd_Row(18, 78, 136, 21, "Modalidad:", R->connection == 0 ? "Asalto cooperativo" : R->connection == 1 ? "Crear sala UDP" : "Unirse por IP", R->cursor == 1);
         sprintf(buf, "%d / 6", R->count);
         Rd_Row(18, 100, 136, 21, "Jugadores:", buf, R->cursor == 2);
-        Rd_Row(18, 122, 136, 21, "Dificultad:", sDiffNames[R->difficulty], R->cursor == 3);
-        Rd_Row(18, 144, 136, 21, "Escenario:", sStageNames[R->battle.stage % 35], R->cursor == 4);
+        Rd_Row(18, 122, 136, 21, "Dificultad:", Rd_DiffName(R->difficulty), R->cursor == 3);
+        Rd_Row(18, 144, 136, 21, "Escenario:", Rd_StageName(R->battle.stage), R->cursor == 4);
         Rd_StageThumb(158, 78, 74, 86, R->battle.stage);
         /* Action buttons below settings */
         Rd_Button(18, 172, 106, 22, "Seleccionar jefe", R->cursor == 0, 0.44f);
