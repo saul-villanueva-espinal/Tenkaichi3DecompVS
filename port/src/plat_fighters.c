@@ -111,6 +111,7 @@ int Port_LocalQuadFight(int mode, int members0, int members1, int replay, int sc
 }
 void Port_LocalPlayersSet(int n) {
     sOnlinePlayers=n;
+    if(Port_CoopEnabled()) return; /* online party size is not the local controller preference */
     Port_SettingSave("local_players", n < 1 ? 1 : n > 4 ? 4 : n);
     Port_SettingsWrite();
 }

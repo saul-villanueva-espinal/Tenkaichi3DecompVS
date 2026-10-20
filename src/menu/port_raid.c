@@ -55,7 +55,7 @@ static void Rd_ProfileSave(void) {
     PcBattleRules *r=Rd_Rules();
     Rd_Profile(0,r->bossHp,1);Rd_Profile(1,r->bossDamagePct,1);Rd_Profile(2,r->cpuLevel1,1);
     Rd_Profile(3,r->enragePct,1);Rd_Profile(4,r->armorSides,1);Rd_Profile(5,r->infiniteKiChara1!=0,1);
-    Port_SettingSave("raid_boss",Rd_Boss()->chara);Port_SettingSave("raid_costume",Rd_Boss()->costume);
+    Port_SettingSave("raid_boss",R->battle.fighter[1][0].chara);Port_SettingSave("raid_costume",R->battle.fighter[1][0].costume);
     Port_SettingSave("raid_stage",R->battle.stage);Port_SettingsWrite();Ps_Copy(R->message,"Perfil del jefe guardado.",sizeof(R->message));
 }
 static void Rd_Character(PcFighter *f,s32 dir) {
@@ -166,7 +166,10 @@ static void Rd_Draw(void) {
     s32 i,focus=-1;char buf[96];PcBattleRules *r=Rd_Rules();PcFighter *shown=Rd_Shown();
     {extern void Gfx_AddDefaultEnv(void);Gfx_AddDefaultEnv();}
     Ps_PageFull();Ps_SetShift(0);Ps_Sprite(TBO_RAID_ENERGY,0,0,512,448,0,0,1,1,PS_PLAIN,128);
-    for(i=0;i<PORT_RAID_BOSSES;i++) Port_RaidModelsSet(i,i<R->battle.count[1]?R->battle.fighter[1][i].chara:-1,R->battle.fighter[1][i].costume);
+    for(i=0;i<PORT_RAID_BOSSES;i++) {
+        if(R->page==RD_ALLY && i==0) continue;
+        Port_RaidModelsSet(i,i<R->battle.count[1]?R->battle.fighter[1][i].chara:-1,R->battle.fighter[1][i].costume);
+    }
     if(R->page==RD_ALLY) {Port_RaidModelsSet(0,shown->chara,shown->costume);focus=0;}
     else if(R->page==RD_CUSTOM || R->page==RD_BOSS_PICK) focus=R->boss;
     Port_RaidModelsDraw(R->battle.count[1],focus);Ps_PageFull();
@@ -177,7 +180,7 @@ static void Rd_Draw(void) {
         Rd_Button(102,164,93,23,"Personalizar",R->cursor==1);Rd_Button(197,164,92,23,"Ordenar",R->cursor==2);
         Rd_Row(0,"Modalidad:",R->connection==0?"Practica":"Online");sprintf(buf,"%d jugadores",R->count);Rd_Row(1,"Aliados:",buf);
         sprintf(buf,"%d / 5",R->battle.count[1]);Rd_Row(2,"Jefes activos:",buf);
-        Rd_Row(3,"Dificultad:",R->difficulty==0?"Normal":R->difficulty==1?"Super Saiyan":"Extrema");
+        Rd_Row(3,"Dificultad:",R->waiting?"Anfitrion":R->difficulty==0?"Normal":R->difficulty==1?"Super Saiyan":"Extrema");
         Rd_Row(4,"Victoria:","Vencer a todos");Rd_Thumb(153,194,108,82);
         sprintf(buf,"%d JUGADORES vs %d JEFES",R->count,R->battle.count[1]);Rd_Text(151,282,buf,1.1f,144,0);
         Rd_Allies();
@@ -228,7 +231,10 @@ static void Rd_Draw(void) {
     Ps_Button(2,240,431,12);Rd_Text(250,423,"Personalizar",.52f,73,0);
     Ps_Button(4,332,431,12);Rd_Text(342,423,"Volver",.52f,44,0);
     Rd_Button(402,417,100,28,R->waiting?"ESPERANDO":"INICIAR",!R->waiting);
-    if(R->message[0]) Rd_Text(12,445,R->message,.32f,488,1);
+    if(R->message[0]) {
+        Ps_Rect(9,398,503,414,Ps_Rgba(2,7,18,128),Ps_Rgba(2,7,18,128));
+        Rd_Text(16,400,R->message,.46f,480,1);
+    }
 }
 
 static s32 Rd_Check(void) {
@@ -362,5 +368,35 @@ void PortRaid_WaitEnd(void) {
         gTsProgress->stageCell=sWaitStage;gTsProgress->bgm=sWaitBgm;
     }
     sRaidWaitLoaded=sRaidRoomOn=0;Port_CoopPauseSimulation(0);
+}
+
+s32 PortRaid_OnlineError(void) {
+    char why[160];s32 age=0,test=Port_CoopTestInput();
+    extern void Fade_ResetAll(void);
+    Port_CoopErrorText(why,sizeof(why));Port_CoopLeave();Fade_ResetAll();sRaidRoomOn=1;
+    if(!why[0]) Ps_Copy(why,"No se pudo iniciar la sala.",sizeof(why));
+    for(;;) {
+        u32 pad;Gfx_BeginFrame();Pad_Update();Snd_Update();pad=gPad[0].gamePressed;
+        {extern void Gfx_AddDefaultEnv(void);Gfx_AddDefaultEnv();}
+        Ps_PageFull();Ps_SetShift(0);Ps_Sprite(TBO_RAID_ENERGY,0,0,512,448,0,0,1,1,PS_PLAIN,128);
+        Rd_Text(18,25,"JEFE FINAL - SALA CERRADA",1.6f,472,0);
+        Rd_Frame(25,155,462,147,0);Rd_Text(40,174,"CONEXION INTERRUMPIDA",1.1f,430,1);
+        Rd_Text(40,215,why,.66f,425,0);
+        Rd_Text(40,263,"X / Circulo: volver al menu principal",.68f,425,0);
+        Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();
+        if(++age>15 && ((pad&(PADG_CROSS|PADG_CIRCLE)) || (test&&age>120))) break;
+    }
+    Dma_ResetBuffers();sRaidRoomOn=0;gProgress->mode=4;return 0;
+}
+static s32 sRaidOnlineEnding;
+void PortRaid_OnlineFinish(s32 done) {
+    extern s32 Port_ModesFight(void);
+    if(!done) {
+        sRaidOnlineEnding=Port_CoopEnabled() && Port_ModesFight()==3;
+        if(sRaidOnlineEnding) Port_CoopPauseSimulation(1);
+    } else if(sRaidOnlineEnding) {
+        if(Port_CoopFailed()) PortRaid_OnlineError();else Port_CoopLeave();
+        gProgress->mode=4;sRaidOnlineEnding=0;
+    }
 }
 #endif

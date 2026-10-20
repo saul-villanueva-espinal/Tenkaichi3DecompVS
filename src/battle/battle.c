@@ -132,6 +132,28 @@ extern void BtlObj_UpdateVisibility(s32 view);
 extern void BtlObj_FinishVisibility(s32 split);
 extern void Gsc_Update(void);
 extern void BtlScript_Update(void);
+#ifdef PORT
+/* Frustum-dependent effect drawing and HUD animation are presentation. Keep all
+   three native random streams unchanged by a personal online raid view. */
+static u32 sRaidDrawTwister[624],sRaidDrawVu;
+static s32 sRaidDrawIndex,sRaidDrawRng;
+static u64 sRaidDrawLibc;
+static void Raid_DrawRng(s32 restore) {
+    extern s32 Port_CoopEnabled(void),Port_ModesFight(void),gRandIndex;
+    extern u32 gRandState[624],gPortVu0R;
+    extern u64 gPortRandNext;
+    extern void *memcpy(void *,const void *,u32);
+    if(!restore) {
+        sRaidDrawRng=Port_CoopEnabled() && Port_ModesFight()==3;
+        if(!sRaidDrawRng) return;
+        memcpy(sRaidDrawTwister,gRandState,sizeof(sRaidDrawTwister));
+        sRaidDrawIndex=gRandIndex;sRaidDrawVu=gPortVu0R;sRaidDrawLibc=gPortRandNext;
+    } else if(sRaidDrawRng) {
+        memcpy(gRandState,sRaidDrawTwister,sizeof(sRaidDrawTwister));
+        gRandIndex=sRaidDrawIndex;gPortVu0R=sRaidDrawVu;gPortRandNext=sRaidDrawLibc;
+    }
+}
+#endif
 /* Puts every battle subsystem back to the start of a match (first start and rematch) and fades in over 1 s. */
 #ifdef PORT
 extern int Port_HeapCheck(const char *where); /* port/src/plat_stub.c (the third-fighter experiment's tool) */
@@ -140,6 +162,10 @@ extern int Port_HeapCheck(const char *where); /* port/src/plat_stub.c (the third
 #define PORT_HEAPCHK(w)
 #endif
 s32 Battle_Restart(void) {
+#ifdef PORT
+    s32 raidRestart=(Battle_GetWork()->flags&BATTLE_FLAG_RESTART)!=0;
+    if(raidRestart) {extern void Port_CoopBeginLoad(void);Port_CoopBeginLoad();}
+#endif
     Snd_StopBankAndResume(0x3C);
     PORT_HEAPCHK("after Snd_StopBankAndResume");
     Battle_ResetWork();
@@ -158,6 +184,9 @@ s32 Battle_Restart(void) {
     PORT_HEAPCHK("after Fade_ResetAll");
     Fade_Start(0, 1, 1.0f);
     PORT_HEAPCHK("after Fade_Start");
+#ifdef PORT
+    if(raidRestart) {extern void Port_CoopBattleReady(void);Port_CoopBattleReady();}
+#endif
     return 0;
 }
 
@@ -199,6 +228,9 @@ s32 Battle_Init(void) {
 /* Stores the result and destroys every battle subsystem. */
 s32 Battle_Term(void) {
 #ifdef PORT
+    {extern void PortRaid_OnlineFinish(s32);PortRaid_OnlineFinish(0);}
+#endif
+#ifdef PORT
     /* An aborted challenge must not award a later, unrelated fight. */
     { extern void PortChallenge_RecordResult(s32),PortTournament_RecordResult(s32);
       PortChallenge_RecordResult(0);PortTournament_RecordResult(0); }
@@ -221,6 +253,9 @@ s32 Battle_Term(void) {
     Fade_ResetAll();
     Dma_ResetBuffers();
     Job_Clear();
+#ifdef PORT
+    {extern void PortRaid_OnlineFinish(s32);PortRaid_OnlineFinish(1);}
+#endif
     return 0;
 }
 
@@ -534,11 +569,17 @@ void Battle_Loop(void) {
 #ifdef PORT
         Port_BattleOverlayUpdate(1);
 #endif
+#ifdef PORT
+        Raid_DrawRng(0);
+#endif
         if (Battle_IsSplitScreen() && draw) {
             Battle_DrawSplit();
         } else {
             Battle_Draw();
         }
+#ifdef PORT
+        Raid_DrawRng(1);
+#endif
         Gfx_EndFrame(2);
         Dma_Flush();
     } while (!done);

@@ -72,7 +72,7 @@ int Port_TeamDuplicatesAllowed(void) {
 }
 
 const char *Port_ModesName(int mode) {
-    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Modo Raid Boss", "Torre Desafios", "Entrenamiento Extra"};
+    static const char *const kNames[PORT_MODE_COUNT] = {"", "Batalla Tag Team", "Todos vs Todos", "Jefe Final", "Torre Desafios", "Entrenamiento Extra"};
     return mode > PORT_MODE_NONE && mode < PORT_MODE_COUNT ? kNames[mode] : "";
 }
 

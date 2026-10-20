@@ -102,7 +102,7 @@ static void fail(const char *why) {
     fprintf(stderr,"bt3: coop: ERROR: %s\n",why); fflush(stderr);
     if(sHost) for(i=1;i<sPlayers && i<PORT_TOURNEY_MAX;i++) if(sKnown[i]) control(C_ERROR,i);
     if(sSock>=0) {closesocket(sSock);sSock=-1;}
-    if(sTournament && sJumpActive) {
+    if(sJumpActive) {
         snprintf(sFailureText,sizeof(sFailureText),"%s",why);sFailed=1;
         __atomic_store_n(&sLobbyPhase,0,__ATOMIC_RELEASE);
         longjmp(sFailureJump,1);
@@ -286,14 +286,18 @@ void Port_CoopBeginLoad(void) {
 void Port_CoopBattleReady(void) {
     uint64_t begun,last=0;int loaded[PORT_COOP_MAX]={1},i,all;
     if(!sReady || sTournament) return;
+    if(setjmp(sFailureJump)) {sJumpActive=0;return;}
+    sJumpActive=1;
     begun=millis();
     for(;;) {
         unsigned char p[1400];struct sockaddr_in from;int len=packet(p,&from),type,who=-1;
         if(millis()-begun>120000) fail("Un jugador no termino de cargar el combate");
         if(!sHost && millis()-last>=50) {control(C_LOADED,0);last=millis();}
         if(!len) {pause_ms();continue;}
-        if(get32(p+12)!=sNonce || get64(p+24)!=sFingerprint || get32(p+44)!=sLoadRound) continue;
+        if(get32(p+12)!=sNonce || get64(p+24)!=sFingerprint) continue;
         type=(int)get32(p+8);
+        if(type==C_ERROR && (!sHost && same(&from,&sPeer[0]))) fail("La sala se cerro durante la carga");
+        if(get32(p+44)!=sLoadRound) continue;
         if(sHost) {
             for(i=1;i<sPlayers;i++) if(sKnown[i]&&same(&from,&sPeer[i])) who=i;
             if(who<0 || type!=C_LOADED) continue;
@@ -303,7 +307,7 @@ void Port_CoopBattleReady(void) {
     }
     memset(sTag,255,sizeof(sTag));memset(sHashTick,255,sizeof(sHashTick));
     for(i=0;i<sPlayers;i++) {int t;for(t=0;t<CDELAY;t++) {memcpy(sInput[i][t],kIdle,CPAD);sTag[i][t]=(uint32_t)t;}}
-    sTick=0;sStartTick=UINT32_MAX;sSampled=UINT32_MAX;sBattleArmed=1;
+    sTick=0;sStartTick=UINT32_MAX;sSampled=UINT32_MAX;sBattleArmed=1;sJumpActive=0;
     fprintf(stderr,"bt3: coop: todos cargados, comienza el combate sincronizado\n");
 }
 static uint64_t digest(void) {
@@ -349,7 +353,11 @@ static void receive_inputs(void) {
         /* Compare only the sender's own simulation, never a forwarded hash. */
         if(source==who) {
             unsigned t=get32(p+32);uint64_t h=get64(p+36);
-            if(h&&sHashTick[t%CRING]==t&&sHashes[t%CRING]!=h) fail("Las simulaciones difieren");
+            if(h&&sHashTick[t%CRING]==t&&sHashes[t%CRING]!=h) {
+                fprintf(stderr,"bt3: coop: diferencia en turno %u, par %d, local %016llx remoto %016llx\n",
+                    t,who,(unsigned long long)sHashes[t%CRING],(unsigned long long)h);
+                fail("Las simulaciones difieren");
+            }
         }
     }
 }
@@ -394,7 +402,7 @@ void Port_CoopBeginTick(unsigned tick) {
 }
 void Port_CoopInput(int player,unsigned char *data) {
     int source=player;
-    if(sTournament && (sRecorded || sFailed)) {memcpy(data,kIdle,CPAD);return;}
+    if(sFailed || (sTournament && sRecorded)) {memcpy(data,kIdle,CPAD);return;}
     if(sTournament) source=player>=0&&player<2?sActive[player]:-1;
     memcpy(data,sReady&&source>=0&&source<sPlayers&&sTag[source][sTick%CRING]==sTick?sInput[source][sTick%CRING]:kIdle,CPAD);
 }
@@ -439,10 +447,9 @@ void Port_TourneyResult(int resultBits) {
     fprintf(stderr,"bt3: torneo: resultado %d, siguiente %d, campeon %d\n",resultBits,sTourney.current,sTourney.champion);
     pthread_mutex_unlock(&sTourneyLock);
 }
-void Port_TourneyLeave(void) {
-    if(!sTournament) return;
+void Port_CoopLeave(void) {
     if(sSock>=0) {closesocket(sSock);sSock=-1;}
-    sReady=sTournament=sFailed=sCancel=0;
+    sReady=sTournament=sFailed=sCancel=sBattleArmed=sSimulationPaused=0;sLoadRound=0;
 #ifdef _WIN32
     SetEnvironmentVariableA("BT3_COOP_HOST",NULL);_putenv_s("BT3_COOP_HOST","");
     SetEnvironmentVariableA("BT3_COOP_JOIN",NULL);_putenv_s("BT3_COOP_JOIN","");
@@ -452,6 +459,10 @@ void Port_TourneyLeave(void) {
     unsetenv("BT3_COOP_HOST");unsetenv("BT3_COOP_JOIN");unsetenv("BT3_COOP_CONFIG");unsetenv("BT3_TOURNAMENT");
 #endif
 }
+void Port_TourneyLeave(void) {if(sTournament) Port_CoopLeave();}
+int Port_CoopFailed(void) {return sFailed;}
+int Port_CoopTestInput(void) {return getenv("BT3_COOP_TEST_INPUT")!=NULL;}
+void Port_CoopErrorText(char *out,int size) {if(size>0)snprintf(out,(size_t)size,"%s",sFailureText);}
 int Port_TourneyLaunch(int host,const char *address,int port,int count,const PcFighter *hero) {
     PcBattle b;char endpoint[300],text[900],size[16],why[160];unsigned i;size_t used=0;const int *v=(const int *)&b;
     if(Port_CoopEnabled() || !hero || (count!=4 && count!=8 && count!=16) || port<1 || port>65535 ||

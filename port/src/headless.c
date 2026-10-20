@@ -148,6 +148,11 @@ int __wrap_Progress_Main(int arg) {
                 }
             }
             if (!Port_PcBattleBuild()) {
+                if(Port_CoopEnabled() && !Port_TourneyEnabled()) {
+                    extern int PortRaid_OnlineError(void);
+                    gPortMenuMode=1;PortRaid_OnlineError();gPortMenuMode=0;
+                    gProgress->mode=4;goto tournament_finished;
+                }
                 if(Port_TourneyEnabled() && Port_TourneyFailed()) {
                     extern int PortTournamentOnline_Error(void);
                     if(getenv("BT3_TOURNAMENT_TEST_BOTS")) exit(2);
@@ -351,6 +356,10 @@ void Port_Trace(unsigned vblanks) {
         if(vblanks-since>=240) {fprintf(stderr,"bt3: torneo: PASS main menu responsive after final\n");exit(0);}
     }
 
+    if(Port_CoopEnabled() && !Port_TourneyEnabled()) {
+        extern int Port_CoopFailed(void);
+        if(Port_CoopFailed() && !gPortMenuMode) {extern void BattleResult_Set(int,int);BattleResult_Set(8,8);}
+    }
     /* Tournament results are automatic: nobody waiting as a spectator can
        choose a rematch or accidentally change the other participants' menu. */
     if(Port_TourneyEnabled()) {

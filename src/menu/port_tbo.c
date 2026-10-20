@@ -359,11 +359,11 @@ s32 gPortTboSpar;       /* the battle that runs is Train While Waiting's sparrin
 static char sTbBgCode[CODE_LEN + 1];
 static f32 Tb_Beat(s32 period);
 
-static char *sTbHubName[HUB_COUNT] = {"Quick Match", "Raid Boss Online", "Torneo Local / Online", "Create Room", "Join Room", "Ranked Match", "Friends", "Replays", "Profile"};
+static char *sTbHubName[HUB_COUNT] = {"Quick Match", "Jefe Final Online", "Torneo Local / Online", "Create Room", "Join Room", "Ranked Match", "Friends", "Replays", "Profile"};
 static const s32 sTbHubReady[HUB_COUNT] = {1, 1, 1, 1, 1, 0, 0, 0, 1};
 static char *sTbHubSay[HUB_COUNT] = {
     "Pelea contra quien este buscando ahora mismo. Sin limites y entrenando mientras esperas.",
-    "Jefe Final: sala cooperativa de 2 a 6 jugadores, vista 3D y jefes personalizables.",
+    "Jefe Final: 2 a 6 jugadores contra hasta 5 jefes simultaneos, vista 3D y perfiles independientes.",
     "Torneo: cuadro local o sala UDP. Dos luchan y los demas ven el combate en vivo.",
     "Abre una sala con tus propias reglas y comparte el codigo con tu rival.",
     "Tienes el codigo de sala de tu rival? Ingresalo aqui y unete a su sala directamente.",

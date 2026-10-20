@@ -1718,6 +1718,10 @@ s32 BtlSeqFinish_PreUpdate(BtlSeqWaitCtx *ctx) {
 /* State 4 update: when the wait ends goes to the winner scene (5) if a side won and the mode is not 8, else to 6. */
 s32 BtlSeqFinish_Update(BtlSeqWaitCtx *ctx) {
     if (Ramp_Step(&ctx->timer)) {
+#ifdef PORT
+        {extern s32 Port_CoopEnabled(void),Port_ModesFight(void);
+         if(Port_CoopEnabled() && Port_ModesFight()==3) return 6;}
+#endif
         if (Battle_GetMode() != 8 && BattleResult_HasWinner()) {
             return 5;
         }

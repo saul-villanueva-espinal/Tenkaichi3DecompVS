@@ -32,6 +32,9 @@ int main(int argc,char **argv) {
         assert(launched && getenv("BT3_COOP_HOST") && getenv("BT3_COOP_CONFIG"));
         puts("coop_launch_test: inherited and CRT environments agree");return 0;
     }
+    if(getenv("FIXTURE_BAD_ASSET")) {
+        assert(!Port_CoopConfig(&b) && Port_CoopFailed());Port_CoopLeave();return 2;
+    }
     assert(Port_CoopConfig(&b));
     if(getenv("FIXTURE_BOSSES")) {
         int k;assert(b.count[1]==5);
