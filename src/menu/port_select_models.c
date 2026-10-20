@@ -1,4 +1,5 @@
 #include "common.h"
+#include <stdio.h>
 #include "battle/view_a.h"
 #include "battle/orbit_cam.h"
 #include "battle/btl_obj.h"
@@ -29,6 +30,7 @@ typedef struct SelectModel {
 static SelectModel sSelectModel[2];
 static s32 sSelectModelsOn;
 static s32 sSelectRaidLayout;
+static s32 sLoggedDiag;
 
 int Port_SelectModelsActive(void) { return sSelectModelsOn; }
 
@@ -47,6 +49,7 @@ void Port_SelectModelsBegin(void) {
         sSelectModel[i].angle = 3.14159265f;
     }
     sSelectModelsOn = 1;
+    sLoggedDiag = 0;
 }
 
 void Port_SelectModelsSet(int side, int chara, int costume) {
