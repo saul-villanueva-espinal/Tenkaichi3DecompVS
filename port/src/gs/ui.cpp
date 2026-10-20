@@ -3059,7 +3059,7 @@ static bool frame_build(void) {
     ImGui::NewFrame();
     Port_UpdateAndDrawPhotoMode(ImGui::GetForegroundDrawList());
     if (!sOpen) pc_teams_preview();
-    if (coopLobby) {
+    if (coopLobby && (Port_TourneyEnabled() || !Port_RaidRoomActive())) {
         ImGui::SetNextWindowPos(ImVec2(ImGui::GetIO().DisplaySize.x * .5f, ImGui::GetIO().DisplaySize.y * .5f), ImGuiCond_Always, ImVec2(.5f,.5f));
         ImGui::SetNextWindowBgAlpha(.96f);
         if (ImGui::Begin(Port_TourneyEnabled()?"Sala de torneo online":"Sala Raid online", NULL, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoSavedSettings)) {

@@ -1343,7 +1343,8 @@ extern void Port_Dbg2(const char *what, int a, int b); /* port/src/plat_stub.c (
 extern s32 BtlChar_GetCount(void);
 extern s32 Port_Team(s32 i); /* btl_char_flag_opp.c */
 #define PORT_ENDDBG(n) (Port_Dbg2("the fight ends by rule", n, (int)result->reason), Port_Dbg2("the fight ends: winner (1 player 1, 2 player 2) / fighters", (int)result->winner, BtlChar_GetCount()))
-#define PORT_SEQ_TEAMS 10 /* (PORT_TEAM_MAX, port/include/port_fighters.h) */
+#include "port_fighters.h"
+#define PORT_SEQ_TEAMS PORT_TEAM_MAX
 extern s32 BtlCharApi_GetHp(s32 objId);
 /* More than two fighters, the time is up: the team with the most health left in all its fighters has won (the
    game compares the two sides' fighters). Player 1's team = player 1 wins, any other = player 2 wins. 0: two

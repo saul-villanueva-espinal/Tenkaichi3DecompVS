@@ -1001,11 +1001,12 @@ s32 EftDet_HitFighterMulti(EftDetRec *rec, s32 target, s32 idx) {
    stay the game's, decided by its own victim. An extra victim can dodge; it cannot deflect, reflect or absorb (that
    would act on the whole beam). Each beam (by its task) hits each fighter once, a multi-hit one again after its
    interval; nobody of the owner's own team. Ki blasts (type 0) keep the game's rule: they burst on the first. */
+#include "port_fighters.h"
 #define PORT_SHOT_MEMO 32
 static struct {
     void *task;
     u32 hit;     /* fighters this beam has hit (bit = roster index) */
-    u32 at[10];  /* the pass it last hit each of them */
+    u32 at[PORT_FIGHTER_MAX];  /* the pass it last hit each of them */
     u32 last;    /* the pass it was last seen in */
 } sPortShotMemo[PORT_SHOT_MEMO];
 static u32 sPortShotPass, sPortShotNext;
@@ -1038,7 +1039,7 @@ static void Port_ShotExtraVictims(EftDetRec *rec, s32 primary, s32 (*test)(EftDe
     s32 multi = EftHit_IsMultiHit(rec);
     s32 interval = EftHit_GetDefUnkB(rec) > 0 ? EftHit_GetDefUnkB(rec) : 8;
 
-    for (k = 0; k < BtlChar_GetCount() && k < 10; k++) {
+    for (k = 0; k < BtlChar_GetCount() && k < PORT_FIGHTER_MAX; k++) {
         s32 obj = Port_FighterObjId(k);
 
         if (obj == primary || !Port_IsEnemy(owner, k) || !test(BtlObj_Get(obj), &rec->shape)) {

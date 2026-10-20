@@ -19,7 +19,7 @@ extern void Port_SettingSave(const char *,s32), Port_SettingsWrite(void);
 enum { RD_LOBBY, RD_CUSTOM, RD_ALLY, RD_NETWORK, RD_BOSS_PICK, RD_ORDER };
 typedef struct RaidRoom {
     PcBattle battle;
-    s32 boss,page,cursor,ally,connection,difficulty,count,frames,leaving,launch,ip[5];
+    s32 waiting,known,boss,page,cursor,ally,connection,difficulty,count,frames,leaving,launch,ip[5];
     char message[160];
 } RaidRoom;
 static RaidRoom sRoom;
@@ -147,14 +147,15 @@ static void Rd_BossSlots(void) {
 }
 static void Rd_Allies(void) {
     s32 i;char buf[48];Rd_Frame(9,308,288,91,R->cursor==7);
-    Rd_Text(16,305,R->connection==0?"EQUIPO DE PRACTICA":"EQUIPO ONLINE",.88f,275,0);
+    if(R->waiting) {sprintf(buf,"EQUIPO ONLINE - %d / %d",R->known,R->count);Rd_Text(16,305,buf,.88f,275,0);}
+    else Rd_Text(16,305,R->connection==0?"EQUIPO DE PRACTICA":"EQUIPO ONLINE",.88f,275,0);
     for(i=0;i<PORT_COOP_MAX;i++) {
         f32 x=13+i*47.0f;PcFighter *f=&R->battle.fighter[0][i];
         Rd_Frame(x,324,47,71,R->page==RD_ALLY && R->ally==i);
-        if(i<R->count) {Port_TeamChip(f->chara,x+3,329,40,44,128);Rd_Text(x+4,373,Rd_Name(f->chara),.32f,38,0);}
+        if(i<R->count && (!R->waiting || i<R->known)) {Port_TeamChip(f->chara,x+3,329,40,44,128);Rd_Text(x+4,373,Rd_Name(f->chara),.32f,38,0);}
         sprintf(buf,"J%d",i+1);Rd_Text(x+4,325,buf,.50f,30,0);
         Ps_Rect(x+3,383,x+41,393,Ps_Rgba(13,48,28,128),Ps_Rgba(3,19,10,128));
-        Rd_Text(x+4,383,i>=R->count?"Cerrada":R->connection==0?(i?"CPU":"Jugador"):i?"Esperando":"Mi eleccion",.33f,38,1);
+        Rd_Text(x+4,383,i>=R->count?"Cerrada":R->waiting?(i<R->known?"Listo":"Esperando"):R->connection==0?(i?"CPU":"Jugador"):i?"Esperando":"Mi eleccion",.33f,38,1);
     }
 }
 static void Rd_Draw(void) {
@@ -221,7 +222,7 @@ static void Rd_Draw(void) {
     Ps_Button(0,186,431,12);Rd_Text(195,423,"Listo",.55f,39,0);
     Ps_Button(2,240,431,12);Rd_Text(250,423,"Personalizar",.52f,73,0);
     Ps_Button(4,332,431,12);Rd_Text(342,423,"Volver",.52f,44,0);
-    Rd_Button(402,417,100,28,"INICIAR",R->cursor==9 && !R->page);
+    Rd_Button(402,417,100,28,R->waiting?"ESPERANDO":"INICIAR",!R->waiting && R->cursor==9 && !R->page);
     if(R->message[0]) Rd_Text(12,445,R->message,.32f,488,1);
 }
 
@@ -313,5 +314,47 @@ s32 PortRaid_Run(void) {
         if(!R->connection) {result=Port_PcRosterQueue(&R->battle);if(result) Port_PcNativeRules(1,0,R->battle.rules.bgm1-1);}
         else {char address[64];sprintf(address,"%d.%d.%d.%d",R->ip[0],R->ip[1],R->ip[2],R->ip[3]);result=Port_CoopLaunch(R->connection==1,address,R->ip[4],&R->battle);}
     }return result;
+}
+
+static s32 sRaidWaitLoaded;
+static TsTeam sWaitTeams[2];
+static s32 sWaitPlayers,sWaitType,sWaitDp,sWaitStage,sWaitBgm;
+void PortRaid_WaitFrame(void) {
+    PcBattle battle;s32 phase,known,total,previous;
+    phase=Port_CoopLobbyStatus(&known,&total);sRaidRoomOn=1;
+    if(phase==2 && Port_CoopLobbyCopy(&battle)) {
+        if(!sRaidWaitLoaded) {
+            sWaitTeams[0]=gTsProgress->team[0];sWaitTeams[1]=gTsProgress->team[1];
+            sWaitPlayers=gTsProgress->players;sWaitType=gTsProgress->battleType;sWaitDp=gTsProgress->dpLevel;
+            sWaitStage=gTsProgress->stageCell;sWaitBgm=gTsProgress->bgm;
+            gTsProgress->players=0;gTsProgress->battleType=1;gTsProgress->dpLevel=gTsProgress->stageCell=gTsProgress->bgm=0;
+            if(!gMenuArc5) gMenuArc5=File_LoadSync(gProgress->baseFile,NULL,0);
+            Rd_Init();R->battle=battle;R->waiting=1;R->connection=1;R->cursor=-1;
+            TeamSel_Init(2);Port_RaidModelsBegin();gTeamSel->stage->stage=battle.stage;TeamSel_RequestStage();
+            sRaidWaitLoaded=1;
+        }
+        previous=R->battle.stage;R->battle=battle;R->count=total;R->known=known;
+        if(previous!=battle.stage) {gTeamSel->stage->stage=battle.stage;TeamSel_RequestStage();}
+        Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();
+        sprintf(R->message,"Esperando jugadores: %d / %d. Misma version y mismos mods.",known,total);
+        Rd_Draw();Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
+    } else {
+        Gfx_BeginFrame();Ps_PageFull();Ps_Sprite(TBO_RAID_ENERGY,0,0,512,448,0,0,1,1,PS_PLAIN,128);
+        Rd_Text(18,24,"JEFE FINAL - SALA ONLINE",1.6f,475,0);
+        Rd_Text(30,220,"Comprobando datos del juego y paquetes de personajes...",.75f,450,1);
+        Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();
+    }
+}
+void PortRaid_WaitEnd(void) {
+    if(sRaidWaitLoaded) {
+        while(gTeamSel->faceState!=TEAMSEL_LOAD_IDLE || gTeamSel->stageState!=TEAMSEL_LOAD_IDLE) {
+            Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
+        }
+        Port_RaidModelsEnd();TeamSel_Term();Dma_ResetBuffers();
+        gTsProgress->team[0]=sWaitTeams[0];gTsProgress->team[1]=sWaitTeams[1];
+        gTsProgress->players=sWaitPlayers;gTsProgress->battleType=sWaitType;gTsProgress->dpLevel=sWaitDp;
+        gTsProgress->stageCell=sWaitStage;gTsProgress->bgm=sWaitBgm;
+    }
+    sRaidWaitLoaded=sRaidRoomOn=0;
 }
 #endif

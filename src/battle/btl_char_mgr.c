@@ -713,7 +713,7 @@ void BtlChars_UpdateFreeze(void) {
         }
     }
 #ifdef PORT
-    for (i = 0; i < BtlChar_GetCount() && i < 10; i++) {
+    for (i = 0; i < BtlChar_GetCount() && i < PORT_FIGHTER_MAX; i++) {
         s32 t = gPortTarget[i];
 
         if (local[i] > 0 && (u32)t < (u32)BtlChar_GetCount() && t != i && level[t] + local[t] < local[i]) {

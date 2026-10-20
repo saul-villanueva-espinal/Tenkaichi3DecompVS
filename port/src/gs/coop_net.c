@@ -116,6 +116,10 @@ int Port_CoopLobbyStatus(int *known, int *total) {
     *total = __atomic_load_n(&sLobbyTotal, __ATOMIC_ACQUIRE);
     return __atomic_load_n(&sLobbyPhase, __ATOMIC_ACQUIRE);
 }
+int Port_CoopLobbyCopy(PcBattle *out) {
+    if(sTournament || !out || __atomic_load_n(&sLobbyPhase,__ATOMIC_ACQUIRE)!=2) return 0;
+    *out=sBattle;return 1;
+}
 static void lobby_frame(void) {
     static uint64_t last;
     if(millis()-last>=16) { Port_CoopWaitFrame(); last=millis(); }

@@ -1,6 +1,10 @@
 #ifndef BATTLE_BTL_AI_H
 #define BATTLE_BTL_AI_H
 
+#ifdef PORT
+#include "port_fighters.h"
+#endif
+
 #include "types.h"
 
 /*
@@ -185,7 +189,6 @@ typedef struct BtlAi {
     /* 0x00C */ s32 sight;          /* (m) BTLAI_SIGHT_*: stage line test between the two fighters */
 #ifdef PORT /* (the experiment of more than two fighters: a controller for each, PORT_FIGHTER_MAX of
                port/include/port_fighters.h; the block is allocated by its size) */
-#include "port_fighters.h"
 #define BTLAI_SIDES PORT_FIGHTER_MAX
 #else
 #define BTLAI_SIDES 2

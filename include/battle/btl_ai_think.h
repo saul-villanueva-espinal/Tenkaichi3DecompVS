@@ -1,6 +1,10 @@
 #ifndef BATTLE_BTL_AI_THINK_H
 #define BATTLE_BTL_AI_THINK_H
 
+#ifdef PORT
+#include "port_fighters.h"
+#endif
+
 #include "types.h"
 
 /*
@@ -195,7 +199,6 @@ typedef struct AiThData {
 /* The manager block. */
 #ifndef AITH_SIDES
 #ifdef PORT /* (the experiment of more than two fighters: as BTLAI_SIDES of btl_ai.h, the same block seen by another file) */
-#include "port_fighters.h"
 #define AITH_SIDES PORT_FIGHTER_MAX
 #else
 #define AITH_SIDES 2

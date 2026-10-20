@@ -33,6 +33,8 @@ void Port_PcNativeRules(s32 players,s32 training,s32 bgm) {sNativeRules=1;sNativ
    This advances presentation only; battle objects and clocks do not exist yet. */
 void Port_CoopWaitFrame(void) {
     extern void Gfx_BeginFrame(void), Gfx_EndFrame(s32), Gfx_ClearScreen(s32, u32), Dma_Flush(void);
+    {extern s32 Port_TourneyEnabled(void);extern void PortRaid_WaitFrame(void);
+     if(!Port_TourneyEnabled()) {PortRaid_WaitFrame();return;}}
     Gfx_BeginFrame(); Gfx_ClearScreen(0, 0x80120B08); Gfx_EndFrame(1); Dma_Flush();
 }
 
@@ -258,7 +260,7 @@ int Port_PcBattleBuild(void) {
     PcBattle b;
     s32 s, i, mode;
     if (Port_CoopEnabled()) {
-        if (!Port_CoopConfig(&b)) return 0;
+        {extern void PortRaid_WaitEnd(void);s32 ready=Port_CoopConfig(&b);PortRaid_WaitEnd();if(!ready) return 0;}
         { extern void Port_Srand(unsigned); extern void Rand_Seed(unsigned);
           Port_Srand(Port_CoopSeed()); Rand_Seed(Port_CoopSeed()); }
     } else if (!Port_PcBattleTake(&b)) return 0;
