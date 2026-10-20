@@ -824,7 +824,7 @@ static s32 MainMenu_PortModes(void) {
         MainMenu_PlateGoto(0, "fl_on_start");
         Port_ModesCursor(gMainMenu->cursor);
         Snd_PlaySe(1, 0);
-    } else if (sPortModes == 1 && (gPad[0].gamePressed & 0x200) && gMainMenu->cursor < 3) {
+    } else if (sPortModes == 1 && (gPad[0].gamePressed & 0x200) && gMainMenu->cursor < 2) {
         MainMenu_PortPlayersSwitch(1, gMainMenu->cursor); /* (Team Battle, Free-for-All, Raid Boss: how many players) */
     } else if (sPortModes == 3 && (gPad[0].gamePressed & (0x400 | 0x100 | 0x2000))) {
         MainMenu_PortPlayersSwitch(0, 0); /* (back to the extra modes) */
@@ -843,7 +843,7 @@ static s32 MainMenu_PortModes(void) {
                include/menu/menu_i.h): going back from the select, that menu opens as it does after its own entry */
             *(s32 *)((u8 *)gProgress + 0x7D4) |= 0x10;
         } else if (next == 80) {
-            gPortScreen = PORT_SCREEN_CHALLENGE;
+            gPortScreen = (sPortModes==3?sPortModesPick:gMainMenu->cursor)==2 ? PORT_SCREEN_RAID : PORT_SCREEN_CHALLENGE;
         }
         if (next > 0) {
             MAINMENU_CHOOSE(next);

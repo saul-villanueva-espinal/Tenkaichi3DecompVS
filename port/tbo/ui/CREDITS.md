@@ -10,3 +10,8 @@ The pictures of the Tenkaichi Budokai Online screens (this folder; `tbo/ui/` in 
 
 A picture replaced by one of another size: run `python3 port/tools/tbo_sizes.py` (the screens lay the pictures out
 by their sizes, `include/menu/tbo_sizes.h`).
+
+
+## Arena de energia
+
+`raid_energy.png`: generated with OpenAI ImageGen for this project from the user-approved visual direction, 2026-10-20. Contains background artwork only; all controls and characters are rendered separately.

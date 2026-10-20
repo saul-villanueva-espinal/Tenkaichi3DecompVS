@@ -60,7 +60,8 @@ extern f32 BtlParam_GetUnkC7Scale(BtlFlagChr *chr);
  * the game's own answer (each one's target is the other). */
 extern s32 BtlChar_GetCount(void);
 extern int Port_FightTeam(int k); /* port/src/plat_fighters.c: extra fighter k's, decided when the fight loads */
-#define PORT_FIGHTERS 10 /* (PORT_FIGHTER_MAX, port/include/port_fighters.h) */
+#include "port_fighters.h"
+#define PORT_FIGHTERS PORT_FIGHTER_MAX
 s32 gPortTarget[PORT_FIGHTERS] = { 1, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 static s32 sPortTargetHold[PORT_FIGHTERS];
 extern s32 Port_ClashPartner(s32 i); /* btl_char_flag_clash.c: the other fighter of the clash i is in, or -1 */
@@ -426,7 +427,8 @@ s32 Port_HudFighter(s32 side) {
     }
     {extern s32 Port_CoopEnabled(void),Port_CoopMe(void),Port_ModesFight(void);
      if(Port_CoopEnabled() && Port_ModesFight()==3) {
-         s32 p=Port_CoopMe();return side==1?1:Port_Spectated(p>0?p+1:0);
+         s32 p=Port_CoopMe(),f=Port_Spectated(p>0?p+1:0),t=Port_CamTarget(f);
+         return side==1?((u32)t<(u32)BtlChar_GetCount()?t:1):f;
      }}
     if (Port_TargetHuman(0) && Port_TargetHuman(1)) {
         return Port_Spectated(side);

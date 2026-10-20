@@ -42,6 +42,9 @@ int main(void) {
     b.count[0]=3;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
     b.players=5;b.count[0]=5;assert(Port_PcBattleValidate(&b,why,sizeof(why)));
     b.players=6;b.count[0]=6;assert(Port_PcBattleValidate(&b,why,sizeof(why)));
+    b.count[1]=5;assert(Port_PcBattleValidate(&b,why,sizeof(why)));
+    b.bossRules[3].bossHp=250001;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));b.bossRules[3].bossHp=0;
+    b.count[1]=6;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));b.count[1]=1;
     b.count[0]=5;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
     b.players=7;b.count[0]=7;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));
     b.mode=PC_TAG;b.players=5;b.count[0]=b.count[1]=5;assert(!Port_PcBattleValidate(&b,why,sizeof(why)));

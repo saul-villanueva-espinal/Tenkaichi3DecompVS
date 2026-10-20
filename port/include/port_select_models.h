@@ -7,4 +7,8 @@ void Port_SelectModelsDraw(void);
 void Port_SelectModelsDrawRaid(void);
 void Port_SelectModelsDrawRaidEx(int layout);
 void Port_SelectModelsEnd(void);
+void Port_RaidModelsBegin(void);
+void Port_RaidModelsSet(int slot,int chara,int costume);
+void Port_RaidModelsDraw(int count,int focus);
+void Port_RaidModelsEnd(void);
 #endif

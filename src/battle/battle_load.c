@@ -1368,13 +1368,13 @@ static void Port_LoadExtras(void) {
 
             Port_ExtraAdd(s, i, m->chara, m->costume, m->cpuLevel);
         }
+        if(s==0 && roster==PORT_MODE_RAID) {
+            extern s32 Port_PcRaidOverflow(s32 *,s32 *),Port_ExtraRaidAdd(s32,s32,s32);
+            s32 chara,costume;
+            if(Port_PcRaidOverflow(&chara,&costume))
+                Port_ExtraRaidAdd(chara,costume,side->members[0].cpuLevel);
+        }
         side->memberCount = 1;
-    }
-    if(roster==PORT_MODE_RAID) {
-        extern s32 Port_PcRaidOverflow(s32 *,s32 *),Port_ExtraRaidAdd(s32,s32,s32);
-        s32 chara,costume;
-        if(Port_PcRaidOverflow(&chara,&costume))
-            Port_ExtraRaidAdd(chara,costume,setup->sides[0].members[0].cpuLevel);
     }
     Port_ExtraDone();
 }

@@ -40,7 +40,7 @@ int Port_PcBattleParse(PcBattle *b, const char *text) {
         if(end==text || errno==ERANGE || value<INT_MIN || value>INT_MAX) return 0;
         v[i]=(int)value;
         if(!*end) {
-            if(i+1!=45 && i+1!=n) return 0;
+            if(i+1!=45 && i+1!=57 && i+1!=n) return 0;
             if(!Port_PcBattleValidate(&parsed,why,sizeof(why))) return 0;
             *b=parsed;return 1;
         }
@@ -74,8 +74,17 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
            r->armorSides<0 || r->armorSides>3) error="Reglas de combate fuera de rango";
         else if(b->mode!=PC_RAID && (r->bossHp || r->bossDamagePct || r->enragePct)) error="Reglas de jefe fuera de Raid";
     }
+    if(b && !error) for(i=0;i<PORT_RAID_BOSSES-1;i++) {
+        const PcBattleRules *r=&b->bossRules[i];
+        if(r->bossHp<0 || r->bossHp>250000 || r->bossDamagePct<0 || r->bossDamagePct>400 ||
+           r->enragePct<0 || r->enragePct>90 || r->cpuLevel1<0 || r->cpuLevel1>30 ||
+           r->infiniteKiChara1<0 || r->infiniteKiChara1>PORT_CHARA_ID_LIMIT ||
+           r->armorSides<0 || r->armorSides>3 || r->damagePct || r->kiPct ||
+           r->regenPerSec || r->regenSides || r->healthPct || r->bgm1)
+            error="Perfil adicional del jefe fuera de rango";
+    }
     for (s = 0; b && !error && s < 2; s++) {
-        int max = b->mode == PC_RELAY || b->mode == PC_DUEL ? PORT_RELAY_MAX : (b->mode == PC_TAG || b->mode == PC_FFA) ? 5 : b->mode == PC_RAID && s == 0 ? PORT_COOP_MAX : 1;
+        int max = b->mode == PC_RELAY || b->mode == PC_DUEL ? PORT_RELAY_MAX : (b->mode == PC_TAG || b->mode == PC_FFA) ? 5 : b->mode == PC_RAID ? (s == 0 ? PORT_COOP_MAX : PORT_RAID_BOSSES) : 1;
         if (b->count[s] < 1 || b->count[s] > max) { error = "Cantidad de integrantes no valida para el modo"; break; }
         for (i = 0; i < b->count[s]; i++) {
             const PcFighter *f = &b->fighter[s][i];

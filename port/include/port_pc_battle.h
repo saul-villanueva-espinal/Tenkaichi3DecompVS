@@ -16,12 +16,15 @@ typedef struct PcBattle {
     int mode, players, stage, count[2];
     PcFighter fighter[2][PORT_RELAY_MAX];
     PcBattleRules rules;
+    /* Additional simultaneous bosses. The first boss retains rules above. */
+    PcBattleRules bossRules[PORT_RAID_BOSSES - 1];
 } PcBattle;
 void Port_PcBattleDefault(PcBattle *b);
 int Port_PcBattleParse(PcBattle *b, const char *text);
 int Port_PcBattleValidate(const PcBattle *b, char *why, int size);
 int Port_PcBattleRequest(const PcBattle *b);
 int Port_PcBattlePending(void);
+int Port_RaidRoomActive(void);
 int Port_PcRosterQueue(const PcBattle *b);
 int Port_PcRosterPlayerQueue(const PcBattle *b, int dp);
 int Port_PcTeamsMask(void);

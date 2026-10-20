@@ -1,5 +1,4 @@
 #include "common.h"
-#include <stdio.h>
 #include "battle/view_a.h"
 #include "battle/orbit_cam.h"
 #include "battle/btl_obj.h"
@@ -29,8 +28,6 @@ typedef struct SelectModel {
 } SelectModel;
 static SelectModel sSelectModel[2];
 static s32 sSelectModelsOn;
-static s32 sSelectRaidLayout;
-static s32 sLoggedDiag;
 
 int Port_SelectModelsActive(void) { return sSelectModelsOn; }
 
@@ -49,7 +46,6 @@ void Port_SelectModelsBegin(void) {
         sSelectModel[i].angle = 3.14159265f;
     }
     sSelectModelsOn = 1;
-    sLoggedDiag = 0;
 }
 
 void Port_SelectModelsSet(int side, int chara, int costume) {
@@ -103,7 +99,6 @@ void Port_SelectModelsDraw(void) {
     SelectModel *m;
     ChrViewInfo *info;
     f32 target,dist,height,bodyHeight,floor;
-    static s32 sLoggedDiag;
     if (!sSelectModelsOn) return;
     for (i = 0; i < 2; i++) {
         SelectModel_Load(i);
@@ -119,37 +114,36 @@ void Port_SelectModelsDraw(void) {
     for (i = 0; i < 2; i++) {
         m = &sSelectModel[i];
         for (j = 0; j < 2; j++)
-            if (sSelectModel[j].object >= 0)
-                BtlObj_Get(sSelectModel[j].object)->active = i == j && sSelectModel[j].loaded == sSelectModel[j].wanted && sSelectModel[j].loadedCostume == sSelectModel[j].costume;
+            if (sSelectModel[j].object >= 0) BtlObj_Get(sSelectModel[j].object)->active = i == j && m->loaded == m->wanted && m->loadedCostume == m->costume;
         info = ChrView_GetCharaInfo(m->loaded);
-        if (sSelectRaidLayout == 2) {
-            View_InitLayout(&gOrbitCam->view, VIEW_LAYOUT_FULL);
-        } else {
-            View_InitLayout(&gOrbitCam->view, i ? VIEW_LAYOUT_RIGHT : VIEW_LAYOUT_LEFT);
-        }
-        target = info ? info->targetY : 1.2f;
-        dist = info ? info->dist * 1.15f : 5.75f;
-        if (sSelectRaidLayout) {
-            dist *= 1.10f;
-            target += 0.05f;
-        }
+        View_InitLayout(&gOrbitCam->view, i ? VIEW_LAYOUT_RIGHT : VIEW_LAYOUT_LEFT);
+        target=info ? info->targetY : 1.2f;
+        dist=info ? info->dist*1.15f : 5.75f;
         /* Added models use their own bounds rather than a borrowed base
            character's camera. Keep the original roster's camera unchanged. */
-        if (m->object >= 0 && m->loaded >= PORT_CHARA_FIRST) {
-            obj = BtlObj_Get(m->object);
-            height = obj->state.box.max[1] - obj->state.box.min[1];
-            if (height > .01f && height < 1000.0f) {
-                root = BtlObj_GetNode(obj, 0);
-                head = BtlObj_GetNode(obj, 0x2e);
-                floor = obj->state.box.max[1];
+        if (m->object>=0 && m->loaded>=PORT_CHARA_FIRST) {
+            obj=BtlObj_Get(m->object);
+            height=obj->state.box.max[1]-obj->state.box.min[1];
+            if (height>.01f && height<1000.0f) {
+                /* Collision bounds differ between imported models. Use the
+                   standard root/head bones to reserve anatomical headroom too:
+                   otherwise Cell looks short while Broly's hair gets cropped. */
+                root=BtlObj_GetNode(obj,0);
+                head=BtlObj_GetNode(obj,0x2e);
+                floor=obj->state.box.max[1];
                 if (root && head) {
-                    floor = root->mtx.m[3][1];
-                    bodyHeight = (floor - head->mtx.m[3][1]) * 1.35f;
-                    if (bodyHeight > height && bodyHeight < height * 1.5f)
-                        height = bodyHeight;
+                    floor=root->mtx.m[3][1];
+                    bodyHeight=(floor-head->mtx.m[3][1])*1.35f;
+                    if (bodyHeight>height && bodyHeight<height*1.5f)
+                        height=bodyHeight;
                 }
-                dist = height * 1.5f;
-                target = floor - dist * .33f;
+                /* Normal roster coverage, independent of wings/tail width.
+                   Keep the feet anchored while allowing the native plates to
+                   cover the lower legs, as in the original giant previews. */
+                dist=height*1.5f;
+                /* Native 448-line canvas: keep the ground near line 367,
+                   just above the bottom carousel, throughout rotation. */
+                target=floor-dist*.33f;
             }
         }
         OrbitCam_SetTarget(0.0f,target,0.0f);
@@ -171,29 +165,11 @@ void Port_SelectModelsDraw(void) {
             BtlObj_Get(m->object)->active = m->loaded == m->wanted && m->loadedCostume == m->costume;
         }
     BtlObj_FinishVisibility(1);
-    if (sSelectRaidLayout && !sLoggedDiag) {
-        if (sSelectModel[1].object >= 0) {
-            sLoggedDiag = 1;
-            fprintf(stderr, "bt3: Boss 3D model loaded: obj=%d chara=%d costume=%d visFlags=0x%x\n",
-                    sSelectModel[1].object, sSelectModel[1].loaded, sSelectModel[1].loadedCostume,
-                    BtlObjVis_Get()->flags);
-        }
-    }
     Gfx_MarkPass(2);
     BtlObjDraw_Draw();
     Gfx_MarkPass(0);
     Gfx_AddDefaultEnv();
     Dma_AddScissor(0, 511, 0, 447);
-}
-
-/* Independent single-boss presentation; the original two-player view keeps
-   its camera, sizing and split layout. */
-void Port_SelectModelsDrawRaid(void) {
-    sSelectRaidLayout=1;Port_SelectModelsDraw();sSelectRaidLayout=0;
-}
-
-void Port_SelectModelsDrawRaidEx(s32 layout) {
-    sSelectRaidLayout=layout>0?layout:1;Port_SelectModelsDraw();sSelectRaidLayout=0;
 }
 
 void Port_SelectModelsEnd(void) {
@@ -202,7 +178,95 @@ void Port_SelectModelsEnd(void) {
     for (i = 0; i < 2; i++)
         if (sSelectModel[i].object >= 0) BtlObj_Destroy(sSelectModel[i].object);
     ChrView_Term();
-    if (gOrbitCam) gBtlCamView = &gOrbitCam->view;
+    gBtlCamView = NULL;
     sSelectModelsOn = 0;
 }
+
+typedef struct RaidPreview {SelectModel model;BtlResSlot resource;} RaidPreview;
+static RaidPreview sRaidPreview[PORT_RAID_BOSSES];
+static s32 sRaidPreviewOn;
+extern void *Heap_Alloc(s32,u32,s32,s32);
+extern void Heap_Free(void *);
+void Port_RaidModelsBegin(void) {
+    s32 i;Port_SelectModelsBegin();if(!sSelectModelsOn) return;
+    memset(sRaidPreview,0,sizeof(sRaidPreview));
+    for(i=0;i<PORT_RAID_BOSSES;i++) {
+        SelectModel *m=&sRaidPreview[i].model;
+        m->wanted=m->loaded=m->loadedCostume=m->object=-1;m->angle=3.14159265f;
+    }sRaidPreviewOn=1;
+}
+void Port_RaidModelsSet(s32 slot,s32 chara,s32 costume) {
+    SelectModel *m;if(!sRaidPreviewOn || slot<0 || slot>=PORT_RAID_BOSSES) return;
+    m=&sRaidPreview[slot].model;
+    if(chara!=m->wanted || costume!=m->costume) {m->wanted=chara;m->costume=costume;m->stable=0;}
+}
+static void RaidPreview_Load(s32 slot) {
+    RaidPreview *p=&sRaidPreview[slot];SelectModel *m=&p->model;s32 file,size;BtlObj *obj;
+    if(m->loaded==m->wanted && m->loadedCostume==m->costume) return;
+    if(++m->stable<8) return;
+    if(m->object>=0) BtlObj_Destroy(m->object);
+    m->object=-1;m->loaded=m->wanted;m->loadedCostume=m->costume;
+    if(m->wanted<0) return;
+    file=ChrView_GetModelFile(m->wanted,m->costume,0);size=File_GetSize(file);
+    if(size<=0 || size>Port_ModelSize()) return;
+    if(!p->resource.file[0].buf) p->resource.file[0].buf=Heap_Alloc(Port_ModelSize(),64,0,2);
+    if(!p->resource.file[0].buf) return;
+    p->resource.file[0].id=file;p->resource.file[0].size=size;
+    if(!File_LoadSync(file,p->resource.file[0].buf,0)) return;
+    m->object=BtlObj_Create(3,&p->resource,1);
+    if(m->object<0) return;obj=BtlObj_Get(m->object);
+    BtlObjAnim_PlayModel(obj,7,2);obj->state.flags&=~0x02000000;BtlObj_SetPartVisible(obj,0,1);
+}
+/* Each object is drawn through its own persistent full-screen camera. The
+   renderer receives real model geometry; none of the five previews is a PNG. */
+void Port_RaidModelsDraw(s32 count,s32 focus) {
+    static const f32 centers[5]={392,331,437,479,466};
+    static const f32 feet[5]={342,334,336,341,348};
+    static const f32 pixels[5]={272,228,212,206,155};
+    s32 i,j,k,n;SelectModel *m;BtlObj *obj;BtlObjPart *root,*head;
+    f32 height,width,depth,floor,body,target,dist,cx,fy,ph;Vec4 size;
+    if(!sRaidPreviewOn) return;
+    if(count<1) count=1;if(count>PORT_RAID_BOSSES) count=PORT_RAID_BOSSES;
+    for(i=0;i<PORT_RAID_BOSSES;i++) {
+        RaidPreview_Load(i);m=&sRaidPreview[i].model;
+        if(m->object>=0) {obj=BtlObj_Get(m->object);obj->active=m->wanted>=0 && m->loaded==m->wanted && m->loadedCostume==m->costume;obj->state.views[0].flags=obj->state.views[1].flags=0;}
+    }
+    gBtlStage->flags&=~1;BtlObj_UpdateAll();
+    n=focus>=0?1:count;
+    for(k=0;k<n;k++) {
+        i=focus>=0?focus:(k+1)%count;m=&sRaidPreview[i].model;
+        for(j=0;j<PORT_RAID_BOSSES;j++) if(sRaidPreview[j].model.object>=0) BtlObj_Get(sRaidPreview[j].model.object)->active=j==i;
+        if(m->object<0 || m->loaded!=m->wanted || m->loadedCostume!=m->costume) continue;
+        obj=BtlObj_Get(m->object);height=obj->state.box.max[1]-obj->state.box.min[1];
+        width=obj->state.box.max[0]-obj->state.box.min[0];depth=obj->state.box.max[2]-obj->state.box.min[2];
+        floor=obj->state.box.max[1];root=BtlObj_GetNode(obj,0);head=BtlObj_GetNode(obj,0x2e);
+        if(root && head) {floor=root->mtx.m[3][1];body=(floor-head->mtx.m[3][1])*1.35f;if(body>height && body<height*1.6f) height=body;}
+        if(height<.01f || height>1000.0f) height=3.0f;
+        cx=focus>=0 || count==1?399:centers[i];fy=focus>=0?354:feet[i];ph=focus>=0 || count==1?285:pixels[i];
+        dist=height*505.1667f/ph;
+        if(width>0 && width*433.0f/155.0f>dist) dist=width*433.0f/155.0f;
+        if(depth>0 && depth*433.0f/155.0f>dist) dist=depth*433.0f/155.0f;
+        target=floor-height*.5f;
+        View_InitLayout(&gOrbitCam->view,VIEW_LAYOUT_FULL);size=gOrbitCam->view.screenSize;
+        View_SetProjection(&gOrbitCam->view,&size,433.0f,1.0f,gOrbitCam->view.aspect,
+                           1792.0f+cx,1824.0f+fy-ph*.5f,1.0f,10877000.0f,.3f,65536.0f,1.0f);
+        gOrbitCam->view.scissorX0=292;gOrbitCam->view.scissorX1=511;gOrbitCam->view.scissorY0=40;gOrbitCam->view.scissorY1=359;
+        OrbitCam_SetTarget(0,target,0);OrbitCam_SetDist(dist);OrbitCam_SetDistRange(.1f,1000.0f);
+        m->angle+=.003f;if(m->angle>3.14159265f) m->angle-=6.2831853f;
+        OrbitCam_SetAngles(0,m->angle,0);OrbitCam_Update(0);m->view=gOrbitCam->view;
+        View_Apply(&m->view,1);BtlObj_UpdateVisibility(0);BtlObj_FinishVisibility(0);
+        Gfx_MarkPass(2);BtlObjDraw_Draw();Gfx_MarkPass(0);Gfx_AddDefaultEnv();Dma_AddScissor(0,511,0,447);
+    }
+}
+void Port_RaidModelsEnd(void) {
+    s32 i;if(!sRaidPreviewOn) return;
+    for(i=0;i<PORT_RAID_BOSSES;i++) {
+        RaidPreview *p=&sRaidPreview[i];if(p->model.object>=0) BtlObj_Destroy(p->model.object);
+        if(p->resource.file[0].buf) Heap_Free(p->resource.file[0].buf);
+    }sRaidPreviewOn=0;Port_SelectModelsEnd();
+}
+/* Compatibility wrappers for earlier single-boss callers. */
+void Port_SelectModelsDrawRaid(void) {Port_SelectModelsDraw();}
+void Port_SelectModelsDrawRaidEx(s32 layout) {(void)layout;Port_SelectModelsDraw();}
+
 #endif

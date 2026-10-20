@@ -3093,7 +3093,7 @@ static bool frame_build(void) {
     if (chat && !Port_HudHidden()) {
         chat_draw();
     }
-    Port_DrawFeatureHints(ImGui::GetForegroundDrawList());
+    if (!Port_RaidRoomActive()) Port_DrawFeatureHints(ImGui::GetForegroundDrawList());
     if (names && !Port_HudHidden() && GsDraw_HudShown() && gUiPresentW > 0 && gUiPresentH > 0) { // (with the HUD: not over an intro)
         // Under each side's health bar (the game's 512 x 448 page: the bars end at about y 50). The left place is
         // side 0's, or this player's own side when the HUD's sides are swapped.

@@ -7,6 +7,9 @@
 #include "sys/common.h"
 #include "sys/heap.h"
 #include "sys/save.h"
+#ifdef PORT
+#include "port_fighters.h"
+#endif
 
 /*
  * Fighter manager, 0x1C0058..0x1C2FF0: the roster (gBtlChars), the per-fighter reset and the whole-roster
@@ -630,8 +633,8 @@ void BtlChar_ResetObjWork(BtlMgrChr *chr) {
 /* Decides which fighters are frozen (hit-stop) and counts the freeze timers down. */
 void BtlChars_UpdateFreeze(void) {
 #ifdef PORT
-    s32 level[10]; /* (PORT_FIGHTER_MAX: one per fighter; the third's was written past the two) */
-    s32 local[10]; /* (a hold that is not about a player: its target only) */
+    s32 level[PORT_FIGHTER_MAX]; /* (PORT_FIGHTER_MAX: one per fighter; the third's was written past the two) */
+    s32 local[PORT_FIGHTER_MAX]; /* (a hold that is not about a player: its target only) */
     extern s32 Port_AboutPlayer(s32 i); /* btl_char_api.c */
     extern s32 gPortTarget[];           /* btl_char_flag_opp.c */
 #else

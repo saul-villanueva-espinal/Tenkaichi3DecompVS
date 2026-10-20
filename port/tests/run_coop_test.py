@@ -22,6 +22,10 @@ with tempfile.TemporaryDirectory() as tmp:
         peers = []
         try:
             host_config=[3,player_count,0,player_count,1]+sum(([0 if s==0 else 4,0] for s in range(2) for i in range(10)),[])+[125,150,150,2,25,162500,200,50,30,14,134,2]
+            if player_count==6:
+                host_config[4]=5
+                host_config += sum(([0,0,0,0,0,100000+i*10000,125+i*25,30+i*10,20+i,0,0,2] for i in range(4)),[])
+                env['FIXTURE_BOSSES']='5'
             peers.append(subprocess.Popen([exe], env=env | {'BT3_COOP_HOST': str(port),'BT3_COOP_CONFIG':','.join(map(str,host_config))}, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True))
             time.sleep(.1)
             bad = subprocess.run([exe], env=env | {'BT3_COOP_JOIN': f'127.0.0.1:{port}', 'FIXTURE_BAD_ASSET': '1'}, capture_output=True, text=True, timeout=10)

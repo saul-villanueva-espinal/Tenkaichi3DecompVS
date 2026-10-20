@@ -192,7 +192,7 @@ int Port_ModesChoose(int entry) {
     if (mode <= PORT_MODE_NONE || mode >= PORT_MODE_COUNT || online()) {
         return 0;
     }
-    if (mode == PORT_MODE_CHALLENGE) {
+    if (mode == PORT_MODE_CHALLENGE || mode == PORT_MODE_RAID) {
         sEntered = 80;   /* MPROG_MODE_PORT_SCREEN */
         return sEntered;
     }

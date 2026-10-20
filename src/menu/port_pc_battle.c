@@ -289,7 +289,9 @@ int Port_PcBattleBuild(void) {
         BattleSetup_SetSide(s, cpu ? BTL_CONTROL_CPU : BTL_CONTROL_PAD, s, count, 1, 1, 0, NULL);
         for (i = 0; i < count; i++) {
             PcFighter *f = &b.fighter[s][i];
-            BattleSetup_SetMember(s, i, f->chara, f->costume, 0, sLevel[s], (f32)Port_PcTestHealth(), NULL);
+            s32 level=sLevel[s];
+            if(b.mode==PC_RAID && s && i && b.bossRules[i-1].cpuLevel1) level=b.bossRules[i-1].cpuLevel1-1;
+            BattleSetup_SetMember(s, i, f->chara, f->costume, 0, level, (f32)Port_PcTestHealth(), NULL);
         }
     }
     if(Port_CoopEnabled()) Battle_GetSetup()->rule.screenMode=0;

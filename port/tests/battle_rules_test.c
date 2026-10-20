@@ -5,12 +5,14 @@
 #include "battle/btl_char_member.h"
 #include "port_pc_battle.h"
 static BattleWork work;
-static BtlMemberChr fighters[3];
+static BtlMemberChr fighters[11];
+static int fighterCount=3,attacker=1;
 static int fighting=1,net;
 int BtlSeq_IsFighting(void){return fighting;}
-int BtlChar_GetCount(void){return 3;}
+int BtlChar_GetCount(void){return fighterCount;}
+int BtlOpp_GetObjId(BtlMemberChr *c){(void)c;return attacker;}
 BtlMemberChr *BtlChar_Get(int i){return &fighters[i];}
-BtlMemberChr *BtlChar_FindByObjId(int id){int i;for(i=0;i<3;i++)if(fighters[i].objId==id)return fighters+i;return NULL;}
+BtlMemberChr *BtlChar_FindByObjId(int id){int i;for(i=0;i<fighterCount;i++)if(fighters[i].objId==id)return fighters+i;return NULL;}
 BtlMemberGauge *BtlMember_GetActiveGauge(BtlMemberChr *c){return &c->members[c->active].gauge;}
 BattleWork *Battle_GetWork(void){return &work;}
 int Port_NetActive(void){return net;}
@@ -60,6 +62,17 @@ int main(void){
     Port_BattleRulesSet(NULL);assert(Port_BattleRulesDamage(fighters,1000)==1000 && !Port_BattleRulesArmor(1));
     b.rules.damagePct=400;b.rules.bossDamagePct=400;Port_BattleRulesSet(&b);
     assert(Port_BattleRulesDamage(fighters,1000000)==24000000);
+    memset(&b,0,sizeof(b));b.mode=PC_RAID;b.count[0]=6;b.count[1]=5;b.rules.bossHp=150000;
+    b.rules.bossDamagePct=200;b.rules.enragePct=50;
+    for(i=0;i<4;i++) {b.bossRules[i].bossHp=100000+i*10000;b.bossRules[i].bossDamagePct=125+i*25;b.bossRules[i].enragePct=50;}
+    fighterCount=11;Port_BattleRulesSet(&b);
+    for(i=0;i<11;i++) {fighters[i].objId=i;Port_BattleRulesGauge(fighters+i,BtlMember_GetActiveGauge(fighters+i),1);}
+    assert(fighters[1].members[0].gauge.healthMax==150000);
+    for(i=7;i<11;i++) assert(fighters[i].members[0].gauge.healthMax==100000+(i-7)*10000);
+    attacker=10;assert(Port_BattleRulesDamage(fighters,1000)==2000);
+    fighters[10].members[0].gauge.health=65000;
+    assert(Port_BattleRulesDamage(fighters,1000)==3000);
+    attacker=7;assert(Port_BattleRulesDamage(fighters,1000)==1250);
     net=1;Port_BattleRulesSet(&b);assert(Port_BattleRulesDamage(fighters,1000)==1000);
     puts("battle_rules_test: damage, ki, regeneration, pause, KO, boss identity, fury, transformations and reset pass");
 }

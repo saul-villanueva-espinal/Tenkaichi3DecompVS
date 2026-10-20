@@ -376,8 +376,7 @@ int Port_ExtraAdd(int side, int index, int chara, int costume, int level) {
     if (sFightRoster == PORT_MODE_FFA) {
         team = 2 + sFightCount;
     } else if (sFightRoster == PORT_MODE_RAID) {
-        /* Only side 2's lead is the boss. Every extra selection joins the cooperative team. */
-        team = 0;
+        team = side != 0;
     } else {
         team = side != 0;
     }
@@ -401,7 +400,8 @@ void Port_ExtraDone(void) {
         for (pass = 0; pass < 2; pass++) {
             for (k = 0; k < sFightCount; k++) {
                 int m = sFight[k].member;
-                if (sFight[k].pad < 0 && (sFightRoster == PORT_MODE_RAID || pass == 1 || m == (pad - 2) * 8 + 1)) {
+                if (sFight[k].pad < 0 && (sFightRoster != PORT_MODE_RAID || sFight[k].team==0) &&
+                    (sFightRoster == PORT_MODE_RAID || pass == 1 || m == (pad - 2) * 8 + 1)) {
                     sFight[k].pad = pad;
                     break;
                 }

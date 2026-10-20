@@ -829,7 +829,8 @@ extern f32 Mathf_Cos(f32 angle);
 #define PORT_START_BACK 0.10f /* ... and a step back */
 #define PORT_START_SIDE_MIN 28.0f /* the step to the side is at least this (2.8 m) */
 #define PORT_START_APART 22.0f    /* no two fighters start nearer to each other than this */
-static f32 sPortStart[10][2];     /* where the extra fighters of this start were placed: x, z by roster index */
+#include "port_fighters.h"
+static f32 sPortStart[PORT_FIGHTER_MAX][2];     /* where the extra fighters of this start were placed: x, z by roster index */
 
 static s32 Port_StartGround(Vec4 *pos, f32 leaderY, StgGroundHit *hit) {
     s32 zone;
@@ -934,7 +935,7 @@ static s32 Port_StartPlace(s32 side, Vec4 *pos, Vec4 *rot) {
     rot->w = 1.0f;
     rot->z = 0.0f;
     rot->x = 0.0f;
-    if ((u32)side < 10) {
+    if ((u32)side < PORT_FIGHTER_MAX) {
         sPortStart[side][0] = pos->x;
         sPortStart[side][1] = pos->z;
     }

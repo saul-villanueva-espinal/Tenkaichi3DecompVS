@@ -23,9 +23,9 @@ typedef int socklen_t;
 #include "../../include/port_tournament.h"
 #include <pthread.h>
 #include <setjmp.h>
-enum { CMAGIC = 0x42543343, CVERSION = 5, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
+enum { CMAGIC = 0x42543343, CVERSION = 6, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
        CRING = 4096, CPAD = 18, CREDUNDANT = 16, CDELAY = 3, CHEAD = 48 };
-_Static_assert(sizeof(PcBattle) == 228, "Update the co-op protocol when PcBattle changes");
+_Static_assert(sizeof(PcBattle) == 420, "Update the co-op protocol when PcBattle changes");
 static int sSock = -1, sHost, sMe, sPlayers, sReady;
 static uint32_t sNonce, sTick, sStartTick, sSampled;
 static PcBattle sBattle;
@@ -274,7 +274,7 @@ int Port_CoopConfig(PcBattle *out) {
 }
 static uint64_t digest(void) {
     uint64_t h=Port_NetDigest();int i,j;
-    for(i=0;i<(sTournament?2:sPlayers+1);i++) {
+    for(i=0;i<(sTournament?2:sBattle.count[0]+sBattle.count[1]);i++) {
         float pos[4] __attribute__((aligned(16)));unsigned char data[16];int hp=BtlCharApi_GetHp(i);
         BtlCharApi_GetPos(i,pos);memcpy(data,&hp,4);memcpy(data+4,pos,12);
         for(j=0;j<16;j++) {h^=data[j];h*=1099511628211ull;}

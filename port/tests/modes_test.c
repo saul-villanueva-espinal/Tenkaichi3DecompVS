@@ -39,8 +39,8 @@ extern int Port_ModesLeave(void);
 
 static void raid_players(int n) {
     int k;
-    assert(Port_ModesChoosePlayers(PORT_MODE_RAID - 1, n) == 40);
-    assert(Port_LocalPlayers() == n);
+    assert(Port_ModesChoosePlayers(PORT_MODE_RAID - 1, n) == 80);
+    assert(Port_LocalPlayers() == n);mode=PORT_MODE_RAID;
     assert(Port_ExtraSetup(0, 4, 1, n > 1, 0, 0) == PORT_MODE_RAID);
     for (k = 0; k < 3; k++) assert(Port_ExtraAdd(0, k + 1, k, 7, 13));
     Port_ExtraDone();
@@ -69,6 +69,14 @@ int main(void) {
     int n;
     char why[160];
     raid_online(4);raid_online(5);raid_online(6);
+    coop=1;mode=PORT_MODE_RAID;Port_LocalPlayersSet(6);
+    assert(Port_ExtraSetup(0,5,5,0,0,0)==PORT_MODE_RAID);
+    for(n=1;n<5;n++) assert(Port_ExtraAdd(0,n,n,0,13));
+    assert(Port_ExtraRaidAdd(91,1,13));
+    for(n=1;n<5;n++) assert(Port_ExtraAdd(1,n,130+n,0,29));
+    Port_ExtraDone();assert(Port_FightExtras()==9);
+    for(n=0;n<9;n++) {assert(Port_FightTeam(n)==(n>=5));assert(Port_FightPad(n)==(n<5?n+1:-1));}
+    coop=0;Port_LocalPlayersSet(2);
     /* A saved training experiment must never add fighters to ordinary Duel. */
     mode = PORT_MODE_NONE;
     extras = 1;
@@ -89,7 +97,7 @@ int main(void) {
     assert(Port_ExtraSetup(0, 1, 1, 0, 0, 0) == PORT_MODE_RAID); /* solo lead versus boss */
     assert(Port_ExtraSetup(0, 2, 2, 1, 0, 0) == PORT_MODE_RAID);
     assert(Port_ExtraAdd(1, 1, PORT_CHARA_FIRST + PORT_CHARA_MAX - 1, 7, 13));
-    assert(Port_FightTeam(0) == 0); /* side 2 reserves join the cooperative team */
+    assert(Port_FightTeam(0) == 1); /* opposing reserves remain CPU bosses */
     assert(last_file == PORT_CHARA_FILE_INDEX +
            (PORT_CHARA_FIRST + PORT_CHARA_MAX - 1) * PORT_FILES_PER_CHARA + 7 + 24);
     for (n = 0; n < PORT_CHARA_MAX; n++) {
@@ -132,7 +140,7 @@ int main(void) {
     assert(!Port_ExtraSetup(6, 1, 1, 0, 0, 0));
     assert(Port_FightExtras() == 0);
     session = 0;
-    assert(Port_ModesLeave() == 40);
+    assert(Port_ModesLeave() == 80);
     assert(Port_ModesFight() == PORT_MODE_NONE);
     puts("modes_test: all roster, controller, costume, package and isolation checks passed");
     return 0;

@@ -33,6 +33,10 @@ int main(int argc,char **argv) {
         puts("coop_launch_test: inherited and CRT environments agree");return 0;
     }
     assert(Port_CoopConfig(&b));
+    if(getenv("FIXTURE_BOSSES")) {
+        int k;assert(b.count[1]==5);
+        for(k=0;k<4;k++) assert(b.bossRules[k].bossHp==100000+k*10000 && b.bossRules[k].bossDamagePct==125+k*25);
+    }
     assert(b.rules.bossHp==162500 && b.rules.bossDamagePct==200 && b.rules.enragePct==50);
     assert(b.rules.regenPerSec==150 && b.rules.damagePct==125 && b.rules.armorSides==2);
     assert(b.rules.cpuLevel1==30 && b.rules.bgm1==14 && b.rules.infiniteKiChara1==134);

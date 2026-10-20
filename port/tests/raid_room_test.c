@@ -37,9 +37,9 @@ int main(void) {
     (void)placeholder;team.stage=(void *)&stage;
     Rd_Init();assert(R->count==6 && Rd_Boss()->chara==133);
     assert(Rd_Check() && R->battle.players==6 && R->battle.count[0]==6);
-    R->cursor=2;Rd_Input(0,PADG_LEFT);assert(R->count==5 && Rd_Check());
+    R->cursor=4;Rd_Input(0,PADG_LEFT);assert(R->count==5 && Rd_Check());
     R->count=6;R->connection=0;assert(Rd_Check() && R->battle.players==1);
-    R->cursor=7;Rd_Input(PADG_CROSS,PADG_CROSS);assert(R->page==RD_ALLY);
+    R->cursor=7;Rd_Input(PADG_SQUARE,PADG_SQUARE);assert(R->page==RD_ALLY);
     Rd_Input(0,PADG_UP);assert(R->ally==5);
     R->connection=1;R->ally=0;Rd_Input(0,PADG_DOWN);assert(R->ally==0);
     Rd_Input(PADG_CROSS,0);assert(R->page==RD_LOBBY);
