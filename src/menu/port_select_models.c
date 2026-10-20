@@ -100,8 +100,10 @@ void Port_SelectModelsDraw(void) {
     SelectModel *m;
     ChrViewInfo *info;
     f32 target,dist,height,bodyHeight,floor;
+    s32 maxViews;
     if (!sSelectModelsOn) return;
-    for (i = 0; i < 2; i++) {
+    maxViews = sSelectRaidLayout ? 1 : 2;
+    for (i = 0; i < maxViews; i++) {
         SelectModel_Load(i);
         m = &sSelectModel[i];
         if (m->object >= 0) {
@@ -112,11 +114,12 @@ void Port_SelectModelsDraw(void) {
     }
     gBtlStage->flags &= ~1;
     BtlObj_UpdateAll();
-    for (i = 0; i < 2; i++) {
+    for (i = 0; i < maxViews; i++) {
         m = &sSelectModel[i];
         for (j = 0; j < 2; j++)
-            if (sSelectModel[j].object >= 0) BtlObj_Get(sSelectModel[j].object)->active = i == j && m->loaded == m->wanted && m->loadedCostume == m->costume;
-        if (m->object < 0 || m->loaded != m->wanted || (sSelectRaidLayout && i)) continue;
+            if (sSelectModel[j].object >= 0)
+                BtlObj_Get(sSelectModel[j].object)->active = (sSelectRaidLayout ? (j == 0) : (i == j)) && sSelectModel[j].loaded == sSelectModel[j].wanted && sSelectModel[j].loadedCostume == sSelectModel[j].costume;
+        if (m->object < 0 || m->loaded != m->wanted) continue;
         info = ChrView_GetCharaInfo(m->loaded);
         if (sSelectRaidLayout == 2) {
             View_InitLayout(&gOrbitCam->view, VIEW_LAYOUT_FULL);
@@ -163,12 +166,15 @@ void Port_SelectModelsDraw(void) {
         View_Apply(&m->view, 1);
         BtlObj_UpdateVisibility(i);
     }
-    for (i = 0; i < 2; i++)
+    for (i = 0; i < maxViews; i++)
         if (sSelectModel[i].object >= 0) {
             m = &sSelectModel[i];
             BtlObj_Get(m->object)->active = m->loaded == m->wanted && m->loadedCostume == m->costume;
         }
     BtlObj_FinishVisibility(sSelectRaidLayout ? 0 : 1);
+    if (sSelectRaidLayout && sSelectModel[0].object >= 0) {
+        View_Apply(&sSelectModel[0].view, 1);
+    }
     Gfx_MarkPass(2);
     BtlObjDraw_Draw();
     Gfx_MarkPass(0);
