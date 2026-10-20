@@ -3,6 +3,7 @@
 #include <string.h>
 #include "port_pc_battle.h"
 int Port_CharaCount(void) {return 8;}
+const char *Port_CharaMenuName(int c) {return c==95?"Black Freezer":"";}
 const char *Port_FighterName(int c) {(void)c;return "Cell Junior";}
 int Port_ExtraCostumeOk(int c,int t,char *why,int n) {(void)c;(void)why;(void)n;return t<2;}
 int Port_NetActive(void) {return 0;}
@@ -10,6 +11,7 @@ int Port_NetSession(void) {return 0;}
 int Port_ModesFight(void) {return 0;}
 int ChrTbl_GetCost(int c) {(void)c;return 2;}
 extern void Port_RosterName(char *,int,int);
+extern void Port_RaidRosterName(char *,int,int);
 int main(int argc,char **argv) {
     PcBattle b,got;int s,i;char name[80];
     assert(argc==2);Port_PcBattleDefault(&b);b.mode=PC_RELAY;b.count[0]=b.count[1]=10;
@@ -24,5 +26,7 @@ int main(int argc,char **argv) {
         assert(Port_RosterFavorite(79,0));
     }
     Port_RosterName(name,sizeof(name),109);assert(!strcmp(name,"Cell Junior"));
+    Port_RaidRosterName(name,sizeof(name),95);assert(!strcmp(name,"Black Freezer"));
+    Port_RaidRosterName(name,sizeof(name),109);assert(!strcmp(name,"Cell Junior"));
     puts("native_roster_test: complete rosters and 169 favorites survive process restart");return 0;
 }

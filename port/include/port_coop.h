@@ -12,6 +12,8 @@ int Port_CoopLobbyStatus(int *known, int *total);
 int Port_CoopLobbyCopy(PcBattle *out); /* game thread during the lobby pump */
 void Port_CoopBeginTick(unsigned tick);
 void Port_CoopPauseSimulation(int paused); /* local scene teardown is outside the shared timeline */
+void Port_CoopBeginLoad(void);
+void Port_CoopBattleReady(void); /* shared tick zero follows every participant's completed battle load */
 void Port_CoopInput(int player, unsigned char *data);
 int Port_CoopLaunch(int host, const char *address, int port, const PcBattle *b);
 #ifdef __cplusplus

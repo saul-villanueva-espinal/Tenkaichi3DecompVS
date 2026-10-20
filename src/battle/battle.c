@@ -550,7 +550,13 @@ void Battle_Loop(void) {
 /* Runs one whole battle scene; called by Game_Main after the menu overlay returns. */
 s32 Battle_Main(void) {
     Battle_GetWork()->running = 1;
+#ifdef PORT
+    {extern void Port_CoopBeginLoad(void);Port_CoopBeginLoad();}
+#endif
     Battle_Init();
+#ifdef PORT
+    {extern void Port_CoopBattleReady(void);Port_CoopBattleReady();}
+#endif
     Battle_Loop();
     Battle_Term();
     Battle_GetWork()->running = 0;

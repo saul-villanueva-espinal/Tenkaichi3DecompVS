@@ -262,7 +262,9 @@ int Port_PcBattleBuild(void) {
     if (Port_CoopEnabled()) {
         {extern void PortRaid_WaitEnd(void);s32 ready=Port_CoopConfig(&b);PortRaid_WaitEnd();if(!ready) return 0;}
         { extern void Port_Srand(unsigned); extern void Rand_Seed(unsigned);
-          Port_Srand(Port_CoopSeed()); Rand_Seed(Port_CoopSeed()); }
+          extern unsigned gPortVu0R;
+          Port_Srand(Port_CoopSeed()); Rand_Seed(Port_CoopSeed());
+          gPortVu0R=0x3f800000u | (Port_CoopSeed() & 0x7fffffu); }
     } else if (!Port_PcBattleTake(&b)) return 0;
     Battle_ClearWork();
     {extern s32 Port_TourneyTestBots(void);if(Port_TourneyTestBots()) {sNativeRules=1;sNativeCpuCpu=1;}}

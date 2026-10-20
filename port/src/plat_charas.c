@@ -1047,6 +1047,13 @@ const char *Port_CharaName(int index) {
     return index >= 0 && index < live() ? sChara[index].name : "";
 }
 
+/* The installed package's menu label, including replacements of disc IDs. */
+const char *Port_CharaMenuName(int chara) {
+    const Chara *c;
+    PortCharas_Init();c=chara_of(chara);
+    return c && (chara>=PORT_CHARA_FIRST || c->nameSet) ? c->shown : "";
+}
+
 static int alias(const char *rel, char *out, unsigned n);
 
 /* (BT3_CHARA_LOG: every file answered from or for a package, once each: the folder's own or the disc's it falls

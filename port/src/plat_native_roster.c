@@ -6,6 +6,13 @@ static unsigned sPointer;
 extern const char *Port_FighterName(int);
 /* Host strings can live above 4 GB. Copy into the game's supplied buffer. */
 void Port_RosterName(char *out,int size,int chara) {if(size>0)snprintf(out,(size_t)size,"%s",Port_FighterName(chara));}
+void Port_RaidRosterName(char *out,int size,int chara) {
+    extern const char *Port_CharaMenuName(int);
+    const char *name=Port_CharaMenuName(chara);char *form;
+    if(size<=0) return;
+    snprintf(out,(size_t)size,"%s",name[0]?name:Port_FighterName(chara));
+    if((form=strchr(out,','))!=NULL) *form=0; /* compact card name; costume remains explicit in its editor */
+}
 extern void Port_SettingText(const char *,const char *,char *,int);
 extern void Port_SettingTextSave(const char *,const char *);
 extern void Port_SettingsWrite(void);

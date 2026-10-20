@@ -23,10 +23,12 @@ typedef int socklen_t;
 #include "../../include/port_tournament.h"
 #include <pthread.h>
 #include <setjmp.h>
-enum { CMAGIC = 0x42543343, CVERSION = 6, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR,
+enum { CMAGIC = 0x42543343, CVERSION = 7, C_HELLO = 1, C_CONFIG, C_ACK, C_START, C_INPUT, C_ERROR, C_LOADED, C_GO,
        CRING = 4096, CPAD = 18, CREDUNDANT = 16, CDELAY = 3, CHEAD = 48 };
 _Static_assert(sizeof(PcBattle) == 420, "Update the co-op protocol when PcBattle changes");
 static int sSock = -1, sHost, sMe, sPlayers, sReady, sSimulationPaused;
+static int sBattleArmed;
+static unsigned sLoadRound;
 static uint32_t sNonce, sTick, sStartTick, sSampled;
 static PcBattle sBattle;
 static PcFighter sMyHero;
@@ -84,6 +86,7 @@ static void header(unsigned char *p,int type,int who) {
 static void control(int type,int who) {
     unsigned char p[CHEAD+sizeof(PcBattle)+sizeof(PortTourney)];
     header(p,type,who);
+    if(type==C_LOADED || type==C_GO) put32(p+44,sLoadRound);
     if (type == C_CONFIG) {
         int known=1,j;for(j=1;j<sPlayers;j++) known+=sKnown[j];put32(p+40,known);
         const int *v = (const int *)&sBattle;
@@ -269,12 +272,39 @@ int Port_CoopConfig(PcBattle *out) {
     }
     memset(sTag,255,sizeof(sTag));memset(sHashTick,255,sizeof(sHashTick));
     for(i=0;i<sPlayers;i++) { int t;for(t=0;t<CDELAY;t++) {memcpy(sInput[i][t],kIdle,CPAD);sTag[i][t]=(uint32_t)t;} }
-    sStartTick=UINT32_MAX;sSampled=UINT32_MAX;sReady=1;
+    sStartTick=UINT32_MAX;sSampled=UINT32_MAX;sReady=1;sBattleArmed=sTournament;
     if(sTournament) {sActive[0]=0;sActive[1]=1;sBattle.fighter[0][0]=sTourney.fighters[0];sBattle.fighter[1][0]=sTourney.fighters[1];}
     *out=sBattle;
     __atomic_store_n(&sLobbyPhase,0,__ATOMIC_RELEASE);
     fprintf(stderr,"bt3: coop: conectado jugador %d/%d, entradas sincronizadas sin prediccion\n",sMe+1,sPlayers);
     sJumpActive=0;return 1;
+}
+void Port_CoopBeginLoad(void) {
+    if(!sReady || sTournament) return;
+    sBattleArmed=0;sLoadRound++;
+}
+void Port_CoopBattleReady(void) {
+    uint64_t begun,last=0;int loaded[PORT_COOP_MAX]={1},i,all;
+    if(!sReady || sTournament) return;
+    begun=millis();
+    for(;;) {
+        unsigned char p[1400];struct sockaddr_in from;int len=packet(p,&from),type,who=-1;
+        if(millis()-begun>120000) fail("Un jugador no termino de cargar el combate");
+        if(!sHost && millis()-last>=50) {control(C_LOADED,0);last=millis();}
+        if(!len) {pause_ms();continue;}
+        if(get32(p+12)!=sNonce || get64(p+24)!=sFingerprint || get32(p+44)!=sLoadRound) continue;
+        type=(int)get32(p+8);
+        if(sHost) {
+            for(i=1;i<sPlayers;i++) if(sKnown[i]&&same(&from,&sPeer[i])) who=i;
+            if(who<0 || type!=C_LOADED) continue;
+            loaded[who]=1;all=1;for(i=1;i<sPlayers;i++) all&=loaded[i];
+            if(all) {for(i=1;i<sPlayers;i++) control(C_GO,i);break;}
+        } else if(same(&from,&sPeer[0]) && type==C_GO) break;
+    }
+    memset(sTag,255,sizeof(sTag));memset(sHashTick,255,sizeof(sHashTick));
+    for(i=0;i<sPlayers;i++) {int t;for(t=0;t<CDELAY;t++) {memcpy(sInput[i][t],kIdle,CPAD);sTag[i][t]=(uint32_t)t;}}
+    sTick=0;sStartTick=UINT32_MAX;sSampled=UINT32_MAX;sBattleArmed=1;
+    fprintf(stderr,"bt3: coop: todos cargados, comienza el combate sincronizado\n");
 }
 static uint64_t digest(void) {
     uint64_t h=Port_NetDigest();int i,j;
@@ -307,6 +337,7 @@ static void receive_inputs(void) {
         else if(same(&from,&sPeer[0])) who=0;
         if(who<0) continue;
         if(sHost&&type==C_ACK) {control(C_START,who);continue;}
+        if(sHost&&type==C_LOADED && get32(p+44)==sLoadRound) {control(C_GO,who);continue;}
         if(type==C_ERROR) fail("La sala termino o perdio sincronizacion");
         if(type!=C_INPUT||source<0||source>=sPlayers||(sHost&&source!=who)||(!sHost&&source==sMe)||n>CREDUNDANT||len!=CHEAD+(int)n*22) continue;
         for(k=0;k<n;k++) {
@@ -325,7 +356,7 @@ static void receive_inputs(void) {
 void Port_CoopPauseSimulation(int paused) {sSimulationPaused=paused!=0;}
 void Port_CoopBeginTick(unsigned tick) {
     uint64_t begun,last=0;int i,j,all;
-    if(!sReady || sFailed || sSimulationPaused) return;
+    if(!sReady || sFailed || sSimulationPaused || !sBattleArmed) return;
     if(setjmp(sFailureJump)) {sJumpActive=0;return;}
     sJumpActive=1;
     if(sStartTick==UINT32_MAX) sStartTick=tick;

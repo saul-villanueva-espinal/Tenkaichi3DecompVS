@@ -81,12 +81,12 @@ static void Rd_Init(void) {
 
 /* Original metallic/blue hierarchy, rebuilt to the approved simultaneous layout. */
 #include "menu/tbo_art.h"
-extern void Port_RosterName(char *,s32,s32);
+extern void Port_RaidRosterName(char *,s32,s32);
 extern void Sprite_DrawList(void *,s32,s32,LoadSprite *);
 static char sRaidName[128];
 static s32 sRaidRoomOn;
 s32 Port_RaidRoomActive(void) {return sRaidRoomOn;}
-static char *Rd_Name(s32 chara) {Port_RosterName(sRaidName,sizeof(sRaidName),chara);return sRaidName;}
+static char *Rd_Name(s32 chara) {Port_RaidRosterName(sRaidName,sizeof(sRaidName),chara);return sRaidName;}
 static char *Rd_StageName(s32 stage) {
     static char name[32];
     if(!stage) return "Montanas";
@@ -94,7 +94,7 @@ static char *Rd_StageName(s32 stage) {
 }
 static void Rd_Text(f32 x,f32 y,char *text,f32 scale,f32 width,s32 gold) {
     Ps_Align(0);Ps_TextExOuter(x,y,text,scale,width,Ps_Rgba(255,255,gold?105:255,128),
-        gold?Ps_Rgba(255,200,15,128):Ps_Rgba(198,216,240,128),Ps_Rgba(0,0,0,128),Ps_Rgba(0,0,0,128),1.1f);
+        gold?Ps_Rgba(255,200,15,128):Ps_Rgba(198,216,240,128),Ps_Rgba(0,0,0,128),Ps_Rgba(0,0,0,128),scale*.35f);
 }
 static void Rd_Frame(f32 x,f32 y,f32 w,f32 h,s32 gold) {
     u32 edge=gold?Ps_Rgba(255,239,93,128):Ps_Rgba(174,206,239,128),dark=Ps_Rgba(3,8,20,128);
@@ -166,7 +166,7 @@ static void Rd_Draw(void) {
     if(R->page==RD_ALLY) {Port_RaidModelsSet(0,shown->chara,shown->costume);focus=0;}
     else if(R->page==RD_CUSTOM || R->page==RD_BOSS_PICK) focus=R->boss;
     Port_RaidModelsDraw(R->battle.count[1],focus);Ps_PageFull();
-    Rd_Text(13,1,R->page==RD_CUSTOM?"PERSONALIZAR JEFE":"JEFE FINAL - SALA ONLINE",2.15f,475,0);
+    Rd_Text(13,1,R->page==RD_CUSTOM?"PERSONALIZAR JEFE":"JEFE FINAL - SALA ONLINE",2.15f,275,0);
     Rd_Text(16,44,R->page==RD_CUSTOM?"PERFIL INDEPENDIENTE POR PERSONAJE Y TRAJE":"03 - ASALTO SIMULTANEO",.68f,285,0);
     if(R->page==RD_LOBBY || R->page==RD_ORDER) {
         Rd_BossSlots();Rd_Button(9,164,91,23,"Elegir jefes",R->cursor==0);

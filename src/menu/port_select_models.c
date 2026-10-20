@@ -224,7 +224,7 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
     static const f32 feet[5]={342,334,336,341,348};
     static const f32 pixels[5]={272,228,212,206,155};
     s32 i,j,k,n;SelectModel *m;BtlObj *obj;BtlObjPart *root,*head;
-    f32 height,width,depth,floor,body,target,dist,cx,fy,ph;Vec4 size;
+    f32 height,width,depth,floor,body,target,dist,cx,fy,ph,maxWidth;Vec4 size;
     if(!sRaidPreviewOn) return;
     if(count<1) count=1;if(count>PORT_RAID_BOSSES) count=PORT_RAID_BOSSES;
     for(i=0;i<PORT_RAID_BOSSES;i++) {
@@ -243,9 +243,11 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         if(root && head) {floor=root->mtx.m[3][1];body=(floor-head->mtx.m[3][1])*1.35f;if(body>height && body<height*1.6f) height=body;}
         if(height<.01f || height>1000.0f) height=3.0f;
         cx=focus>=0 || count==1?399:centers[i];fy=focus>=0?354:feet[i];ph=focus>=0 || count==1?285:pixels[i];
-        dist=height*505.1667f/ph;
-        if(width>0 && width*433.0f/155.0f>dist) dist=width*433.0f/155.0f;
-        if(depth>0 && depth*433.0f/155.0f>dist) dist=depth*433.0f/155.0f;
+        dist=height*385.0f/ph;
+        maxWidth=(510.0f-cx)*2.0f;if((cx-294.0f)*2.0f<maxWidth) maxWidth=(cx-294.0f)*2.0f;
+        if(maxWidth>155.0f) maxWidth=155.0f;
+        if(width>0 && width*433.0f/maxWidth>dist) dist=width*433.0f/maxWidth;
+        if(depth>0 && depth*433.0f/maxWidth>dist) dist=depth*433.0f/maxWidth;
         target=floor-height*.5f;
         View_InitLayout(&gOrbitCam->view,VIEW_LAYOUT_FULL);size=gOrbitCam->view.screenSize;
         View_SetProjection(&gOrbitCam->view,&size,433.0f,1.0f,gOrbitCam->view.aspect,
