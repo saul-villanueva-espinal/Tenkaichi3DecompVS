@@ -331,7 +331,7 @@ static void Rd_Draw(void) {
     Ps_PageFull();
 
     if (R->page == RD_LOBBY) {
-        Rd_Header("JEFE FINAL - SALA ONLINE", "PROPUESTA • SIN IMPLEMENTAR");
+        Rd_Header("JEFE FINAL - SALA ONLINE", "PROPUESTA - SIN IMPLEMENTAR");
         /* Top Carousel */
         Rd_Arrow(14, 47, -1, 1);
         Rd_Arrow(498, 47, 1, 1);
@@ -366,28 +366,28 @@ static void Rd_Draw(void) {
         }
         /* Footer */
         Ps_Rect(0, 412, 512, 448, Ps_Rgba(7, 18, 37, 118), Ps_Rgba(3, 7, 17, 128));
-        Rd_Button(14, 416, 116, 24, "🔧 Comprobar mods", R->cursor == 8, 0.40f);
-        Rd_Text(148, 421, "(X) Listo    (Δ) Personalizar    (O) Volver", 0.40f, 230, 0);
+        Rd_Button(14, 416, 116, 24, "Comprobar mods", R->cursor == 8, 0.40f);
+        Rd_Text(148, 421, "(X) Listo    (Triangulo) Personalizar    (O) Volver", 0.40f, 230, 0);
         Rd_Button(398, 414, 102, 28, "INICIAR", 1, 0.65f);
         if (R->message[0]) Rd_Text(14, 439, R->message, 0.33f, 484, 1);
     } else if (R->page == RD_CUSTOM) {
         s32 forms[3], nf;
-        Rd_Header("PERSONALIZAR JEFE", "PROPUESTA • SIN IMPLEMENTAR");
+        Rd_Header("PERSONALIZAR JEFE", "PROPUESTA - SIN IMPLEMENTAR");
         Rd_Tab(24, 28, 76, 20, "Asalto", 1);
         Rd_Tab(106, 28, 86, 20, "Parejas Tag", 0);
-        Rd_Tab(198, 28, 74, 20, "Desafío", 0);
+        Rd_Tab(198, 28, 74, 20, "Desafio", 0);
         /* Left Options Card */
         Rd_Card(16, 52, 196, 264, 0);
         Rd_Row(20, 56, 188, 30, "Personaje:", Rd_Name(f->chara), R->cursor == 0);
         sprintf(buf, "%d / 8", f->costume + 1);
         Rd_Row(20, 88, 188, 30, "Traje:", buf, R->cursor == 1);
-        sprintf(buf, rules->bossHp >= 150000 ? "Muy alta" : rules->bossHp >= 100000 ? "Alta" : "Normal");
+        Ps_Copy(buf, rules->bossHp >= 150000 ? "Muy alta" : rules->bossHp >= 100000 ? "Alta" : "Normal", sizeof(buf));
         Rd_Row(20, 120, 188, 30, "Vida:", buf, R->cursor == 2);
-        sprintf(buf, rules->bossDamagePct >= 200 ? "Extremo" : rules->bossDamagePct >= 150 ? "Alto" : "Normal");
-        Rd_Row(20, 152, 188, 30, "Daño:", buf, R->cursor == 3);
-        sprintf(buf, rules->cpuLevel1 >= 25 ? "Agresivo" : rules->cpuLevel1 >= 18 ? "Equilibrado" : "Normal");
+        Ps_Copy(buf, rules->bossDamagePct >= 200 ? "Extremo" : rules->bossDamagePct >= 150 ? "Alto" : "Normal", sizeof(buf));
+        Rd_Row(20, 152, 188, 30, "Dano:", buf, R->cursor == 3);
+        Ps_Copy(buf, rules->cpuLevel1 >= 25 ? "Agresivo" : rules->cpuLevel1 >= 18 ? "Equilibrado" : "Normal", sizeof(buf));
         Rd_Row(20, 184, 188, 30, "Comportamiento:", buf, R->cursor == 4);
-        sprintf(buf, rules->enragePct ? "3" : "1");
+        Ps_Copy(buf, rules->enragePct ? "3" : "1", sizeof(buf));
         Rd_Row(20, 216, 188, 30, "Fases:", buf, R->cursor == 5);
         Rd_Row(20, 248, 188, 30, "Reanimaciones:", "Compartidas", R->cursor == 6);
         Rd_Row(20, 280, 188, 30, "Victoria:", "Derrotar al jefe", R->cursor == 7);
@@ -406,7 +406,7 @@ static void Rd_Draw(void) {
         Rd_Arrow(448, 86, 1, 1);
         Rd_ChipSlot(456, 72, 38, 30, 0);
         Port_TeamChip(forms[2], 458, 73, 34, 28, 128);
-        Rd_Text(452, 104, "PODER MÁXIMO", 0.28f, 48, 0);
+        Rd_Text(452, 104, "PODER MAXIMO", 0.28f, 48, 0);
         /* Repeated characters option card */
         Rd_Card(338, 148, 164, 26, 0);
         Rd_Text(344, 153, "Personajes repetidos:", 0.36f, 96, 0);
@@ -418,7 +418,7 @@ static void Rd_Draw(void) {
         Rd_Text(390, 421, "(X) Confirmar  (O) Volver  (L1/R1) Traje", 0.35f, 120, 0);
     } else if (R->page == RD_ALLY) {
         sprintf(buf, "ELEGIR ALIADO J%d", R->ally + 1);
-        Rd_Header(buf, "PROPUESTA • SIN IMPLEMENTAR");
+        Rd_Header(buf, "PROPUESTA - SIN IMPLEMENTAR");
         Rd_Arrow(14, 47, -1, 1);
         Rd_Arrow(498, 47, 1, 1);
         for (i = 0; i < 8; i++) {
@@ -449,7 +449,7 @@ static void Rd_Draw(void) {
         Ps_Rect(0, 412, 512, 448, Ps_Rgba(7, 18, 37, 118), Ps_Rgba(3, 7, 17, 128));
         Rd_Text(148, 421, "(X) Confirmar    (O) Volver", 0.44f, 230, 0);
     } else {
-        Rd_Header("CONFIGURACIÓN DE RED UDP", "PROPUESTA • SIN IMPLEMENTAR");
+        Rd_Header("CONFIGURACION DE RED UDP", "PROPUESTA - SIN IMPLEMENTAR");
         Rd_Card(14, 74, 240, 160, 0);
         for (i = 0; i < 5; i++) {
             sprintf(buf, "%d", R->ip[i]);
