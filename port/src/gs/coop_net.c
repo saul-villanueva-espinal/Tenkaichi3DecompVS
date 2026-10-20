@@ -364,6 +364,16 @@ void Port_CoopBeginTick(unsigned tick) {
     if(sSampled!=sTick) {
         unsigned at=sTick+CDELAY;unsigned char p[CPAD];memcpy(p,kIdle,CPAD);
         if(!sTournament || sMe==sActive[0] || sMe==sActive[1]) Port_PadRead(0,p);
+        /* Opt-in full-engine regression: distinct real network inputs, with
+           movement, attacks and target cycling. Never enabled in normal play. */
+        if(!sTournament && getenv("BT3_COOP_TEST_INPUT") && sTick>240) {
+            unsigned held=0,phase=sTick+(unsigned)sMe*17;
+            if(phase%16<4) held|=0x8000; /* square */
+            if(phase%120>=40 && phase%120<44) held|=0x1000; /* triangle */
+            if(phase%180<2) held|=2; /* L3 target cycle */
+            memcpy(p,kIdle,CPAD);p[0]=(unsigned char)~held;p[1]=(unsigned char)(~held>>8);
+            p[4]=(unsigned char)(phase%240<120?64:192);p[5]=64;
+        }
         memcpy(sInput[sMe][at%CRING],p,CPAD);sTag[sMe][at%CRING]=at;sSampled=sTick;
         if(sTick%60==0) {sHashTick[sTick%CRING]=sTick;sHashes[sTick%CRING]=digest();}
     }

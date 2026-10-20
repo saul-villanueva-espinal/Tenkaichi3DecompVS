@@ -646,6 +646,12 @@ s32 BtlSeq_Reset(void) {
         break;
     }
     gBtlSeq->state = BtlSeq_FirstState(gBtlSeq->table);
+#ifdef PORT
+    /* Voice and camera intros finish on local audio/render timing. A raid
+       starts with the shared READY countdown on every computer. */
+    {extern s32 Port_CoopEnabled(void),Port_ModesFight(void);
+     if(Port_CoopEnabled() && Port_ModesFight()==3) gBtlSeq->state=BTL_SEQ_READY;}
+#endif
     Voice_Stop(0);
     Voice_Stop(1);
     return BtlSeq_Call(gBtlSeq->table[gBtlSeq->state].enter, gBtlSeq->state);
