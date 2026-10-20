@@ -93,8 +93,9 @@ static char *Rd_StageName(s32 stage) {
     sprintf(name,"Escenario %02d",stage+1);return name;
 }
 static void Rd_Text(f32 x,f32 y,char *text,f32 scale,f32 width,s32 gold) {
+    Ps_SetTextKind(scale>=.75f?3:0);
     Ps_Align(0);Ps_TextExOuter(x,y,text,scale,width,Ps_Rgba(255,255,gold?105:255,128),
-        gold?Ps_Rgba(255,200,15,128):Ps_Rgba(198,216,240,128),Ps_Rgba(0,0,0,128),Ps_Rgba(0,0,0,128),scale*.35f);
+        gold?Ps_Rgba(255,200,15,128):Ps_Rgba(198,216,240,128),Ps_Rgba(0,0,0,128),Ps_Rgba(0,0,0,128),scale*.35f);Ps_SetTextKind(0);
 }
 static void Rd_Frame(f32 x,f32 y,f32 w,f32 h,s32 gold) {
     u32 edge=gold?Ps_Rgba(255,239,93,128):Ps_Rgba(174,206,239,128),dark=Ps_Rgba(3,8,20,128);
@@ -107,7 +108,7 @@ static void Rd_Button(f32 x,f32 y,f32 w,f32 h,char *label,s32 selected) {
     Rd_Frame(x,y,w,h,selected);
     if(selected) Ps_Quad(x+7,y+4,x+w-4,y+4,x+4,y+h-4,x+w-7,y+h-4,
         Ps_Rgba(255,244,104,128),Ps_Rgba(255,200,15,128),Ps_Rgba(150,92,0,128),Ps_Rgba(255,212,24,128));
-    Rd_Text(x+9,y+4,label,.65f,w-18,0);
+    Rd_Text(x+9,y+3,label,.76f,w-18,0);
 }
 static void Rd_Row(s32 index,char *label,char *value) {
     f32 y=191+index*21;Rd_Frame(10,y,137,21,index<4 && R->cursor==index+3);
@@ -142,10 +143,12 @@ static void Rd_BossSlots(void) {
             Ps_Rect(x+3,144,x+49,156,Ps_Rgba(138,12,20,128),Ps_Rgba(45,3,10,128));
             Rd_Text(x+8,144,"ACTIVO",.43f,38,1);
         } else Rd_Text(x+16,108,"+",1.0f,30,0);
-        sprintf(buf,"B%d",i+1);Rd_Text(x+5,82,buf,.49f,30,1);
+        Ps_Rect(x+3,82,x+17,94,Ps_Rgba(225,24,37,128),Ps_Rgba(110,0,12,128));
+        sprintf(buf,"B%d",i+1);Rd_Text(x+5,82,buf,.49f,30,0);
     }
 }
 static void Rd_Allies(void) {
+    static const u32 colors[6]={0x802828dc,0x80dc7030,0x8037d4f5,0x8060c445,0x80d95dad,0x80909090};
     s32 i;char buf[48];Rd_Frame(9,308,288,91,R->cursor==7);
     if(R->waiting) {sprintf(buf,"EQUIPO ONLINE - %d / %d",R->known,R->count);Rd_Text(16,305,buf,.88f,275,0);}
     else Rd_Text(16,305,R->connection==0?"EQUIPO DE PRACTICA":"EQUIPO ONLINE",.88f,275,0);
@@ -153,6 +156,7 @@ static void Rd_Allies(void) {
         f32 x=13+i*47.0f;PcFighter *f=&R->battle.fighter[0][i];
         Rd_Frame(x,324,47,71,R->page==RD_ALLY && R->ally==i);
         if(i<R->count && (!R->waiting || i<R->known)) {Port_TeamChip(f->chara,x+3,329,40,44,128);Rd_Text(x+4,373,Rd_Name(f->chara),.32f,38,0);}
+        Ps_Rect(x+3,325,x+17,337,colors[i],colors[i]);
         sprintf(buf,"J%d",i+1);Rd_Text(x+4,325,buf,.50f,30,0);
         Ps_Rect(x+3,383,x+41,393,Ps_Rgba(13,48,28,128),Ps_Rgba(3,19,10,128));
         Rd_Text(x+4,383,i>=R->count?"Cerrada":R->waiting?(i<R->known?"Listo":"Esperando"):R->connection==0?(i?"CPU":"Jugador"):i?"Esperando":"Mi eleccion",.33f,38,1);
@@ -223,7 +227,7 @@ static void Rd_Draw(void) {
     Ps_Button(0,186,431,12);Rd_Text(195,423,"Listo",.55f,39,0);
     Ps_Button(2,240,431,12);Rd_Text(250,423,"Personalizar",.52f,73,0);
     Ps_Button(4,332,431,12);Rd_Text(342,423,"Volver",.52f,44,0);
-    Rd_Button(402,417,100,28,R->waiting?"ESPERANDO":"INICIAR",!R->waiting && R->cursor==9 && !R->page);
+    Rd_Button(402,417,100,28,R->waiting?"ESPERANDO":"INICIAR",!R->waiting);
     if(R->message[0]) Rd_Text(12,445,R->message,.32f,488,1);
 }
 

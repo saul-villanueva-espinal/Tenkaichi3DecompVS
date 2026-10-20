@@ -2257,13 +2257,13 @@ int MenuText_MapGlyph(int tbp, int cbp, int width, int height,
    headings and buttons with the Menu font, its talk box with the Dialogue / UI font, and with a setting on
    "Original" with the first font of fonts.tsv for that use (any font of the list if none is for it). Each of the
    two kinds keeps its own copy of its font, opened when first needed and again when the setting changes. */
-static Face sLineFace[2];
-static int sLineChoice[2];       /* the font in sLineFace (0: none) */
+static Face sLineFace[3];
+static int sLineChoice[3];       /* the font in sLineFace (0: none) */
 static uint32_t sLineGeneration; /* changes when one of the two changes */
 
 static int line_choice(int kind) {
-    int choice = kind == 0 ? sFontChoice : sSharedChoice, i;
-    int role = kind == 0 ? FONT_MENU : FONT_DIALOGUE;
+    int choice = kind == 2 ? 0 : kind == 0 ? sFontChoice : sSharedChoice, i;
+    int role = kind == 2 ? FONT_BATTLE : kind == 0 ? FONT_MENU : FONT_DIALOGUE;
     menu_text_fonts();
     if (kind == 0 && choice == 0 && sBootAwaitLanguage && sWantedId != 0) choice = font_by_id(sWantedId);
     if (choice > 0 && choice <= sFontCount && sFonts[choice - 1].uses[role]) { return choice; }
@@ -2338,7 +2338,7 @@ static int line_layout(int kind, const char *text, int cap, int pad, uint8_t **o
     if (count == 0 || x > 4096.0f) { return 0; }
     stbtt_GetFontVMetrics(&f->info, &ascent, &descent, &gap);
     top = (int)ceilf((float)ascent * scale);
-    width = (int)ceilf(x) + 2 * pad;
+    width = (int)ceilf(x) + 2 * pad + (kind==2?cap/5:0);
     height = top + (int)ceilf((float)-descent * scale) + 2 * pad;
     if (height < cap + 2 * pad) { height = cap + 2 * pad; }
     *w = width; *h = height; *base = pad + top;
@@ -2354,7 +2354,7 @@ static int line_layout(int kind, const char *text, int cap, int pad, uint8_t **o
                 int y = *base + oy + gy;
                 if (y < 0 || y >= height) { continue; }
                 for (gx = 0; gx < gw; gx++) {
-                    int xx = pad + (int)floorf(pen[i]) + ox + gx;
+                    int xx = pad + (int)floorf(pen[i]) + ox + gx + (kind==2?(cap/5)*(height-1-y)/height:0);
                     uint8_t v = g[(size_t)gy * gw + gx];
                     if (xx >= 0 && xx < width && v > px[(size_t)y * width + xx]) { px[(size_t)y * width + xx] = v; }
                 }
@@ -2362,7 +2362,7 @@ static int line_layout(int kind, const char *text, int cap, int pad, uint8_t **o
             free(g);
         }
     }
-    return (int)ceilf(x);
+    return (int)ceilf(x) + (kind==2?cap/5:0);
 }
 
 uint32_t MenuText_LineGeneration(void) {
@@ -2370,6 +2370,7 @@ uint32_t MenuText_LineGeneration(void) {
     pthread_mutex_lock(&sLock);
     line_face(0);
     line_face(1);
+    line_face(2);
     r = sLineGeneration;
     pthread_mutex_unlock(&sLock);
     return r;
@@ -2377,7 +2378,7 @@ uint32_t MenuText_LineGeneration(void) {
 
 int MenuText_LineMeasure(int kind, const char *text, int cap, int pad, int *w, int *h, int *base) {
     int r;
-    if (kind < 0 || kind > 1) { return 0; }
+    if (kind < 0 || kind > 2) { return 0; }
     pthread_mutex_lock(&sLock);
     r = line_layout(kind, text, cap, pad, NULL, w, h, base);
     pthread_mutex_unlock(&sLock);
@@ -2386,7 +2387,7 @@ int MenuText_LineMeasure(int kind, const char *text, int cap, int pad, int *w, i
 
 uint8_t *MenuText_LineRender(int kind, const char *text, int cap, int pad, int *w, int *h, int *base) {
     uint8_t *px = NULL;
-    if (kind < 0 || kind > 1) { return NULL; }
+    if (kind < 0 || kind > 2) { return NULL; }
     pthread_mutex_lock(&sLock);
     if (line_layout(kind, text, cap, pad, &px, w, h, base) == 0) {
         free(px);

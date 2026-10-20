@@ -39,8 +39,8 @@ static pthread_mutex_t sLock = PTHREAD_MUTEX_INITIALIZER;
 
 /* The size the letters are drawn at, by kind (capitals, in pixels: the screens show them smaller, from smaller
    copies), and the outline's thickness: as the letter sheet had it, about a 16th of the capitals. */
-static int line_cap(int kind) { return kind == 0 ? 80 : 48; }
-static int line_outline(int kind) { return kind == 0 ? 5 : 3; }
+static int line_cap(int kind) { return kind == 0 || kind == 3 ? 80 : 48; }
+static int line_outline(int kind) { return kind == 0 || kind == 3 ? 5 : 3; }
 
 static int line_measure(TboLine *l, uint32_t generation) {
     l->generation = generation;
@@ -56,7 +56,7 @@ static int line_measure(TboLine *l, uint32_t generation) {
     l->cap = line_cap(l->kind);
     l->outline = line_outline(l->kind);
     l->pad = l->outline + 2;
-    l->advance = MenuText_LineMeasure(l->kind, l->text, l->cap, l->pad, &l->w, &l->h, &l->base);
+    l->advance = MenuText_LineMeasure(l->kind==3?2:l->kind, l->text, l->cap, l->pad, &l->w, &l->h, &l->base);
     return l->advance > 0;
 }
 
@@ -66,7 +66,7 @@ int PortTbo_TextId(const char *text, int kind) {
     uint64_t now = SDL_GetTicks();
     int i, spare = -1, id = -1;
 
-    if (text == NULL || text[0] == '\0' || kind < 0 || kind > 2) {
+    if (text == NULL || text[0] == '\0' || kind < 0 || kind > 3) {
         return -1;
     }
     pthread_mutex_lock(&sLock);
@@ -164,7 +164,7 @@ uint32_t *TboText_Pixels(uint32_t id, uint32_t *version, uint32_t *w, uint32_t *
         *h = (uint32_t)lh;
         return px;
     }
-    cov = MenuText_LineRender(l.kind, l.text, l.cap, l.pad, &lw, &lh, &lb);
+    cov = MenuText_LineRender(l.kind==3?2:l.kind, l.text, l.cap, l.pad, &lw, &lh, &lb);
     if (cov == NULL) {
         return NULL;
     }

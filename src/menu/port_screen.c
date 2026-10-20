@@ -397,6 +397,11 @@ void Ps_Line(s32 id, f32 x, f32 base, f32 cap, f32 fit, u32 top, u32 bottom, u32
     }
 }
 
+/* Raid headings use an independent condensed, slanted face. Reset after drawing
+   so the classic roster and other screens keep their selected fonts. */
+static s32 sPsTextKind;
+void Ps_SetTextKind(s32 kind) {sPsTextKind=kind==3?3:0;}
+
 /* A line of letters with independent horizontal and vertical size, and an optional outer border. */
 void Ps_TextExOuterXY(f32 x, f32 y, char *str, f32 scaleX, f32 scaleY, f32 width,
                       u32 top, u32 bottom, u32 line, u32 outer, f32 outerWidth) {
@@ -408,7 +413,7 @@ void Ps_TextExOuterXY(f32 x, f32 y, char *str, f32 scaleX, f32 scaleY, f32 width
     s32 alpha = (s32)((top >> 24) & 0xFF);
     s32 id;
 
-    if (str[0] == 0 || (id = PortTbo_TextId(str, 0)) < 0) {
+    if (str[0] == 0 || (id = PortTbo_TextId(str, sPsTextKind)) < 0) {
         return;
     }
     w = (f32)PortTbo_TextInfo(id, 0) / 1000.0f * PS_CELL_UNITS * scaleX * PS_CAP_OF_CELL * PS_UNIT_X;

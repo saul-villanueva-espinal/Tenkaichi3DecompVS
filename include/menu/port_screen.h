@@ -43,6 +43,7 @@ s32 Ps_Side(void);
 s32 Ps_Wrap(s32 v, s32 lo, s32 hi);
 void Ps_PageSet(void);
 void Ps_PageFull(void); /* original game full 512x448 layout */
+void Ps_SetTextKind(s32 kind); /* 0 menu font, 3 raid display headings */
 void Ps_SetShift(f32 x); /* what is drawn on the page is moved this far right (a page coming in) */
 f32 Ps_X(f32 x);
 f32 Ps_Left(void);
