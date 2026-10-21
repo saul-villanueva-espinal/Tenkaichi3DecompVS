@@ -135,6 +135,8 @@ extern void BtlScript_Update(void);
 #ifdef PORT
 /* Frustum-dependent effect drawing and HUD animation are presentation. Keep all
    three native random streams unchanged by a personal online raid view. */
+#include "port/vu0_a.h"
+static RefVu0State sRaidDrawRegisters;
 static u32 sRaidDrawTwister[624],sRaidDrawVu;
 static s32 sRaidDrawIndex,sRaidDrawRng;
 static u64 sRaidDrawLibc;
@@ -146,11 +148,13 @@ static void Raid_DrawRng(s32 restore) {
     if(!restore) {
         sRaidDrawRng=Port_CoopEnabled() && Port_ModesFight()==3;
         if(!sRaidDrawRng) return;
+        memcpy(&sRaidDrawRegisters,&gRefVu0,sizeof(sRaidDrawRegisters));
         memcpy(sRaidDrawTwister,gRandState,sizeof(sRaidDrawTwister));
         sRaidDrawIndex=gRandIndex;sRaidDrawVu=gPortVu0R;sRaidDrawLibc=gPortRandNext;
     } else if(sRaidDrawRng) {
         memcpy(gRandState,sRaidDrawTwister,sizeof(sRaidDrawTwister));
         gRandIndex=sRaidDrawIndex;gPortVu0R=sRaidDrawVu;gPortRandNext=sRaidDrawLibc;
+        memcpy(&gRefVu0,&sRaidDrawRegisters,sizeof(sRaidDrawRegisters));
     }
 }
 #endif
@@ -571,17 +575,19 @@ void Battle_Loop(void) {
 #endif
 #ifdef PORT
         Raid_DrawRng(0);
+        {extern void Port_RaidViewBegin(void);Port_RaidViewBegin();}
 #endif
         if (Battle_IsSplitScreen() && draw) {
             Battle_DrawSplit();
         } else {
             Battle_Draw();
         }
-#ifdef PORT
-        Raid_DrawRng(1);
-#endif
         Gfx_EndFrame(2);
         Dma_Flush();
+#ifdef PORT
+        {extern void Port_RaidViewEnd(void);Port_RaidViewEnd();}
+        Raid_DrawRng(1);
+#endif
     } while (!done);
 #ifdef PORT
     Port_BattleOverlayUpdate(0);

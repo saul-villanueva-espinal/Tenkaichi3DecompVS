@@ -222,9 +222,13 @@ static void RaidPreview_Load(s32 slot) {
 /* Each object is drawn through its own persistent full-screen camera. The
    renderer receives real model geometry; none of the five previews is a PNG. */
 void Port_RaidModelsDraw(s32 count,s32 focus) {
-    static const f32 centers[5]={392,331,437,479,466};
-    static const f32 feet[5]={342,334,336,341,348};
-    static const f32 pixels[5]={272,228,212,206,155};
+    /* Two rear places and two front flanks leave the selected leader clear.
+       Independent floor anchors keep small/giant imports on the platform. */
+    static const f32 centers[5]={400,326,461,478,354};
+    static const f32 feet[5]={350,350,285,350,260};
+    static const f32 pixels[5]={240,155,170,150,100};
+    static const s32 order[5]={4,2,1,3,0};
+    static f32 orbit;
     s32 i,j,k,n;SelectModel *m;BtlObj *obj;BtlObjPart *root,*head;
     f32 height,width,depth,floor,body,target,dist,cx,fy,ph,maxWidth;Vec4 size;
     if(!sRaidPreviewOn) return;
@@ -235,9 +239,10 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         if(m->object>=0) {obj=BtlObj_Get(m->object);obj->active=m->wanted>=0 && m->loaded==m->wanted && m->loadedCostume==m->costume;obj->state.views[0].flags=obj->state.views[1].flags=0;}
     }
     gBtlStage->flags&=~1;BtlObj_UpdateAll();
+    orbit+=.005f;if(orbit>6.2831853f) orbit-=6.2831853f;
     n=focus>=0?1:count;
     for(k=0;k<n;k++) {
-        i=focus>=0?focus:(k+1)%count;m=&sRaidPreview[i].model;
+        i=focus>=0?focus:(count==5?order[k]:(k+1)%count);m=&sRaidPreview[i].model;
         for(j=0;j<PORT_RAID_BOSSES;j++) if(sRaidPreview[j].model.object>=0) BtlObj_Get(sRaidPreview[j].model.object)->active=j==i;
         if(m->object<0 || m->loaded!=m->wanted || m->loadedCostume!=m->costume) continue;
         obj=BtlObj_Get(m->object);height=obj->state.box.max[1]-obj->state.box.min[1];
@@ -246,18 +251,23 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         if(root && head) {floor=root->mtx.m[3][1];body=(floor-head->mtx.m[3][1])*1.35f;if(body>height && body<height*1.6f) height=body;}
         if(height<.01f || height>1000.0f) height=3.0f;
         cx=focus>=0 || count==1?399:centers[i];fy=focus>=0?354:feet[i];ph=focus>=0 || count==1?285:pixels[i];
-        dist=height*385.0f/ph;
+        dist=height*433.0f/ph;
         maxWidth=(510.0f-cx)*2.0f;if((cx-294.0f)*2.0f<maxWidth) maxWidth=(cx-294.0f)*2.0f;
-        if(maxWidth>155.0f) maxWidth=155.0f;
+        if(maxWidth>(focus>=0?155.0f:i==0?112.0f:64.0f)) maxWidth=focus>=0?155.0f:i==0?112.0f:64.0f;
+        /* Tail/wing collision extents are unsuitable for humanoid framing. */
+        if(width>height*.45f) width=height*.45f;
+        if(depth>height*.35f) depth=height*.35f;
         if(width>0 && width*433.0f/maxWidth>dist) dist=width*433.0f/maxWidth;
         if(depth>0 && depth*433.0f/maxWidth>dist) dist=depth*433.0f/maxWidth;
+        ph=height*433.0f/dist;
         target=floor-height*.5f;
         View_InitLayout(&gOrbitCam->view,VIEW_LAYOUT_FULL);size=gOrbitCam->view.screenSize;
         View_SetProjection(&gOrbitCam->view,&size,433.0f,1.0f,gOrbitCam->view.aspect,
                            1792.0f+cx,1824.0f+fy-ph*.5f,1.0f,10877000.0f,.3f,65536.0f,1.0f);
         gOrbitCam->view.scissorX0=292;gOrbitCam->view.scissorX1=511;gOrbitCam->view.scissorY0=40;gOrbitCam->view.scissorY1=359;
         OrbitCam_SetTarget(0,target,0);OrbitCam_SetDist(dist);OrbitCam_SetDistRange(.1f,1000.0f);
-        m->angle+=.003f;if(m->angle>3.14159265f) m->angle-=6.2831853f;
+        if(focus>=0) {m->angle+=.003f;if(m->angle>3.14159265f) m->angle-=6.2831853f;}
+        else m->angle=3.14159265f+sinf(orbit)*.18f;
         OrbitCam_SetAngles(0,m->angle,0);OrbitCam_Update(0);m->view=gOrbitCam->view;
         /* Each preview has its own camera and world scale. Depth left by the
            other cameras is meaningless here and can hide entire later models.

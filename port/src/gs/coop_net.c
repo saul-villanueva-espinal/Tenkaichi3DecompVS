@@ -113,7 +113,10 @@ int Port_CoopEnabled(void) {
     return getenv("BT3_COOP_HOST") != NULL || getenv("BT3_COOP_JOIN") != NULL;
 }
 int Port_CoopMe(void) { return sMe; }
-unsigned Port_CoopSeed(void) { return sNonce ^ (sTournament?(unsigned)(sTourney.current+1)*0x9e3779b9u:0); }
+unsigned Port_CoopSeed(void) {
+    const char *test=getenv("BT3_COOP_TEST_SEED");
+    return (!sTournament && test)?(unsigned)strtoul(test,NULL,0):sNonce ^ (sTournament?(unsigned)(sTourney.current+1)*0x9e3779b9u:0);
+}
 int Port_CoopLobbyStatus(int *known, int *total) {
     *known = __atomic_load_n(&sLobbyKnown, __ATOMIC_ACQUIRE);
     *total = __atomic_load_n(&sLobbyTotal, __ATOMIC_ACQUIRE);

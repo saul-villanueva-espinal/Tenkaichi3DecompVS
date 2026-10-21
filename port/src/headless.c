@@ -372,7 +372,14 @@ void Port_Trace(unsigned vblanks) {
 
     if(Port_CoopEnabled() && !Port_TourneyEnabled()) {
         extern int Port_CoopFailed(void);
-        if(Port_CoopFailed() && !gPortMenuMode) {extern void BattleResult_Set(int,int);BattleResult_Set(8,8);}
+        static int abortRequested;
+        if(!Port_CoopFailed()) abortRequested=0;
+        if(Port_CoopFailed() && !gPortMenuMode && !abortRequested) {
+            extern void BattleResult_Set(int,int);
+            /* Request the ordinary teardown once. Loader frames during that
+               teardown must not restart scene tasks after their cameras die. */
+            abortRequested=1;BattleResult_Set(8,8);
+        }
     }
     /* Tournament results are automatic: nobody waiting as a spectator can
        choose a rematch or accidentally change the other participants' menu. */

@@ -7,6 +7,7 @@
 #include "sys/pad.h"
 #ifdef PORT
 #include "port_fighters.h"
+#include "battle/btl_obj.h"
 #endif
 
 /* Battle camera, 0x23E040-0x23F620. See battle/btl_cam.h for the structures and the per-frame flow. */
@@ -474,6 +475,7 @@ void Port_QuadViews(s32 pass) {
 /* The object of the fighter whose camera each of the two views shows now (the views' own fighters, drawn last
    by btl_obj.c, BtlObj_BuildDrawList); -1: not set yet. */
 static s32 sPortViewObj[2] = { -1, -1 };
+static s32 sRaidDrawing;
 s32 Port_ViewOwnObj(s32 view) {
     return (u32)view < 2 && sPortViewObj[view] >= 0 ? sPortViewObj[view] : view;
 }
@@ -549,7 +551,7 @@ void BtlCam_UpdateView(s32 side) {
 #endif
 #ifdef PORT
     {extern s32 Port_CoopEnabled(void),Port_CoopMe(void),Port_Spectated(s32),Port_FighterObjId(s32);
-     if(Port_CoopEnabled() && Port_ModesFight()==PORT_MODE_RAID) {
+     if(sRaidDrawing && Port_CoopEnabled() && Port_ModesFight()==PORT_MODE_RAID) {
          s32 me=Port_CoopMe(),fighter=me>0?me+1:0;
          objId=Port_FighterObjId(Port_Spectated(fighter));sPortViewObj[side]=objId;
      }}
@@ -558,6 +560,49 @@ void BtlCam_UpdateView(s32 side) {
     view->priority = BtlCharApi_HasCamPriority(objId);
     BtlCam_BuildView(view, 1);
 }
+
+#ifdef PORT
+/* The simulation always updates the same two canonical cameras. Only drawing
+   uses this client's view: visibility also controls model/animation updates,
+   so leaving a personal view in that state changes giant movement on peers. */
+static BtlCamView sRaidSharedView;
+static BtlCamView *sRaidSharedCur;
+static View *sRaidSharedWorld;
+static s32 sRaidSharedObjects[2];
+static BtlObjState sRaidSharedStates[BTL_OBJ_MAX];
+static BtlObj *sRaidSharedModels[BTL_OBJ_MAX];
+static BtlObjVis sRaidSharedVisibility;
+void Port_RaidViewBegin(void) {
+    s32 i;
+    extern s32 Port_CoopEnabled(void),Port_ModesFight(void);
+    extern void BtlObj_UpdateVisibility(s32),BtlObj_FinishVisibility(s32);
+    if(!Port_CoopEnabled() || Port_ModesFight()!=PORT_MODE_RAID) return;
+    sRaidSharedView=gBtlCam->views[0];sRaidSharedCur=gBtlCam->cur;sRaidSharedWorld=gBtlCamView;
+    sRaidSharedObjects[0]=sPortViewObj[0];sRaidSharedObjects[1]=sPortViewObj[1];
+    sRaidSharedVisibility=*BtlObjVis_Get();
+    for(i=0;i<BTL_OBJ_MAX;i++) {
+        sRaidSharedModels[i]=BtlObj_Get(i);
+        if(sRaidSharedModels[i]) sRaidSharedStates[i]=sRaidSharedModels[i]->state;
+    }
+    sRaidDrawing=1;BtlCam_SelectView(0);BtlCam_UpdateView(0);BtlCam_ApplyView(1);
+    BtlObj_UpdateVisibility(0);BtlObj_FinishVisibility(0);
+}
+void Port_RaidViewEnd(void) {
+    s32 i;
+    extern void Port_GsDrain(void),BtlObj_UpdateVisibility(s32),BtlObj_FinishVisibility(s32);
+    if(!sRaidDrawing) return;
+    Port_GsDrain();
+    gBtlCam->views[0]=sRaidSharedView;gBtlCam->cur=sRaidSharedCur;gBtlCamView=sRaidSharedWorld;
+    sPortViewObj[0]=sRaidSharedObjects[0];sPortViewObj[1]=sRaidSharedObjects[1];sRaidDrawing=0;
+    /* FinishVisibility accumulates flags with |=. Rebuilding it on a personal
+       camera leaves client-specific flags behind; restore the canonical
+       records and lists exactly instead. */
+    for(i=0;i<BTL_OBJ_MAX;i++) if(sRaidSharedModels[i] && BtlObj_Get(i)==sRaidSharedModels[i])
+        sRaidSharedModels[i]->state=sRaidSharedStates[i];
+    *BtlObjVis_Get()=sRaidSharedVisibility;
+    View_Apply(gBtlCamView,0);
+}
+#endif
 
 /* Segment test from `to` towards `from` against the stage collision: where a camera may stand. */
 s32 BtlCam_TraceStage(Vec4 *out, Vec4 *from, Vec4 *to, f32 *frac, s32 *hitObj) {

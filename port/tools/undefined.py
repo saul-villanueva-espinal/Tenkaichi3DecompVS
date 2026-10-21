@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Compile the game sources to 32-bit host objects and list what a link would still need, by kind.
 Usage: port/tools/undefined.py [-v]   (objects go to port/build/obj)"""
-import collections, concurrent.futures, os, pathlib, re, shutil, subprocess, sys
+import collections, concurrent.futures, hashlib, os, pathlib, re, shutil, subprocess, sys
 import portsrc
 import eeconst
 import buildkey
@@ -42,10 +42,36 @@ def variant(cmd):
         extra += ["-mno-ms-bitfields", "-D__CRT__NO_INLINE"]  # (no inline maths of the headers: they use long double) + ([f"-I{sdl3() / 'include'}"] if sdl3() else [])
     return ["clang"] + CLANG_TARGET + cmd[1:] + ["-mno-x87", "-Wno-error=return-mismatch"] + extra
 
-def run(cmd, **kw):
+_cache_headers = None
+def cached_compile(cmd, src, obj, action):
+    global _cache_headers
+    if not os.environ.get("BT3_BUILD_CACHE"):
+        return action()
+    if _cache_headers is None:
+        h=hashlib.sha256(os.environ.get("BT3_CACHE_TAG","").encode())
+        for directory in ("include","port/include","port/src","port/tools"):
+            for f in sorted((ROOT/directory).rglob("*")):
+                if f.is_file() and f.suffix in (".h",".py"):
+                    h.update(f.relative_to(ROOT).as_posix().encode());h.update(f.read_bytes())
+        _cache_headers=h.digest()
+    h=hashlib.sha256(_cache_headers+repr(cmd).encode()+pathlib.Path(src).read_bytes()).hexdigest()
+    marker=pathlib.Path(str(obj)+".cache")
+    if pathlib.Path(obj).is_file() and marker.is_file() and marker.read_text()==h:
+        return subprocess.CompletedProcess(cmd,0,"","")
+    result=action()
+    if result.returncode==0:marker.write_text(h)
+    return result
+
+def run_uncached(cmd, **kw):
     if MAC and "-msoft-float" in cmd:  # software float on arm64 is a code-generator option: through IR and llc
         return mac_soft(variant(cmd), **kw)
     return subprocess.run(variant(cmd), **kw)
+
+def run(cmd, **kw):
+    if "-c" in cmd and "-o" in cmd:
+        src=next((a for a in cmd if str(a).endswith((".c",".cpp"))),None)
+        if src:return cached_compile(cmd,ROOT/src if not pathlib.Path(src).is_absolute() else src,cmd[cmd.index("-o")+1],lambda:run_uncached(cmd,**kw))
+    return run_uncached(cmd,**kw)
 
 def mac_soft(cmd, **kw):
     """`clang ... src -o obj` for the macOS build's software-float code that is not the game's (the vector-library
@@ -79,6 +105,9 @@ CC = ["gcc", "-m32", "-std=gnu89", "-c", "-O2", "-g", "-fno-strict-aliasing", "-
 TEXT_END, GAME_END = 0x2BF6B0, 0x273CF0  # end of all code; end of game code (libraries follow)
 
 def compile_ee(cmd, src, o):
+    return cached_compile(cmd,src,o,lambda:compile_ee_uncached(cmd,src,o))
+
+def compile_ee_uncached(cmd, src, o):
     """Compiles src with the PS2 compiler's float constants: preprocess, eeconst.transform, compile the result."""
     cmd = variant(cmd)
     pre = [a for a in cmd if a != "-c"] + ["-E", str(src)]
@@ -93,7 +122,7 @@ def compile_ee(cmd, src, o):
         try:
             text = ptr32.transform(str(i), ["-x", "cpp-output"] + (CLANG_TARGET or ["-m64"]) + [std, "-fms-extensions", "-w", "-Wno-error=return-mismatch"] +
                                    (["-mno-ms-bitfields"] if WIN else []) +
-                                   (["-Wno-error=return-type"] if MAC else []))  # (pip's libclang 18: the older name of return-mismatch)
+                                   ["-Wno-error=return-type"])  # pip's libclang also accepts the older warning name
         except RuntimeError as e:
             return subprocess.CompletedProcess(cmd, 1, "", f"ptr32: {e}\n")
         i.write_text(text, encoding="latin-1")
@@ -123,7 +152,7 @@ def compile_ee(cmd, src, o):
     return subprocess.run(cmd + ["-fpreprocessed", str(i), "-o", str(o)], cwd=ROOT, capture_output=True, text=True)
 
 def cc(f):
-    o = OBJ / (str(f.relative_to(ROOT / "src")).replace("/", "_")[:-2] + ".o")
+    o = OBJ / (f.relative_to(ROOT / "src").as_posix().replace("/", "_")[:-2] + ".o")
     src, done, missing = portsrc.prepare(f)
     r = compile_ee(CC + [f"-I{f.parent}"], src, o)
     if missing:
@@ -189,7 +218,12 @@ def main():
     nz_text = (ROOT / "port/src/gs/shaders/gs.frag").read_text().replace("\n", "\n#define NO_FRAG_DEPTH\n", 1)
     if not nz.exists() or nz.read_text() != nz_text:
         nz.write_text(nz_text)
-    shader_sources = sorted((ROOT / "port/src/gs/shaders").glob("*.*")) + [nz]
+    # gswb.frag: that, and the GS's 1x sampling of a work buffer (GS_BLOCK), for the glow chain's draws (key bit 25)
+    wb = gen / "gswb.frag"
+    wb_text = (ROOT / "port/src/gs/shaders/gs.frag").read_text().replace("\n", "\n#define NO_FRAG_DEPTH\n#define GS_BLOCK\n", 1)
+    if not wb.exists() or wb.read_text() != wb_text:
+        wb.write_text(wb_text)
+    shader_sources = sorted((ROOT / "port/src/gs/shaders").glob("*.*")) + [nz, wb]
     for src in shader_sources:  # gs.vert -> kGsVertSpv, outline.frag -> kOutlineFragSpv
         stage = src.suffix[1:]
         name = "k" + src.stem.capitalize() + stage.capitalize() + "Spv"

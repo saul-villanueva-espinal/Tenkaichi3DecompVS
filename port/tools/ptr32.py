@@ -14,9 +14,12 @@ is rewritten; text from the port's files and from system headers is left alone, 
 The parse is done with libclang on the unchanged text; the edits are applied by byte offset afterwards.
 All game memory has to lie below 4 GB for this to hold (see docs/port/README.md).
 """
-import bisect, ctypes, re, sys
+import bisect, ctypes, os, re, sys
 import clang.cindex as ci
 from clang.cindex import CursorKind as K, TokenKind, TypeKind
+
+if os.environ.get("BT3_LIBCLANG"):
+    ci.Config.set_library_file(os.environ["BT3_LIBCLANG"])
 
 _kind_from_id = K.from_id
 def _known_kind(kind_id):
