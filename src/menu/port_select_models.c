@@ -4,6 +4,7 @@
 #include "battle/btl_obj.h"
 #include "battle/stg_b.h"
 #include "sys/file.h"
+#include "sys/gfx.h"
 #include "port_select_models.h"
 #include "port_limits.h"
 
@@ -19,6 +20,7 @@ extern int Port_ModelSize(void);
 extern int Port_NetSession(void);
 extern int Port_Setting(const char *name, int def);
 extern void Dma_AddScissor(s32 x0, s32 x1, s32 y0, s32 y1);
+extern void Port_GsDrain(void);
 extern s32 ChrTbl_WrapCostume(s32 chara, s32 *costume);
 
 typedef struct SelectModel {
@@ -226,6 +228,7 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
     s32 i,j,k,n;SelectModel *m;BtlObj *obj;BtlObjPart *root,*head;
     f32 height,width,depth,floor,body,target,dist,cx,fy,ph,maxWidth;Vec4 size;
     if(!sRaidPreviewOn) return;
+    Port_GsDrain(); /* the previous frame may still reference these model buffers */
     if(count<1) count=1;if(count>PORT_RAID_BOSSES) count=PORT_RAID_BOSSES;
     for(i=0;i<PORT_RAID_BOSSES;i++) {
         RaidPreview_Load(i);m=&sRaidPreview[i].model;
@@ -256,6 +259,13 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         OrbitCam_SetTarget(0,target,0);OrbitCam_SetDist(dist);OrbitCam_SetDistRange(.1f,1000.0f);
         m->angle+=.003f;if(m->angle>3.14159265f) m->angle-=6.2831853f;
         OrbitCam_SetAngles(0,m->angle,0);OrbitCam_Update(0);m->view=gOrbitCam->view;
+        /* Each preview has its own camera and world scale. Depth left by the
+           other cameras is meaningless here and can hide entire later models.
+           Preserve all colour pixels and clear only the depth buffer. */
+        Dma_AddFrame(GFX_FRAME_FBP(),GFX_FBW,-1);
+        Dma_AddScissor(0,511,0,447);Dma_AddZbuf(GFX_ZBP,0);
+        Dma_AddFillRect(GFX_OFX>>4,GFX_OFY>>4,512,448,0);
+        Gfx_AddDefaultEnv();
         View_Apply(&m->view,1);BtlObj_UpdateVisibility(0);BtlObj_FinishVisibility(0);
         /* Independent menu previews must not run the full-screen battle
            post pass five times: its alpha copies overwrite the previous
@@ -267,6 +277,7 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
 }
 void Port_RaidModelsEnd(void) {
     s32 i;if(!sRaidPreviewOn) return;
+    Port_GsDrain(); /* finish pending texture/geometry reads before releasing them */
     for(i=0;i<PORT_RAID_BOSSES;i++) {
         RaidPreview *p=&sRaidPreview[i];if(p->model.object>=0) BtlObj_Destroy(p->model.object);
         if(p->resource.file[0].buf) Heap_Free(p->resource.file[0].buf);

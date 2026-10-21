@@ -1179,6 +1179,10 @@ static void render_wait(void) {
     pthread_mutex_unlock(&sLock);
 }
 
+/* Menu model owners must finish queued reads before reusing or freeing their
+   buffers. Headless and synchronous renderers have no outstanding job. */
+void Port_GsDrain(void) {if(sThreaded) render_wait();}
+
 static void render_post(int job, uint32_t tadr, int tte) {
     pthread_mutex_lock(&sLock);
     sJob = job;
