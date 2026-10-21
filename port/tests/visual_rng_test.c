@@ -1,6 +1,10 @@
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
+#ifdef _WIN32
+#define setenv(k,v,o) _putenv(k "=" v)
+#define unsetenv(k) _putenv(k "=")
+#endif
 extern unsigned long long gPortRandNext;
 extern void Port_Srand(unsigned);
 extern int Port_Rand(void),Port_VisualRand(void),Port_VisualRandIntRange(int,int);

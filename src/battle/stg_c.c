@@ -10,6 +10,8 @@
 #include "sys/math3d.h"
 #include "sys/ramp.h"
 #include "sys/randf.h"
+extern s32 Port_VisualRandIntRange(s32 a, s32 b);
+#define Rand_IntRange Port_VisualRandIntRange
 
 /*
  * Battle screen effects, 0x245F58..0x248F28. See include/battle/stg_c.h for the overview.

@@ -48,7 +48,7 @@ jobs:
       # there is no such secret (a fork) it is empty, and the programs are built without a key as well.
       - name: Build both archives
         env:
-          BT3_BUILD_KEY: ${{ secrets.BT3_BUILD_KEY || '09fc9f46495e3b7fbe2b1e03005d2cb7bdcfa46852e0501508b9f7a53df832bf' }}
+          BT3_BUILD_KEY: ${{ secrets.BT3_BUILD_KEY || 'd91a3569a3ee40ff751b71c9f4f76de1124ef3a96bbcb0ffc7ee05b870cc8821' }}
         run: |
           mkdir -p port/build
           docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -e BT3_BUILD_KEY -v "$PWD":/src -w /src \

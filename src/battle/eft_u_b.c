@@ -15,8 +15,8 @@
 #define M(p) ((Mtx44 *)(p))
 
 extern EftUPtclMgr *gEftPtcl;
-
-extern s32 rand(void);
+extern s32 Port_VisualRand(void);
+#define rand Port_VisualRand
 extern void *memset(void *dst, s32 c, u32 n);
 extern f32 EftMath_WrapAngle(f32 angle);
 extern void Vec4_Set(Vec4 *dst, f32 x, f32 y, f32 z, f32 w);

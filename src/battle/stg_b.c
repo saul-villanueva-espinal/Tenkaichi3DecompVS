@@ -26,6 +26,8 @@
 #include "sys/mathf.h"
 #include "battle/btl_scene.h"
 #include "sys/randf.h"
+extern s32 Port_VisualRandIntRange(s32 a, s32 b);
+#define Rand_IntRange Port_VisualRandIntRange
 #include "sys/snd.h"
 
 s32 BtlStage_IsReady(void);
