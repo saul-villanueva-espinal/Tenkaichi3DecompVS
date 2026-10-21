@@ -154,6 +154,8 @@ typedef struct Tex {
     int battleText; /* the source texture has Battle font artwork, even with Original selected */
     uint32_t ow, oh, rw, rh; /* then: the original's size and the replacement's */
     uint32_t amax;           /* and the largest alpha byte of the original */
+    int pack;                /* a texture pack's replacement still being read (gs_texpack.c), or -1 */
+    uint32_t packAlpha;      /* and the amax it will have */
 } Tex;
 static Tex sTex[MAX_TEX];
 static uint16_t sTexBucket[TEX_BUCKETS]; /* index + 1 of a cache entry, 0 = empty (open addressing) */
@@ -380,6 +382,55 @@ static GsTex tbo_texture(uint32_t id) {
     return tex;
 }
 
+/* A pack's levels into a new texture (the back end takes a copy of each). */
+static GsTex pack_texture(const TexPackImage *pack) {
+    GsTex tex = sBackend->texCreate(pack->w, pack->h, pack->format & 3, pack->levels);
+    int level;
+    for (level = 0; tex != 0 && level < pack->levels; level++) {
+        uint32_t lw = pack->w >> level ? pack->w >> level : 1, lh = pack->h >> level ? pack->h >> level : 1;
+        void *buf = malloc(pack->bytes[level]);
+        memcpy(buf, pack->data[level], pack->bytes[level]);
+        sBackend->texUpload(tex, level, lw, lh, pack->format & 3, buf, pack->bytes[level]);
+    }
+    return tex;
+}
+
+/* A texture made from the original while its replacement was still being read: once the file is in, it is made
+   again from that, at its first use in a frame. The one it replaces may still be in the lists of the frames before
+   (Smooth motion draws the last one again while the game makes the next): it is released a few frames later. */
+static void pack_arrived(Tex *c) {
+    static struct { GsTex tex; unsigned frame; } old[256];
+    static unsigned oldHead, oldTail;
+    TexPackImage pack;
+    GsTex tex;
+    int got;
+
+    while (oldTail != oldHead && old[oldTail & 255].frame + 4 <= gGsFrame) {
+        sBackend->texDestroy(old[oldTail++ & 255].tex);
+    }
+    got = TexPack_Get(c->pack, &pack);
+    if (got < 0 || !sTexPackOn) {
+        c->pack = -1;
+        return;
+    }
+    if (got == 0 || oldHead - oldTail == 256 || sBackend->texSlotsLeft() < pack.levels) {
+        return; /* (not yet: asked again at the next frame's first use) */
+    }
+    tex = pack_texture(&pack);
+    if (tex == 0) {
+        return;
+    }
+    old[oldHead & 255].tex = c->tex;
+    old[oldHead++ & 255].frame = gGsFrame;
+    c->tex = tex;
+    c->replaced = 1;
+    c->rw = pack.w;
+    c->rh = pack.h;
+    c->amax = c->packAlpha;
+    c->pack = -1;
+    gGpuTexReplaced++;
+}
+
 /* GS memory -> an RGBA texture for the current TEX0 (alpha as stored: 0x80 is opaque). The back end makes
    the texture and takes the decoded pixels (freed after it has uploaded them). */
 static GsTex texture_get(int ctx) {
@@ -391,7 +442,7 @@ static GsTex texture_get(int ctx) {
     uint64_t tex_t0;
     TexPackImage pack;
     uint32_t packMaxAlpha = 255, rw = tw, rh = th;
-    int packFormat = GS_TEXFMT_RGBA8, replaced = 0, menuText = 0, sharedText = 0, battleText = 0;
+    int replaced = 0, menuText = 0, sharedText = 0, battleText = 0, packWait = -1;
 
     if (tw > 1024) { tw = 1024; }
     if (th > 1024) { th = 1024; }
@@ -412,6 +463,9 @@ static GsTex texture_get(int ctx) {
         gen ^= 0x5BD1E995u; /* with the pack and without it are different textures: switching it takes effect at once */
     }
     if (sLast != NULL && sLast->tex0 == t0 && sLast->texa == texa && sLast->gen == gen) {
+        if (sLast->pack >= 0 && sLast->last != gGsFrame) {
+            pack_arrived(sLast);
+        }
         sLast->last = gGsFrame;
         return sLast->tex; /* the common case: the same texture as the previous primitive */
     }
@@ -420,6 +474,9 @@ static GsTex texture_get(int ctx) {
         while (sTexBucket[h] != 0) {
             Tex *c = &sTex[sTexBucket[h] - 1];
             if (c->tex0 == t0 && c->texa == texa && c->gen == gen) {
+                if (c->pack >= 0 && c->last != gGsFrame) {
+                    pack_arrived(c);
+                }
                 c->last = gGsFrame;
                 sLast = c;
                 return c->tex;
@@ -460,17 +517,15 @@ static GsTex texture_get(int ctx) {
     tex_t0 = gpu_now();
     /* a texture pack's replacement for this texture, if there is one (gs_texpack.c) */
     if (sTexPackOn && TexPack_Count() != 0) {
-        const char *path = TexPack_Lookup(tbp, tbw, psm, tw, th, (uint32_t)((t0 >> 34) & 1), cbp, cpsm, &packMaxAlpha);
-        if (path != NULL && TexPack_Load(path, &pack)) {
-            packFormat = pack.format & 3;
-            if (sBackend->texSlotsLeft() >= pack.levels) {
-                replaced = 1;
-                gGpuTexReplaced++;
-                rw = pack.w;
-                rh = pack.h;
-            } else {
-                TexPack_Free(&pack);
-            }
+        int id = TexPack_Lookup(tbp, tbw, psm, tw, th, (uint32_t)((t0 >> 34) & 1), cbp, cpsm, &packMaxAlpha);
+        int got = id >= 0 ? TexPack_Get(id, &pack) : -1;
+        if (got > 0 && sBackend->texSlotsLeft() >= pack.levels) {
+            replaced = 1;
+            gGpuTexReplaced++;
+            rw = pack.w;
+            rh = pack.h;
+        } else if (got == 0) {
+            packWait = id; /* still being read: the original until it is in (pack_arrived) */
         }
     }
     /* A texture pack still uses the game's source pixels to identify Battle text for widescreen geometry. */
@@ -523,24 +578,12 @@ static GsTex texture_get(int ctx) {
     }
     gGpuTexNs += gpu_now() - tex_t0;
     t = &sTex[gsTexCount];
-    t->tex = replaced ? sBackend->texCreate(rw, rh, packFormat, pack.levels) : sBackend->texCreate(rw, rh, GS_TEXFMT_RGBA8, 1);
+    t->tex = replaced ? pack_texture(&pack) : sBackend->texCreate(rw, rh, GS_TEXFMT_RGBA8, 1);
     if (t->tex == 0) {
         free(px);
-        if (replaced) {
-            TexPack_Free(&pack);
-        }
         return gsWhite;
     }
-    if (replaced) {
-        int level;
-        for (level = 0; level < pack.levels; level++) {
-            uint32_t lw = pack.w >> level ? pack.w >> level : 1, lh = pack.h >> level ? pack.h >> level : 1;
-            void *buf = malloc(pack.bytes[level]);
-            memcpy(buf, pack.data[level], pack.bytes[level]);
-            sBackend->texUpload(t->tex, level, lw, lh, packFormat, buf, pack.bytes[level]);
-        }
-        TexPack_Free(&pack);
-    } else {
+    if (!replaced) {
         if (getenv("BT3_TEX_DUMP") != NULL) { /* every texture as it is decoded, raw RGBA with a small header (looking at the game's art) */
             static unsigned n;
             char name[600];
@@ -576,6 +619,8 @@ static GsTex texture_get(int ctx) {
     t->rw = rw;
     t->rh = rh;
     t->amax = replaced ? packMaxAlpha : 255u;
+    t->pack = packWait;
+    t->packAlpha = packMaxAlpha;
     return t->tex;
 }
 
@@ -722,7 +767,10 @@ static int target_lowres(uint32_t fbp) {
    0x21, GsGpu_Native). The same pages hold other things between two glows, at the internal resolution as ever:
    the fighters' shadow picture (0x150, drawn by vertex program 0 and laid on the stage), the screen as the lens
    flare, the heat haze and the water wobble take it, the stage's blur. (All four pages at 1x for the whole frame
-   took those down to the PS2's resolution as well.) */
+   took those down to the PS2's resolution as well.) The blur of distant things (stg_b.c StgFog_Draw) has the same
+   markers: it is the picture copied at half size into 0x150 and stretched back over it, and with the copy at the
+   internal resolution nothing was blurred (at 6x a twelfth of the detail taken out of distant scenery, at 1x more
+   than half; reported 2026-10-21). */
 static int sInGlowChain;
 static int lowres_now(int t) {
     return sInGlowChain && t >= 0 && target_lowres(gsTargets[t].fbp);
@@ -947,8 +995,14 @@ static int draw_state(int ctx, int topo, int sprite, int vu, GsDraw *d, float *u
                the stage's blur and the passes like it between work buffers, as the PS2 samples them. On (the
                default), they are sampled at the internal resolution as before 0.1.38: crisper than the console,
                the look of other emulators' upscaling, which players know and preferred (reported). */
-            if (block && !(gsSharpBlur && !sInGlowChain) && SCALE > 1 && gsTargets[src].fbp != (uint32_t)gGsMainFbp && (uint32_t)(gGs.frame[ctx] & 0x1FF) != (uint32_t)gGsMainFbp &&
-                ((gGs.tex1[ctx] >> 5) & 1)) {
+            /* And the picture shrunk into such a page while it is at the PS2's resolution (the blur of distant
+               things: stg_b.c StgFog_Draw): a filtered read between two of the picture's own texels took a sixth of a
+               GS pixel's worth of it at 6x, the leaves' detail came through as hard dots and the copy stretched back
+               showed them as squares. Read as the GS reads it at 1x, each GS texel the average of its block. */
+            int shrink = lowres_now(d->target) && gsTargets[src].fbp == (uint32_t)gGsMainFbp;
+            if (block && SCALE > 1 && ((gGs.tex1[ctx] >> 5) & 1) &&
+                (shrink || (!(gsSharpBlur && !sInGlowChain) && gsTargets[src].fbp != (uint32_t)gGsMainFbp &&
+                            (uint32_t)(gGs.frame[ctx] & 0x1FF) != (uint32_t)gGsMainFbp))) {
                 d->orig[0] = (float)SCALE;
                 sBlockSample = 1;
 
@@ -1124,8 +1178,9 @@ static void date_snapshot(const GsDraw *d) {
    of alpha-testing draws that follows it, in the buffer's own pixels, a little wider. A back end copies only that.
    (The whole buffer was copied each time: nine times a frame for a fight's HUD, whose pieces are small. On an
    integrated graphics chip at 3x those copies were a quarter of the frame's time: 45 pictures a second with them,
-   62 without. Measured 2026-10-12.) A run with a draw whose place is worked out by a vertex program is not known
-   here: then the whole buffer, as before. Returns 0 when there is nothing to copy. */
+   62 without. Measured 2026-10-12.) A draw whose place is worked out by a vertex program is not known here: it
+   counts as its scissor. (Until 0.1.38 it meant the whole buffer, 2048 x 2048 at 2x, four times in a fight frame:
+   on an integrated chip at 2x 128 pictures a second, 138 with the scissor.) Returns 0 when there is nothing to copy. */
 int GsDraw_DateRegion(uint32_t k, int *rx, int *ry, int *rw, int *rh) {
     const GsDraw *c = &gsDraws[k];
     float x0 = 1e9f, y0 = 1e9f, x1 = -1e9f, y1 = -1e9f;
@@ -1139,8 +1194,17 @@ int GsDraw_DateRegion(uint32_t k, int *rx, int *ry, int *rw, int *rh) {
         }
         any = 1;
         if (d->vu || d->wall) {
-            whole = 1;
-            break;
+            /* placed by a vertex program (or drawn anew between pictures): where is not known here, but nothing of
+               it lands outside its scissor, which is the screen's rectangle for a fight's layers */
+            float s = (float)SCALE;
+            if (d->scissor[2] <= 0 || d->scissor[3] <= 0) {
+                continue; /* (draws nothing) */
+            }
+            if ((float)d->scissor[0] / s < x0) { x0 = (float)d->scissor[0] / s; }
+            if ((float)d->scissor[1] / s < y0) { y0 = (float)d->scissor[1] / s; }
+            if ((float)(d->scissor[0] + d->scissor[2]) / s > x1) { x1 = (float)(d->scissor[0] + d->scissor[2]) / s; }
+            if ((float)(d->scissor[1] + d->scissor[3]) / s > y1) { y1 = (float)(d->scissor[1] + d->scissor[3]) / s; }
+            continue;
         }
         for (j = 0; j < d->count; j++) {
             const Vtx *v = &gsVerts[d->first + j];
