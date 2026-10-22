@@ -4525,6 +4525,12 @@ void GsGpu_FrameEnd(void) {
             sInterpLastBlank = gPortVBlanks;
             blanks = blanks < 1 ? 1 : blanks > 2 ? 2 : blanks;
             sInterpSteps = (interp_steps() < sInterpCap ? interp_steps() : sInterpCap) * (int)blanks / 2;
+            {
+                extern int gPortMenuMode, Port_RaidRoomActive(void);
+                if (gPortMenuMode || Port_RaidRoomActive()) {
+                    sInterpSteps = 1;
+                }
+            }
             sInterpTickNs = (uint64_t)blanks * Port_BlankNs();
         }
         if (gsInterp > 0) {

@@ -206,7 +206,7 @@ static void RaidPreview_Load(s32 slot) {
     RaidPreview *p=&sRaidPreview[slot];SelectModel *m=&p->model;s32 file,size;BtlObj *obj;
     if(m->loaded==m->wanted && m->loadedCostume==m->costume) return;
     if(++m->stable<8) return;
-    if(m->object>=0) BtlObj_Destroy(m->object);
+    if(m->object>=0) {Port_GsDrain(); BtlObj_Destroy(m->object);}
     m->object=-1;m->loaded=m->wanted;m->loadedCostume=m->costume;
     if(m->wanted<0) return;
     file=ChrView_GetModelFile(m->wanted,m->costume,0);size=File_GetSize(file);
@@ -232,7 +232,6 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
     s32 i,j,k,n;SelectModel *m;BtlObj *obj;BtlObjPart *root,*head;
     f32 height,width,depth,floor,body,target,dist,cx,fy,ph,maxWidth;Vec4 size;
     if(!sRaidPreviewOn) return;
-    Port_GsDrain(); /* the previous frame may still reference these model buffers */
     if(count<1) count=1;if(count>PORT_RAID_BOSSES) count=PORT_RAID_BOSSES;
     for(i=0;i<PORT_RAID_BOSSES;i++) {
         RaidPreview_Load(i);m=&sRaidPreview[i].model;
@@ -241,6 +240,7 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
     gBtlStage->flags&=~1;BtlObj_UpdateAll();
     orbit+=.005f;if(orbit>6.2831853f) orbit-=6.2831853f;
     n=focus>=0?1:count;
+    {extern void BtlObjLight_FindRes0(void);BtlObjLight_FindRes0();}
     for(k=0;k<n;k++) {
         i=focus>=0?focus:(count==5?order[k]:(k+1)%count);m=&sRaidPreview[i].model;
         for(j=0;j<PORT_RAID_BOSSES;j++) if(sRaidPreview[j].model.object>=0) BtlObj_Get(sRaidPreview[j].model.object)->active=j==i;
@@ -271,17 +271,17 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         OrbitCam_SetAngles(0,m->angle,0);OrbitCam_Update(0);m->view=gOrbitCam->view;
         /* Each preview has its own camera and world scale. Depth left by the
            other cameras is meaningless here and can hide entire later models.
-           Preserve all colour pixels and clear only the depth buffer. */
+           Clear depth buffer only within the preview scissor bounding box. */
         Dma_AddFrame(GFX_FRAME_FBP(),GFX_FBW,-1);
-        Dma_AddScissor(0,511,0,447);Dma_AddZbuf(GFX_ZBP,0);
-        Dma_AddFillRect(GFX_OFX>>4,GFX_OFY>>4,512,448,0);
+        Dma_AddScissor(292,511,40,359);Dma_AddZbuf(GFX_ZBP,0);
+        Dma_AddFillRect((GFX_OFX>>4)+292,(GFX_OFY>>4)+40,512-292,360-40,0);
         Gfx_AddDefaultEnv();
         View_Apply(&m->view,1);BtlObj_UpdateVisibility(0);BtlObj_FinishVisibility(0);
         /* Independent menu previews must not run the full-screen battle
            post pass five times: its alpha copies overwrite the previous
            preview and the room. Draw each native lit model directly. */
-        {extern void BtlObjLight_FindRes0(void),BtlObjDraw_DrawLists(s32);
-         Gfx_MarkPass(2);BtlObjLight_FindRes0();BtlObjDraw_DrawLists(1);}
+        {extern void BtlObjDraw_DrawLists(s32);
+         Gfx_MarkPass(2);BtlObjDraw_DrawLists(1);}
         Gfx_MarkPass(0);Gfx_AddDefaultEnv();Dma_AddScissor(0,511,0,447);
     }
 }

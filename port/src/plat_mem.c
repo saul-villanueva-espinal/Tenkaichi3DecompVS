@@ -53,6 +53,10 @@ static uint8_t *sGameStackTop;
        comparing memory with a console dump does), and Port_Malloc just starts from wherever the region is;
      - the game's stack: if the process's own stack is above 4 GB, main() runs on a stack reserved low. */
 #include <windows.h>
+#ifdef _WIN32
+__declspec(dllexport) DWORD NvOptimusEnablement = 0x00000001;
+__declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+#endif
 
 /* Reserves `size` bytes somewhere between 0x30000000 and 2 GB (clear of the program at 0x20000000). */
 static void *low_alloc(size_t size) {
