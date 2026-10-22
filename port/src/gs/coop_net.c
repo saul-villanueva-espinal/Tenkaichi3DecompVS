@@ -212,7 +212,7 @@ int Port_CoopConfig(PcBattle *out) {
     for(;;) {
         unsigned char p[1400];struct sockaddr_in from; int len=packet(p,&from),type,who=-1,all;
         if(__atomic_load_n(&sCancel,__ATOMIC_ACQUIRE)) fail("Sala cancelada");
-        if(millis()-begun>120000) fail("Tiempo de espera de la sala agotado");
+        if(millis()-begun>300000) fail("Tiempo de espera de la sala agotado (5 minutos)");
         if(millis()-last>100) {
             if(!sHost) control(sMe<0?C_HELLO:C_ACK,0);
             else for(i=1;i<sPlayers;i++) if(sKnown[i]) control(C_CONFIG,i);

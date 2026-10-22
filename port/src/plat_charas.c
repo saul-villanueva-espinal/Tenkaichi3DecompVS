@@ -1309,8 +1309,8 @@ static int describe(const char *root, const char *folder, const Chara *owner, Po
     }
     for (out->costumes = 0; out->costumes < 4 && c->file[out->costumes][0] != '\0'; out->costumes++) {
     }
-    out->files |= (c->portrait[0] != '\0') << PORT_DESC_PORTRAIT | (c->chip[0] != '\0') << PORT_DESC_CHIP |
-                  (c->member[0][0] != '\0' || c->member[1][0] != '\0') << PORT_DESC_MEMBER |
+    out->files |= (c->portrait[0][0] != '\0') << PORT_DESC_PORTRAIT | (c->chip[0] != '\0') << PORT_DESC_CHIP |
+                  (c->member[0][0][0] != '\0' || c->member[0][1][0] != '\0') << PORT_DESC_MEMBER |
                   (c->lines[0][0] != '\0' || c->lines[1][0] != '\0') << PORT_DESC_LINES;
     for (k = 0; k < SLOTS && k < PORT_DESC_LINKS; k++) {
         snprintf(out->link[k], sizeof(out->link[k]), "%s", c->form[k]);

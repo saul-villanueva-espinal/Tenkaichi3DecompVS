@@ -32,6 +32,8 @@ void Ps_Copy(char *out,const char *src,int max) {snprintf(out,max,"%s",src);}
 void Ps_Cat(char *out,const char *src,int max) {strncat(out,src,max-strlen(out)-1);}
 void TeamSel_RequestStage(void) {}
 void ColorFade_StartOut(int a,int b,int c,int d) {(void)a;(void)b;(void)c;(void)d;fades++;}
+char *SDL_GetClipboardText(void) {return NULL;}
+int SDL_SetClipboardText(const char *text) {(void)text;return 0;}
 /* ACTUAL LOBBY */
 int main(void) {
     (void)placeholder;team.stage=(void *)&stage;

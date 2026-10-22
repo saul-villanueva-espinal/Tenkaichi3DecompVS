@@ -6,6 +6,7 @@ int Port_NetSession(void) {return 0;}
 int PortExtras_Dir(const char *k,const char *e,char *out,unsigned size) {(void)k;(void)e;(void)out;(void)size;return 0;}
 int Port_Setting(const char *n,int d) {(void)n;return d;}
 void Port_SettingSave(const char *n,int v) {(void)n;(void)v;}
+const char *Port_DiscCharaName(int chara) {(void)chara;return "?";}
 void *Heap_Alloc(int n,int a,int t,int h) {(void)a;(void)t;(void)h;return malloc(n);}
 void Heap_Free(void *p) {free(p);}
 void Res_RelocateOffsets(void *a,void *b,void *c) {(void)a;(void)b;(void)c;}

@@ -17,6 +17,8 @@ extern void Bgm_Play(s32), Port_PcNativeRules(s32,s32,s32);
 extern s32 Port_Setting(const char *,s32), Port_ExtraCostumeOk(s32,s32,char *,s32);
 extern void Port_SettingSave(const char *,s32), Port_SettingsWrite(void);
 enum { RD_LOBBY, RD_CUSTOM, RD_ALLY, RD_NETWORK, RD_BOSS_PICK, RD_ORDER };
+extern char *SDL_GetClipboardText(void);
+extern int SDL_SetClipboardText(const char *text);
 typedef struct RaidRoom {
     PcBattle battle;
     s32 waiting,known,boss,page,cursor,ally,connection,difficulty,count,frames,leaving,launch,ip[5];
@@ -178,7 +180,7 @@ static void Rd_Draw(void) {
     if(R->page==RD_LOBBY || R->page==RD_ORDER) {
         Rd_BossSlots();Rd_Button(9,164,91,23,"Elegir jefes",R->cursor==0);
         Rd_Button(102,164,93,23,"Personalizar",R->cursor==1);Rd_Button(197,164,92,23,"Ordenar",R->cursor==2);
-        Rd_Row(0,"Modalidad:",R->connection==0?"Practica":"Online");sprintf(buf,"%d jugadores",R->count);Rd_Row(1,"Aliados:",buf);
+        Rd_Row(0,"Modalidad:",R->connection==0?"Practica (Offline)":R->connection==1?"Crear sala (Host)":"Unirse por IP (Invitado)");sprintf(buf,"%d jugadores",R->count);Rd_Row(1,"Aliados:",buf);
         sprintf(buf,"%d / 5",R->battle.count[1]);Rd_Row(2,"Jefes activos:",buf);
         Rd_Row(3,"Dificultad:",R->waiting?"Anfitrion":R->difficulty==0?"Normal":R->difficulty==1?"Super Saiyan":"Extrema");
         Rd_Row(4,"Victoria:","Vencer a todos");Rd_Thumb(153,194,108,82);
@@ -213,14 +215,14 @@ static void Rd_Draw(void) {
         Rd_Text(18,326,"Los personajes repetidos se permiten",.49f,264,1);
         if(R->page==RD_ALLY) Rd_Text(18,355,R->connection==0?"Practica: J1 y aliados CPU":"Cada PC elige su personaje en J1",.48f,264,0);
     } else {
-        Rd_Text(16,69,"CONEXION ONLINE",.97f,265,0);
+        Rd_Text(16,69,"CONEXION ONLINE DIRECTA",.97f,265,0);
         for(i=0;i<6;i++) {f32 y=109+i*38;Rd_Frame(12,y,272,34,R->cursor==i);
-            if(!i) {Ps_Copy(buf,R->connection==0?"Practica":R->connection==1?"Crear sala UDP":"Unirse por IP",96);}
+            if(!i) {Ps_Copy(buf,R->connection==0?"Practica (Offline)":R->connection==1?"Crear sala (Host)":"Unirse por IP (Invitado)",96);}
             else sprintf(buf,"%d",R->ip[i-1]);
-            Rd_Text(22,y+7,i==0?"Conexion":i==5?"Puerto UDP":"Direccion IPv4",.66f,121,0);Rd_Text(150,y+7,buf,.66f,123,1);
+            Rd_Text(22,y+7,i==0?"Modo":i==5?"Puerto UDP":"Direccion IPv4",.66f,121,0);Rd_Text(150,y+7,buf,.66f,123,1);
         }
-        Rd_Text(18,356,"L/R: valor  |  Cuadrado: +10  |  X: volver",.45f,266,0);
-        Rd_Text(18,379,"Internet: necesita una ruta UDP accesible",.44f,266,0);
+        Rd_Text(18,354,"Triangulo: Pegar IP  |  Cuadrado: Copiar IP",.49f,266,1);
+        Rd_Text(18,377,"L/R: ajustar numero  |  X: confirmar sala",.46f,266,0);
     }
     if(R->page==RD_LOBBY || R->page==RD_ORDER) {
         Rd_Frame(310,350,190,29,0);Rd_Text(320,355,"ESCUADRON DE JEFES",.88f,166,0);
@@ -271,7 +273,23 @@ static void Rd_Input(u32 p,u32 repeat) {
     }
     if(up||down) R->cursor=Rd_Wrap(R->cursor+(down?1:-1),R->page==RD_NETWORK?6:R->page==RD_CUSTOM?9:10);
     if(R->page==RD_NETWORK) {
-        if(p&PADG_SQUARE) dir=10;
+        if(p&PADG_TRIANGLE) {
+            char *clip=SDL_GetClipboardText();
+            if(clip) {
+                int a,b,c_ip,d,prt=0;
+                if(sscanf(clip,"%d.%d.%d.%d:%d",&a,&b,&c_ip,&d,&prt)>=4 || sscanf(clip,"%d.%d.%d.%d",&a,&b,&c_ip,&d)==4) {
+                    R->ip[0]=a&0xFF;R->ip[1]=b&0xFF;R->ip[2]=c_ip&0xFF;R->ip[3]=d&0xFF;
+                    if(prt>=1024 && prt<=65535) R->ip[4]=prt;
+                    Ps_Copy(R->message,"IP pegada con exito desde el portapapeles",sizeof(R->message));
+                }
+            }
+        }
+        if((p&PADG_SQUARE) && !dir) {
+            char ipbuf[64];
+            snprintf(ipbuf,sizeof(ipbuf),"%d.%d.%d.%d:%d",R->ip[0],R->ip[1],R->ip[2],R->ip[3],R->ip[4]);
+            SDL_SetClipboardText(ipbuf);
+            Ps_Copy(R->message,"IP copiada al portapapeles para tu amigo",sizeof(R->message));
+        }
         if(dir) {if(!R->cursor) R->connection=Rd_Wrap(R->connection+(dir>0?1:-1),3);
             else {i=R->cursor-1;R->ip[i]=i==4?Rd_Clamp(R->ip[i]+dir,1024,65535):Rd_Wrap(R->ip[i]+dir,256);}}
         if(p&PADG_CROSS) {R->page=RD_LOBBY;R->cursor=0;}return;
