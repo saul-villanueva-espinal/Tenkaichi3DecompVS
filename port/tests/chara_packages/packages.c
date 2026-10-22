@@ -30,6 +30,7 @@ int PortExtras_Dir(const char *kind, const char *env, char *out, unsigned size) 
 }
 int Port_Setting(const char *name, int def) { (void)name; return def; }
 void Port_SettingSave(const char *name, int value) { (void)name; (void)value; }
+const char *Port_DiscCharaName(int chara) { (void)chara; return "?"; } /* src/menu/port_tbo.c: a disc character's name */
 void *Heap_Alloc(int size, int align, int fromTail, int heap) { (void)align; (void)fromTail; (void)heap; return malloc((size_t)size); }
 void Heap_Free(void *ptr) { free(ptr); }
 /* as the game's (src/sys/gfxm_b_b.c) follows a texture file's offsets and writes the pointers */
@@ -505,8 +506,186 @@ static void scan_all(const char *root) {
     printf(sFail == 0 ? "scan OK\n" : "scan FAILED\n");
 }
 
+/* the id an added package got, or the disc id a replacement took; -2 if it is listed switched off, -3 not listed */
+static int pkg_id(const char *folder) {
+    int i;
+    for (i = 0; i < Port_CharaPkgCount(); i++) {
+        const PortCharaPkg *p = Port_CharaPkg(i);
+        if (strcmp(p->folder, folder) == 0) {
+            return p->kind == PORT_PKG_DISABLED ? -2 : p->id;
+        }
+    }
+    return -3;
+}
+
+static void expect_id(const char *what, const char *folder, int want) {
+    int got = pkg_id(folder);
+    printf("%s: %s -> %d%s\n", what, folder, got, got == want ? "" : "   FAIL");
+    if (got != want) {
+        sFail++;
+    }
+}
+
+/* the load order and reading again (the Mod Manager): order, off, the winner of two replacements, hostile lines */
+static void order(const char *root) {
+    static const char names[4][128] = {"C third", "A first", "R2 also replaces 0", "R1 replaces 0"};
+    static const unsigned char on[4] = {1, 0, 1, 1};
+    char path[1200];
+    const char *d;
+    int epoch;
+    FILE *f;
+
+    if (mkdir(root, 0755) != 0) {
+        perror(root);
+        sFail++;
+        return;
+    }
+    sRoot = root;
+    filled(sub(root, "A first"), "a_1p.pak", 4000, 1);
+    filled(sub(root, "B second"), "b_1p.pak", 4000, 1);
+    filled(sub(root, "C third"), "c_1p.pak", 4000, 1);
+    d = sub(root, "R1 replaces 0");
+    filled(d, "r_1p.pak", 4000, 1);
+    TEXT(d, "character.txt", "replaces=0\n");
+    d = sub(root, "R2 also replaces 0");
+    filled(d, "r_1p.pak", 4000, 1);
+    TEXT(d, "character.txt", "replaces=0\n");
+    PortCharas_Init();
+    expect_id("by name", "A first", 0xC6);
+    expect_id("by name", "B second", 0xC7);
+    expect_id("by name", "C third", 0xC8);
+    expect_id("by name", "R1 replaces 0", 0);
+    expect_id("by name (R1 won)", "R2 also replaces 0", -1);
+    epoch = PortCharas_Epoch();
+    if (!PortCharas_OrderWrite(names, on, 4)) {
+        printf("FAIL: the load order was not written\n");
+        sFail++;
+    }
+    PortCharas_Reload();
+    expect_id("ordered", "C third", 0xC6);
+    expect_id("ordered (unlisted, after)", "B second", 0xC7);
+    expect_id("ordered (off)", "A first", -2);
+    expect_id("ordered (R2 first)", "R2 also replaces 0", 0);
+    expect_id("ordered (R1 lost)", "R1 replaces 0", -1);
+    if (Port_CharaCount() != 2 || PortCharas_Epoch() == epoch) {
+        printf("FAIL: %d added (want 2), epoch %d -> %d\n", Port_CharaCount(), epoch, PortCharas_Epoch());
+        sFail++;
+    }
+    /* hostile lines: paths, dots, overlong names, no name, unknown words; a line with no end */
+    snprintf(path, sizeof(path), "%s/load_order.txt", root);
+    f = fopen(path, "wb");
+    fprintf(f, "\xEF\xBB\xBFon ../A first\noff /etc\non .\noff \non\nmaybe B second\n# off B second\n   off   B second   \r\n");
+    for (int i = 0; i < 300; i++) {
+        fprintf(f, "off %0*d\n", 100, i);
+    }
+    fprintf(f, "off C third");
+    fclose(f);
+    PortCharas_Reload();
+    expect_id("hostile", "B second", -2);
+    expect_id("hostile (the last line, no end)", "C third", -2);
+    expect_id("hostile (unlisted)", "A first", 0xC6);
+    sSession = 1;
+    if (PortCharas_Reload() != 0 || Port_CharaCount() != 0) {
+        printf("FAIL: read again in a session\n");
+        sFail++;
+    }
+    sSession = 0;
+    {   /* the manifest writer: set, replace, take out; other lines kept; hostile folder names refused */
+        static const char *const bad[] = {"", ".", "..", "../A first", "/etc", "A first/../B second", "a/b/c", "x\\y", ".hidden", "/"};
+        char got[256], text[2048];
+        size_t n;
+        d = sub(root, "M manifest");
+        filled(d, "m_1p.pak", 4000, 1);
+        TEXT(d, "character.txt", "\xEF\xBB\xBF# kept comment\r\nNAME = Old\r\nmine=keep me\r\nname=Older\r\nbase=3");
+        if (!PortCharas_ManifestSet("M manifest", "name", "New\nname=evil") || !PortCharas_ManifestGet("M manifest", "Name", got, sizeof(got)) ||
+            strcmp(got, "New name=evil") != 0) {
+            printf("FAIL: name set: '%s'\n", got);
+            sFail++;
+        }
+        if (!PortCharas_ManifestSet("M manifest", "author", "Someone") || !PortCharas_ManifestSet("M manifest", "base", NULL) ||
+            PortCharas_ManifestGet("M manifest", "base", got, sizeof(got))) {
+            printf("FAIL: author added / base taken out\n");
+            sFail++;
+        }
+        snprintf(path, sizeof(path), "%s/M manifest/character.txt", root);
+        f = fopen(path, "rb");
+        n = fread(text, 1, sizeof(text) - 1, f);
+        fclose(f);
+        text[n] = '\0';
+        printf("manifest now:\n%s", text);
+        if (memcmp(text, "\xEF\xBB\xBF# kept comment", 17) != 0 || strstr(text, "mine=keep me") == NULL || strstr(text, "Older") != NULL ||
+            strstr(text, "author=Someone\n") == NULL || strstr(text, "base") != NULL) {
+            printf("FAIL: the other lines\n");
+            sFail++;
+        }
+        PortCharas_Reload();
+        expect_id("manifest (name read back)", "M manifest", pkg_id("M manifest"));
+        for (size_t i = 0; i < sizeof(bad) / sizeof(bad[0]); i++) {
+            if (PortCharas_ManifestSet(bad[i], "name", "x")) {
+                printf("FAIL: wrote into '%s'\n", bad[i]);
+                sFail++;
+            }
+        }
+        if (PortCharas_ManifestSet("M manifest", "a=b", "x") || PortCharas_ManifestSet("M manifest", "", "x") ||
+            PortCharas_ManifestSet("M manifest", "#c", "x")) {
+            printf("FAIL: a bad key was written\n");
+            sFail++;
+        }
+        if (!PortCharas_ManifestSet("New one", "name", "Fresh")) { /* (a folder that is not there yet: refused, no folder made) */
+            printf("new folder refused, as it should be\n");
+        } else {
+            printf("FAIL: wrote into a folder that was not there\n");
+            sFail++;
+        }
+    }
+    {   /* describe (a switched-off folder too) and preview (answers for one disc character, then not) */
+        PortCharaDesc desc;
+        char out[600], want[1200];
+        if (!PortCharas_Describe("B second", &desc) || desc.replaces != -1 || desc.costumes != 1 || (desc.files & 1) == 0) {
+            printf("FAIL: describe B second: replaces %d costumes %d files %x\n", desc.replaces, desc.costumes, desc.files);
+            sFail++;
+        }
+        if (!PortCharas_Describe("R1 replaces 0", &desc) || desc.replaces != 0) {
+            printf("FAIL: describe R1\n");
+            sFail++;
+        }
+        if (PortCharas_Describe("../x", &desc) || PortCharas_Describe("A first/x", &desc) || PortCharas_Describe("nothing here", &desc)) {
+            printf("FAIL: described what is no package\n");
+            sFail++;
+        }
+        epoch = PortCharas_Epoch();
+        snprintf(path, sizeof(path), "%s/A first", root);
+        if (!PortCharas_Preview(path, 37) || PortCharas_Epoch() == epoch || !PortCharas_Alias("pzs3us1/01793.bin", out, sizeof(out))) {
+            printf("FAIL: preview of A first as 37\n");
+            sFail++;
+        } else {
+            snprintf(want, sizeof(want), "%s/A first/a_1p.pak", root);
+            printf("preview: 0x590 + 37 * 10 -> %s%s\n", out, strcmp(out, want) == 0 ? "" : "   FAIL");
+            sFail += strcmp(out, want) != 0;
+        }
+        sSession = 1;
+        if (PortCharas_Alias("pzs3us1/01793.bin", out, sizeof(out)) && strncmp(out, "pzs3us", 6) != 0) {
+            printf("FAIL: the preview answered in a session\n");
+            sFail++;
+        }
+        sSession = 0;
+        PortCharas_Preview(NULL, -1);
+        if (PortCharas_Alias("pzs3us1/01793.bin", out, sizeof(out)) && strncmp(out, "pzs3us", 6) != 0) {
+            printf("FAIL: the preview still answers: %s\n", out);
+            sFail++;
+        }
+        if (PortCharas_Preview("/no/such/folder", 3) || PortCharas_Preview("relative", 3) || PortCharas_Preview(path, 999)) {
+            printf("FAIL: a preview of nothing\n");
+            sFail++;
+        }
+    }
+    printf(sFail == 0 ? "order OK\n" : "order FAILED\n");
+}
+
 int main(int argc, char **argv) {
-    if (argc == 2 && strcmp(argv[1], "--cases") == 0) {
+    if (argc == 3 && strcmp(argv[1], "--order") == 0) {
+        order(argv[2]);
+    } else if (argc == 2 && strcmp(argv[1], "--cases") == 0) {
         cases();
     } else if (argc == 4 && strcmp(argv[1], "--fuzz") == 0) {
         fuzz(atoi(argv[2]), strtoull(argv[3], NULL, 0));
@@ -515,7 +694,7 @@ int main(int argc, char **argv) {
     } else if (argc == 3 && strcmp(argv[1], "--scan") == 0) {
         scan_all(argv[2]);
     } else {
-        fprintf(stderr, "packages_test --cases | --fuzz <rounds> <seed> | --make <folder> | --scan <folder>\n");
+        fprintf(stderr, "packages_test --cases | --fuzz <rounds> <seed> | --make <folder> | --scan <folder> | --order <folder>\n");
         return 2;
     }
     return sFail != 0;

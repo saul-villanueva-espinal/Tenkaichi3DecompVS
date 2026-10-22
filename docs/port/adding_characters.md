@@ -416,3 +416,37 @@ blank 27160 on (the binary of 0.1.34 does the same; four runs fall into two grou
 Checked (all without a window): see the section of 2026-10-13 in README.md.
 NOT seen on a screen by a person: any replacement; the Mods tab's list (one offscreen picture); a link from a
 replaced character; numbers on the fight's display beyond the disc's range.
+
+## The Mod Manager on character packages (2026-10-17): what is left
+
+The contributed Mod Manager runs on the packages (port/src/gs/modmgr.c; src/menu/port_modmgr*.c, port_mmkit.c). Done:
+the library (on / off, priority, rename, the form label, author, version, about, replace / new / its fighter, remove
+and restore, the folder), the platform model of any package (on or not), the main menu plate, and the FORMS screen
+(transformations and fusions into character.txt, put into the fighter's table in the fight; seen working by the
+user). To do:
+
+- The test fight (START / TEST) and the way back to the manager from its pause menu.
+- The Mod Fighters grid on the character select (Square), on the added characters' ids instead of the
+  contribution's costume codes; its order is the load order (the Mod Fighters order screen already writes it).
+- (Done: the portrait maker. A PNG or BMP, or the package's own portrait, put whole into the frame (512 x 512 on
+  the screen, stored 256 x 512), moved and sized as the screen shows it, brought down to 256 colours (fewer if packed
+  it would not fit 92,160 bytes), packed with the game's byte pair coder (checked by unpacking it again) and written
+  as portrait.bin; the package's own kept as portrait_original.bin (its name in portrait_was) and the picture as
+  portrait_source.png / .bmp, so it can be framed again; the reset puts the own one back. Port_ModArt* in
+  gs/modmgr.c. And the icon crop: the square of the portrait, averaged
+  down to 64 x 64 in the portrait's colours, written into the package's chip.bin, its own kept as chip_original.bin
+  and put back by "automatic"; else into the base character's chip of the disc. Port_ModSet 3..5 in gs/modmgr.c,
+  with its own bounded unpacker; tested under the sanitizers with 600 damaged portraits.)
+- (Done: adding packages, Port_ModImport* in gs/modmgr.c. A folder, a file of one or an archive dropped on the window
+  (gs_input.c keeps the path, Port_DropTake) or picked in the browser; a thread copies each package found (the
+  folder itself, else folders in it four deep) into characters/.import and renames it into place, so the library
+  never reads half of one; archives are unpacked there by the system's tar (Windows) or bsdtar / unzip / 7z /
+  unrar, links taken out before the move; links are never followed, in the copy or the clean up. Tested with
+  folders, zip, 7z, tar.gz, a damaged rar and a zip with "../" names, under the address and undefined-behaviour
+  sanitizers. Not done: the community's file names (port/src/plat_modmgr_prefix.inc, kept out of the tree).)
+- Fusions: the scenes' motions (fusionN_scene is kept, not used), with the contribution's motion splicer made safe
+  (a heap overflow from a mod's file); the skill list's transformation page written again.
+- A fighter's moves on the library's panel (Port_ModMoves), and the name lists the contribution read from text files
+  (to come from the player's disc, not the source).
+- The credit of the manager's pictures (port/tbo/ui/CREDITS.md): the author's name, if they want it there.
+- Then: docs, and the merge into main.

@@ -54,6 +54,11 @@ enum {
     F_EFF_SHARED = 101
 };
 enum { SLOTS = 19 };
+/* The parameter block of a model (its table entry 17; object + 0x91C in the fight): the bytes of its forms from
+   0x98, as character.txt can set them (docs/port/character_packages.md, section 6). */
+enum { PAR_BASE = 0x98, PAR_COUNT = 0xC6 - 0x98, PAR_COST = 0x9C - 0x98, PAR_TYPE = 0xA0 - 0x98, PAR_EFFECT = 0xA4 - 0x98,
+       PAR_ASSIST = 0xA8 - 0x98, PAR_DEFAULT = 0xAC - 0x98, PAR_FCOST = 0xAE - 0x98, PAR_FTYPE = 0xB1 - 0x98,
+       PAR_FLEAD = 0xB7 - 0x98 };
 enum { DISC_CHARAS = 161 };
 
 typedef struct {
@@ -80,6 +85,9 @@ typedef struct {
     int labelSet;              /* a label was given (an empty one: no label); without, the base's label */
     int stat[PORT_STAT_COUNT]; /* health, ki, blast stocks: -1 not said */
     int pkg;                   /* its entry in sPkg, or -1 */
+    short par[PAR_COUNT];      /* bytes of the parameter block from 0x98 (PAR_*): -1 not said */
+    unsigned char freshSet;    /* bits 0..3: `<slot>_fresh` said (bit 4 + k of +0xAD) */
+    unsigned char freshOn;
 } Chara;
 
 enum { CHIP_SIZE = 5504, NAME_ENTRY = 128, NAME_LINES_MAX = 256, PKG_MAX = PORT_TOTAL_CHARAS * 2 + 32, TEXT_MAX = 16384 };
@@ -99,6 +107,21 @@ static short sReplOf[DISC_CHARAS];   /* disc id -> its entry of sRepl + 1; 0 not
 static PortCharaPkg sPkg[PKG_MAX];   /* every folder looked at that is, or was meant to be, a package */
 static int sPkgCount;
 static int sInit;
+static int sReloads;                 /* how many times the folder was read again (PortCharas_Reload) */
+static int sModelSize;               /* Port_ModelSize's answer, 0 until asked (again after a reload) */
+static int sPreviews;                /* how many times the Mod Manager's preview changed (PortCharas_Preview) */
+static int sDry;                     /* scan() only describes a folder (PortCharas_Describe): nothing is kept */
+static char sDryNote[400];           /* ... and what it found wrong is put here */
+static int pkg_dir(const char *folder, char *out, size_t size);
+
+/* The load order (`load_order.txt` in the characters folder, written by the Mod Manager): which folders are used
+   and in which order. Each line is `on <folder>` or `off <folder>`; the folders it lists come first, in its order,
+   then the others, on, by name. The order decides the ids of added characters and which of two packages for one
+   disc character wins (the first). */
+enum { ORDER_MAX = 256 };
+static char sOrder[ORDER_MAX][128];
+static unsigned char sOrderOn[ORDER_MAX];
+static int sOrderCount;
 
 /* Online play does not know character packages. In a session (Dragon Net Battle; gs/net.c) everything this file
    answers is what it answers with no `characters` folder at all: no character, no cell, no name line, no chip, no
@@ -131,10 +154,10 @@ static int id_of(const Chara *c) {
     return c->replaces >= 0 ? c->replaces : PORT_CHARA_FIRST + (int)(c - sChara);
 }
 
-/* 1 while what the game's file numbers answer may differ from the data folder's: flips with a session's start and
-   end, and the open files are then looked up again (plat_fcache.c). */
+/* Changes whenever what the game's file numbers answer may have changed: with a session's start and end, and with
+   each reading of the folder again; the open files are then looked up again (plat_fcache.c). */
 int PortCharas_Epoch(void) {
-    return Port_NetSession() ? 1 : 0;
+    return (Port_NetSession() ? 1 : 0) + 2 * (sReloads + sPreviews);
 }
 
 /* ---- the folder scan ---------------------------------------------------------------------------------------- */
@@ -143,6 +166,17 @@ static int same_nocase(const char *a, const char *b) {
     for (; *a != '\0' && tolower((unsigned char)*a) == tolower((unsigned char)*b); a++, b++) {
     }
     return *a == '\0' && *b == '\0';
+}
+
+/* whether a name ends with `end` (given in lower case), without regard to case */
+static int ends_nocase(const char *name, const char *end) {
+    size_t l = strlen(name), el = strlen(end), k;
+    if (l < el) {
+        return 0;
+    }
+    for (k = 0; k < el && tolower((unsigned char)name[l - el + k]) == end[k]; k++) {
+    }
+    return k == el;
 }
 
 /* which of the files a name is, by its ending; -1 if none */
@@ -248,6 +282,13 @@ static void note(const Chara *c, const char *fmt, ...) {
     va_start(ap, fmt);
     vsnprintf(msg, sizeof(msg), fmt, ap);
     va_end(ap);
+    if (sDry) {
+        size_t at = strlen(sDryNote);
+        if (at + 3 < sizeof(sDryNote)) {
+            snprintf(sDryNote + at, sizeof(sDryNote) - at, "%s%s", at > 0 ? "; " : "", msg);
+        }
+        return;
+    }
     fprintf(stderr, "bt3: characters: %s%s%s: %s\n", c->owner, c->owner[0] != '\0' ? "/" : "", c->name, msg);
     if (c->pkg >= 0) {
         PortCharaPkg *p = &sPkg[c->pkg];
@@ -280,6 +321,66 @@ static int number(const char *v, int lo, int hi, int *out) {
 }
 
 /* One `key=value` of a package (character.txt, and what the older files say, each as its key). */
+/* The other numbers of the forms (section 6): <slot>_cost, _type, _effect, _assist, _fresh, default; fusionN_cost,
+   _type, _lead. 1 if the key is one of them. */
+static int apply_par(Chara *c, const char *key, const char *value) {
+    static const char *const kSlot[4] = {"left", "up", "right", "down"};
+    static const struct { const char *end; int at, lo, hi; } kSlotKeys[] = {
+        {"_cost", PAR_COST, 0, 9}, {"_type", PAR_TYPE, 0, 4}, {"_effect", PAR_EFFECT, 0, 11}, {"_assist", PAR_ASSIST, 0, DISC_CHARAS - 1},
+    };
+    int k, j, x;
+    size_t n;
+
+    if (strcmp(key, "default") == 0) {
+        for (k = 0; k < 4 && strcmp(value, kSlot[k]) != 0; k++) {
+        }
+        c->par[PAR_DEFAULT] = (short)(k < 4 ? k : strcmp(value, "none") == 0 ? 0xFF : -1);
+        if (c->par[PAR_DEFAULT] < 0) {
+            note(c, "default is not left, up, right, down or none");
+        }
+        return 1;
+    }
+    for (k = 0; k < 4; k++) {
+        n = strlen(kSlot[k]);
+        if (strncmp(key, kSlot[k], n) != 0 || key[n] != '_') {
+            continue;
+        }
+        if (strcmp(key + n, "_fresh") == 0) {
+            c->freshSet |= (unsigned char)(1 << k);
+            c->freshOn = (unsigned char)((c->freshOn & ~(1 << k)) | ((strcmp(value, "1") == 0) << k));
+            return 1;
+        }
+        for (j = 0; j < (int)(sizeof(kSlotKeys) / sizeof(kSlotKeys[0])); j++) {
+            if (strcmp(key + n, kSlotKeys[j].end) == 0) {
+                if (kSlotKeys[j].at == PAR_ASSIST && strcmp(value, "none") == 0) {
+                    c->par[PAR_ASSIST + k] = 0xFF;
+                } else if (number(value, kSlotKeys[j].lo, kSlotKeys[j].hi, &x)) {
+                    c->par[kSlotKeys[j].at + k] = (short)x;
+                } else {
+                    note(c, "%s is not a number from %d to %d", key, kSlotKeys[j].lo, kSlotKeys[j].hi);
+                }
+                return 1;
+            }
+        }
+    }
+    if (strncmp(key, "fusion", 6) == 0 && key[6] >= '1' && key[6] <= '3' && key[7] == '_') {
+        int f = key[6] - '1';
+        if (strcmp(key + 7, "_cost") == 0 && number(value, 0, 9, &x)) {
+            c->par[PAR_FCOST + f] = (short)x;
+        } else if (strcmp(key + 7, "_type") == 0 && (strcmp(value, "dance") == 0 || strcmp(value, "potara") == 0)) {
+            c->par[PAR_FTYPE + f] = (short)(value[0] == 'd' ? 1 : 2);
+        } else if (strcmp(key + 7, "_lead") == 0 && (number(value, 0, DISC_CHARAS - 1, &x) || strcmp(value, "none") == 0)) {
+            c->par[PAR_FLEAD + f] = (short)(strcmp(value, "none") == 0 ? 0xFF : x);
+        } else if (strcmp(key + 7, "_scene") == 0) {
+            /* (the scene's motions: kept for the Mod Manager, not used by the fight yet) */
+        } else {
+            note(c, "%s=%s is not understood", key, value);
+        }
+        return 1;
+    }
+    return 0;
+}
+
 static void apply(Chara *c, const char *key, const char *value) {
     static const char *const kSlot[7] = {"left", "up", "right", "down", "fusion1", "fusion2", "fusion3"};
     static const char *const kStat[PORT_STAT_COUNT] = {"health", "ki", "blast"};
@@ -361,6 +462,9 @@ static void apply(Chara *c, const char *key, const char *value) {
                 }
                 return;
             }
+        }
+        if (apply_par(c, key, value)) {
+            return;
         }
         /* (any other key: a later format's, or a note of the maker's; ignored) */
     }
@@ -559,6 +663,9 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
     for (k = 0; k < PORT_STAT_COUNT; k++) {
         c->stat[k] = -1;
     }
+    for (k = 0; k < PAR_COUNT; k++) {
+        c->par[k] = -1;
+    }
     snprintf(c->name, sizeof(c->name), "%s", name);
     snprintf(c->dir, sizeof(c->dir), "%s", path);
     if (owner != NULL) {
@@ -582,11 +689,11 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
             }
         } else if (same_nocase(n, "chip.bin")) {
             slot = c->chip;
-        } else if (same_nocase(n, "portrait.bin")) {
+        } else if (same_nocase(n, "portrait.bin") || ends_nocase(n, "_img.cdbt")) {
             slot = c->portrait[0];
-        } else if (same_nocase(n, "member_1p.bin")) {
+        } else if (same_nocase(n, "member_1p.bin") || ends_nocase(n, "_tag_p1.dbt")) {
             slot = c->member[0][0];
-        } else if (same_nocase(n, "member_2p.bin")) {
+        } else if (same_nocase(n, "member_2p.bin") || ends_nocase(n, "_tag_p2.dbt")) {
             slot = c->member[0][1];
         } else if (same_nocase(n, "voice_jp")) {
             slot = c->lines[0];
@@ -666,7 +773,7 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
     if (files == 0 && side[4][0] == '\0') {
         return NULL; /* nothing of a package in it: some other folder */
     }
-    if (sPkgCount < PKG_MAX) {
+    if (sPkgCount < PKG_MAX && !sDry) {
         c->pkg = sPkgCount++;
         p = &sPkg[c->pkg];
         memset(p, 0, sizeof(*p));
@@ -729,6 +836,9 @@ static Chara *scan(const char *root, const char *name, const Chara *owner) {
         c->chip[0] = '\0';
     }
 
+    if (sDry) {
+        return c; /* (PortCharas_Describe: the folder as read, kept nowhere) */
+    }
     if (c->replaces == -2) {
         return NULL; /* (said above) */
     }
@@ -803,7 +913,12 @@ static int folders(const char *dir, char names[][128], int max, int skip) {
         return 0;
     }
     while ((de = readdir(d)) != NULL && n < max) {
-        if (de->d_name[0] != '.' && strlen(de->d_name) < 64 && !(skip && (same_nocase(de->d_name, "voice_us") || same_nocase(de->d_name, "voice_jp")))) {
+        char path[600];
+        struct stat st;
+        if (de->d_name[0] != '.' && strlen(de->d_name) < 64 && !(skip && (same_nocase(de->d_name, "voice_us") || same_nocase(de->d_name, "voice_jp"))) &&
+            join(path, sizeof(path), dir, de->d_name) && stat(path, &st) == 0 && S_ISDIR(st.st_mode)) {
+            /* (folders only: a file beside them, load_order.txt above all, is no package, and was written into the
+               load order as one) */
             snprintf(names[n++], 128, "%s", de->d_name);
         }
     }
@@ -875,25 +990,110 @@ static void resolve(Chara *c) {
     }
 }
 
-void PortCharas_Init(void) {
-    static char names[256][128], inner[64][128];
-    char root[300];
-    int n = 0, i;
+/* load_order.txt of `root` into sOrder (nothing if there is none) */
+static void order_read(const char *root) {
+    static char text[65536]; /* (256 folders of 63 bytes with their words take about 17 KB) */
+    char path[400], *line, *next;
+    size_t len;
+    FILE *f;
 
-    if (sInit) {
+    sOrderCount = 0;
+    if (!join(path, sizeof(path), root, "load_order.txt") || !regular(path) || (f = fopen(path, "rb")) == NULL) {
         return;
     }
-    sInit = 1;
-    if (getenv("BT3_NET_SESSION") != NULL && (getenv("BT3_NET_HOST") != NULL || getenv("BT3_NET_JOIN") != NULL)) {
-        return; /* the program was started for an online session: the folder is not read */
+    len = fread(text, 1, sizeof(text) - 1, f);
+    fclose(f);
+    text[len] = '\0';
+    if (len >= 3 && memcmp(text, "\xEF\xBB\xBF", 3) == 0) {
+        text[0] = text[1] = text[2] = ' ';
     }
+    for (line = text; line != NULL && *line != '\0' && sOrderCount < ORDER_MAX; line = next) {
+        char *end, *name;
+        int on;
+        next = strchr(line, '\n');
+        if (next != NULL) {
+            *next++ = '\0';
+        }
+        end = line + strlen(line);
+        while (end > line && (end[-1] == '\r' || end[-1] == ' ' || end[-1] == '\t')) {
+            *--end = '\0';
+        }
+        while (*line == ' ' || *line == '\t') {
+            line++;
+        }
+        if (strncmp(line, "on ", 3) == 0 || strncmp(line, "on\t", 3) == 0) {
+            on = 1, name = line + 3;
+        } else if (strncmp(line, "off ", 4) == 0 || strncmp(line, "off\t", 4) == 0) {
+            on = 0, name = line + 4;
+        } else {
+            continue; /* (comments, empty lines, anything else) */
+        }
+        while (*name == ' ' || *name == '\t') {
+            name++;
+        }
+        if (name[0] == '\0' || name[0] == '.' || strlen(name) >= 64 || strchr(name, '/') != NULL || strchr(name, '\\') != NULL) {
+            continue;
+        }
+        snprintf(sOrder[sOrderCount], sizeof(sOrder[0]), "%s", name);
+        sOrderOn[sOrderCount++] = (unsigned char)on;
+    }
+}
+
+/* -1: the load order does not name the folder; else whether it is on */
+static int order_on(const char *name) {
+    int i;
+    for (i = 0; i < sOrderCount; i++) {
+        if (strcmp(sOrder[i], name) == 0) {
+            return sOrderOn[i];
+        }
+    }
+    return -1;
+}
+
+/* a folder the load order switches off: listed for the Mod Manager and the settings window, not read */
+static void listed_off(const char *name) {
+    PortCharaPkg *p;
+    if (sPkgCount >= PKG_MAX) {
+        return;
+    }
+    p = &sPkg[sPkgCount++];
+    memset(p, 0, sizeof(*p));
+    snprintf(p->folder, sizeof(p->folder), "%s", name);
+    snprintf(p->name, sizeof(p->name), "%s", name);
+    p->kind = PORT_PKG_DISABLED;
+    p->id = -1;
+}
+
+/* Reads the folder: the packages the load order has on, in its order, then the others by name. */
+static void load(void) {
+    static char names[256][128], use[256][128], inner[64][128];
+    char root[300];
+    int n = 0, used = 0, i, j;
+
     if (!PortExtras_Dir("characters", "BT3_CHARACTERS", root, sizeof(root))) {
         return;
     }
     n = folders(root, names, 256, 0);
-    for (i = 0; i < n; i++) {
+    order_read(root);
+    for (j = 0; j < sOrderCount; j++) { /* the listed ones that are there, in the list's order */
+        for (i = 0; i < n; i++) {
+            if (strcmp(names[i], sOrder[j]) == 0) {
+                break;
+            }
+        }
+        if (i < n && sOrderOn[j]) {
+            snprintf(use[used++], sizeof(use[0]), "%s", names[i]);
+        }
+    }
+    for (i = 0; i < n; i++) { /* then the others, by name */
+        int on = order_on(names[i]);
+        if (on < 0) {
+            snprintf(use[used++], sizeof(use[0]), "%s", names[i]);
+        }
+    }
+    for (i = 0; i < used; i++) {
         int m, k;
-        const Chara *owner = scan(root, names[i], NULL);
+        const Chara *owner = scan(root, use[i], NULL);
         if (owner == NULL) {
             continue;
         }
@@ -902,6 +1102,11 @@ void PortCharas_Init(void) {
         m = folders(owner->dir, inner, 64, 1);
         for (k = 0; k < m; k++) {
             scan(owner->dir, inner[k], owner);
+        }
+    }
+    for (i = 0; i < n; i++) { /* the ones switched off: listed, not read */
+        if (order_on(names[i]) == 0) {
+            listed_off(names[i]);
         }
     }
     for (i = 0; i < sCount; i++) {
@@ -935,13 +1140,405 @@ void PortCharas_Init(void) {
     }
 }
 
+void PortCharas_Init(void) {
+    if (sInit) {
+        return;
+    }
+    sInit = 1;
+    if (getenv("BT3_NET_SESSION") != NULL && (getenv("BT3_NET_HOST") != NULL || getenv("BT3_NET_JOIN") != NULL)) {
+        return; /* the program was started for an online session: the folder is not read */
+    }
+    load();
+}
+
+/* Reads the folder again (the Mod Manager, after it changed packages or their order). Only from the menus, never
+   during a fight or a session: the ids of added characters may change, and a screen with a roster takes its names
+   and chips when it starts. The model buffers' size is worked out again for the next fight, and the open files
+   are looked up again (PortCharas_Epoch). 0 if it was not done. */
+int PortCharas_Reload(void) {
+    if (Port_NetSession() || (getenv("BT3_NET_SESSION") != NULL && (getenv("BT3_NET_HOST") != NULL || getenv("BT3_NET_JOIN") != NULL))) {
+        return 0;
+    }
+    PortChips_Free();
+    sCount = sReplCount = sPkgCount = 0;
+    memset(sReplOf, 0, sizeof(sReplOf));
+    memset(sChipHave, 0, sizeof(sChipHave));
+    sNameFirst = sFormFirst = -1;
+    sModelSize = 0;
+    sInit = 1;
+    load();
+    sReloads++;
+    fprintf(stderr, "bt3: characters: read again: %d added, %d replaced, %d listed\n", sCount, sReplCount, sPkgCount);
+    return 1;
+}
+
+/* The folders of `characters` in the order they are used, each with whether it is on: the load order's first, in
+   its order, then the others by name (as load() takes them). `max` at most; how many. */
+int PortCharas_OrderGet(char (*folder)[128], unsigned char *on, int max) {
+    static char names[256][128];
+    char root[300];
+    int n, i, j, count = 0;
+
+    if (!PortCharas_Root(root, sizeof(root))) {
+        return 0;
+    }
+    n = folders(root, names, 256, 0);
+    order_read(root);
+    for (j = 0; j < sOrderCount && count < max; j++) {
+        for (i = 0; i < n && strcmp(names[i], sOrder[j]) != 0; i++) {
+        }
+        if (i < n) {
+            snprintf(folder[count], 128, "%s", names[i]);
+            on[count++] = sOrderOn[j];
+        }
+    }
+    for (i = 0; i < n && count < max; i++) {
+        if (order_on(names[i]) < 0) {
+            snprintf(folder[count], 128, "%s", names[i]);
+            on[count++] = 1;
+        }
+    }
+    return count;
+}
+
+static int describe(const char *root, const char *folder, const Chara *owner, PortCharaDesc *out);
+
+/* What a folder of `characters` is, read by the same rules as when it is loaded but kept nowhere: for the Mod
+   Manager, which lists every folder (switched off ones too) and shows what each holds. `folder` is a folder directly
+   in `characters`. 0 if it is no package (or cannot be read). */
+int PortCharas_Describe(const char *folder, PortCharaDesc *out) {
+    char root[300], dir[400];
+
+    memset(out, 0, sizeof(*out));
+    out->replaces = -1;
+    if (strchr(folder, '/') != NULL || !pkg_dir(folder, dir, sizeof(dir)) || !PortCharas_Root(root, sizeof(root))) {
+        return 0;
+    }
+    return describe(root, folder, NULL, out);
+}
+
+/* The folders inside package `folder` that are packages themselves (its forms), by name, as load() reads them;
+   how many. */
+int PortCharas_Forms(const char *folder, char (*names)[128], int max) {
+    static char inner[64][128];
+    char dir[400];
+    PortCharaDesc d;
+    int m, k, n = 0;
+
+    if (strchr(folder, '/') != NULL || !pkg_dir(folder, dir, sizeof(dir))) {
+        return 0;
+    }
+    m = folders(dir, inner, 64, 1);
+    for (k = 0; k < m && n < max; k++) {
+        if (PortCharas_DescribeForm(folder, inner[k], &d)) {
+            snprintf(names[n++], 128, "%s", inner[k]);
+        }
+    }
+    return n;
+}
+
+/* A form of package `folder` (a folder inside it), read as load() reads it: with the package as its owner (what
+   the form's own files do not say about its base and name is the package's). */
+int PortCharas_DescribeForm(const char *folder, const char *form, PortCharaDesc *out) {
+    static Chara own;
+    char root[300], dir[400];
+    const Chara *c;
+
+    memset(out, 0, sizeof(*out));
+    out->replaces = -1;
+    if (strchr(folder, '/') != NULL || strchr(form, '/') != NULL || form[0] == '.' || !pkg_dir(folder, dir, sizeof(dir)) ||
+        !PortCharas_Root(root, sizeof(root))) {
+        return 0;
+    }
+    sDryNote[0] = '\0';
+    sDry = 1;
+    c = scan(root, folder, NULL);
+    sDry = 0;
+    if (c == NULL) {
+        return 0;
+    }
+    own = *c; /* (scan keeps its result in one place: the owner is copied before the form is read) */
+    return describe(dir, form, &own, out);
+}
+
+/* The same for a folder anywhere (the Mod Manager's browser, before the folder is added). */
+int PortCharas_DescribePath(const char *path, PortCharaDesc *out) {
+    char root[400];
+    const char *slash = strrchr(path, '/');
+#ifdef _WIN32
+    const char *back = strrchr(path, '\\');
+    if (back != NULL && (slash == NULL || back > slash)) {
+        slash = back;
+    }
+#endif
+    memset(out, 0, sizeof(*out));
+    out->replaces = -1;
+    if (slash == NULL || slash[1] == '\0' || (size_t)(slash - path) >= sizeof(root) || strlen(slash + 1) >= 64) {
+        return 0;
+    }
+    snprintf(root, sizeof(root), "%.*s", (int)(slash - path), path);
+    return describe(root, slash + 1, NULL, out);
+}
+
+static int describe(const char *root, const char *folder, const Chara *owner, PortCharaDesc *out) {
+    const Chara *c;
+    struct stat st;
+    int k;
+
+    sDryNote[0] = '\0';
+    sDry = 1;
+    c = scan(root, folder, owner);
+    sDry = 0;
+    snprintf(out->problem, sizeof(out->problem), "%s", sDryNote);
+    if (c == NULL) {
+        return 0;
+    }
+    snprintf(out->name, sizeof(out->name), "%s", c->shown);
+    out->nameSet = c->nameSet;
+    snprintf(out->label, sizeof(out->label), "%s", c->label);
+    out->labelSet = c->labelSet;
+    out->replaces = c->replaces;
+    out->base = c->replaces >= 0 ? c->replaces : c->base;
+    for (k = 0; k < F_COUNT; k++) {
+        if (c->file[k][0] != '\0') {
+            out->files |= 1 << k;
+            if (k < 8 && stat(c->file[k], &st) == 0 && st.st_size > 0xCE000) {
+                out->large = 1;
+            }
+        }
+    }
+    for (out->costumes = 0; out->costumes < 4 && c->file[out->costumes][0] != '\0'; out->costumes++) {
+    }
+    out->files |= (c->portrait[0] != '\0') << PORT_DESC_PORTRAIT | (c->chip[0] != '\0') << PORT_DESC_CHIP |
+                  (c->member[0][0] != '\0' || c->member[1][0] != '\0') << PORT_DESC_MEMBER |
+                  (c->lines[0][0] != '\0' || c->lines[1][0] != '\0') << PORT_DESC_LINES;
+    for (k = 0; k < SLOTS && k < PORT_DESC_LINKS; k++) {
+        snprintf(out->link[k], sizeof(out->link[k]), "%s", c->form[k]);
+    }
+    for (k = 0; k < PORT_STAT_COUNT; k++) {
+        out->stat[k] = c->stat[k];
+    }
+    return 1;
+}
+
+/* The folder the packages are in ("" if there is none). */
+int PortCharas_Root(char *out, unsigned size) {
+    char root[300];
+    if (!PortExtras_Dir("characters", "BT3_CHARACTERS", root, sizeof(root))) {
+        if (size > 0) {
+            out[0] = '\0';
+        }
+        return 0;
+    }
+    snprintf(out, size, "%s", root);
+    return 1;
+}
+
+/* Writes the load order: `n` folders in order, each on or off (the Mod Manager). Written beside and then put in
+   place, so a load never sees half of it. The next PortCharas_Reload uses it. */
+int PortCharas_OrderWrite(const char (*folder)[128], const unsigned char *on, int n) {
+    char root[300], path[400], tmp[420];
+    FILE *f;
+    int i;
+    if (!PortCharas_Root(root, sizeof(root)) || !join(path, sizeof(path), root, "load_order.txt")) {
+        return 0;
+    }
+    snprintf(tmp, sizeof(tmp), "%s.new", path);
+    if ((f = fopen(tmp, "wb")) == NULL) {
+        return 0;
+    }
+    fprintf(f, "# The order of the character packages and which are on (written by the Mod Manager).\n"
+               "# The first wins where two replace the same character; added characters get their ids in this order.\n");
+    for (i = 0; i < n; i++) {
+        if (folder[i][0] != '\0' && folder[i][0] != '.' && strchr(folder[i], '/') == NULL && strchr(folder[i], '\\') == NULL && strchr(folder[i], '\n') == NULL) {
+            fprintf(f, "%s %s\n", on[i] ? "on" : "off", folder[i]);
+        }
+    }
+    if (fclose(f) != 0) {
+        remove(tmp);
+        return 0;
+    }
+#ifdef _WIN32
+    remove(path); /* (rename does not replace a file there) */
+#endif
+    if (rename(tmp, path) != 0) {
+        remove(tmp);
+        return 0;
+    }
+    return 1;
+}
+
+/* The folder of a package as the Mod Manager names it ("Name" or "Character/Form", as PortCharaPkg.folder) inside
+   the characters folder; 0 for a name that could lead elsewhere (empty, a dot first, "..", a backslash, a slash
+   first or more than one, a part of 64 bytes or more). */
+static int pkg_dir(const char *folder, char *out, size_t size) {
+    char root[300];
+    const char *slash = strchr(folder, '/');
+    size_t a = slash != NULL ? (size_t)(slash - folder) : strlen(folder), b = slash != NULL ? strlen(slash + 1) : 1;
+    if (a == 0 || a >= 64 || b == 0 || b >= 64 || folder[0] == '.' || (slash != NULL && (slash[1] == '.' || strchr(slash + 1, '/') != NULL)) ||
+        strchr(folder, '\\') != NULL || strstr(folder, "..") != NULL || !PortCharas_Root(root, sizeof(root))) {
+        return 0;
+    }
+    return join(out, size, root, folder);
+}
+
+/* whether the n bytes at p are the key, without regard to case */
+static int key_is(const char *p, const char *key, size_t n) {
+    size_t i;
+    for (i = 0; i < n; i++) {
+        if (tolower((unsigned char)p[i]) != tolower((unsigned char)key[i])) {
+            return 0;
+        }
+    }
+    return 1;
+}
+
+/* Sets one key of a package's character.txt (value NULL: takes the key out), keeping every other line as it is
+   (comments, unknown keys, their order); the file is written beside and put in place. Control characters of the
+   value become spaces. The change is used at the next PortCharas_Reload. 0 if it was not done. */
+int PortCharas_ManifestSet(const char *folder, const char *key, const char *value) {
+    static char text[TEXT_MAX], out[TEXT_MAX + 512];
+    char dir[400], path[420], tmp[440], clean[256];
+    size_t klen = strlen(key), o = 0;
+    long len = 0;
+    char *line, *next;
+    int done = 0, k;
+    FILE *f;
+
+    if (klen == 0 || klen > 32 || strpbrk(key, "=\r\n#") != NULL || !pkg_dir(folder, dir, sizeof(dir)) || !join(path, sizeof(path), dir, "character.txt")) {
+        return 0;
+    }
+    if (regular(path) && (len = read_text(path, text)) < 0) {
+        return 0;
+    }
+    if (len >= TEXT_MAX - 1) {
+        return 0; /* (longer than the game reads: it is not rewritten from a part of it) */
+    }
+    if (value != NULL) {
+        snprintf(clean, sizeof(clean), "%s", value);
+        for (k = 0; clean[k] != '\0'; k++) {
+            if ((unsigned char)clean[k] < 0x20 || clean[k] == 0x7F) {
+                clean[k] = ' ';
+            }
+        }
+    }
+    text[len > 0 ? len : 0] = '\0';
+    line = text;
+    if (memcmp(text, "\xEF\xBB\xBF", 3) == 0) { /* (a byte order mark stays where it is) */
+        memcpy(out, text, 3);
+        o = 3;
+        line += 3;
+    }
+    for (; *line != '\0'; line = next) {
+        const char *p = line, *eq;
+        next = strchr(line, '\n');
+        next = next != NULL ? next + 1 : line + strlen(line);
+        while (*p == ' ' || *p == '\t') {
+            p++;
+        }
+        eq = memchr(p, '=', (size_t)(next - p));
+        if (*p != '#' && eq != NULL) {
+            const char *e = eq;
+            while (e > p && (e[-1] == ' ' || e[-1] == '\t')) {
+                e--;
+            }
+            if ((size_t)(e - p) == klen && key_is(p, key, klen)) {
+                if (value != NULL && !done) { /* (the first such line becomes the new one; others go: the last would count) */
+                    o += (size_t)snprintf(out + o, sizeof(out) - o, "%s=%s\n", key, clean);
+                    done = 1;
+                }
+                continue;
+            }
+        }
+        if (o + (size_t)(next - line) + 1 >= sizeof(out)) {
+            return 0;
+        }
+        memcpy(out + o, line, (size_t)(next - line));
+        o += (size_t)(next - line);
+        if (next[-1] != '\n' && *next == '\0') {
+            out[o++] = '\n';
+        }
+    }
+    if (value != NULL && !done) {
+        if (o == 0) {
+            o += (size_t)snprintf(out + o, sizeof(out) - o, "format=%d\n", PORT_CHARA_FORMAT);
+        }
+        o += (size_t)snprintf(out + o, sizeof(out) - o, "%s=%s\n", key, clean);
+    }
+    if (o >= TEXT_MAX - 1) {
+        return 0;
+    }
+    snprintf(tmp, sizeof(tmp), "%s.new", path);
+    if ((f = fopen(tmp, "wb")) == NULL) {
+        return 0;
+    }
+    if (fwrite(out, 1, o, f) != o || fclose(f) != 0) {
+        remove(tmp);
+        return 0;
+    }
+#ifdef _WIN32
+    remove(path);
+#endif
+    if (rename(tmp, path) != 0) {
+        remove(tmp);
+        return 0;
+    }
+    return 1;
+}
+
+/* A key of a package's character.txt as it is written there (the last line that says it); "" and 0 if none. */
+int PortCharas_ManifestGet(const char *folder, const char *key, char *out, unsigned size) {
+    static char text[TEXT_MAX];
+    char dir[400], path[420];
+    size_t klen = strlen(key);
+    long len;
+    char *line, *next;
+    int found = 0;
+
+    if (size > 0) {
+        out[0] = '\0';
+    }
+    if (klen == 0 || !pkg_dir(folder, dir, sizeof(dir)) || !join(path, sizeof(path), dir, "character.txt") || !regular(path) ||
+        (len = read_text(path, text)) <= 0) {
+        return 0;
+    }
+    text[len] = '\0';
+    for (line = text; *line != '\0'; line = next) {
+        char *p = line, *eq, *e, *v, *ve;
+        next = strchr(line, '\n');
+        next = next != NULL ? next + 1 : line + strlen(line);
+        while (*p == ' ' || *p == '\t') {
+            p++;
+        }
+        if (p == text && memcmp(p, "\xEF\xBB\xBF", 3) == 0) {
+            p += 3;
+        }
+        eq = memchr(p, '=', (size_t)(next - p));
+        if (*p == '#' || eq == NULL) {
+            continue;
+        }
+        for (e = eq; e > p && (e[-1] == ' ' || e[-1] == '\t'); e--) {
+        }
+        if ((size_t)(e - p) != klen || !key_is(p, key, klen)) {
+            continue;
+        }
+        for (v = eq + 1; *v == ' ' || *v == '\t'; v++) {
+        }
+        for (ve = next; ve > v && (ve[-1] == '\n' || ve[-1] == '\r' || ve[-1] == ' ' || ve[-1] == '\t'); ve--) {
+        }
+        snprintf(out, size, "%.*s", (int)(ve - v), v);
+        found = 1;
+    }
+    return found;
+}
+
 /* The size of the fight's model buffers: the original's (0xCE000), or the largest model file there is to load if that
    is larger: a package's, or one of the data folder's own (0x590 + id * 10 + 0..7, the first archive; the file under
    mods/ where there is one, which is the one loaded), which a disc with replaced characters can have. Whole pages;
    not over PORT_MODEL_MAX (a larger file of the data folder is reported once: it would be read past the buffer's
    end). */
 int Port_ModelSize(void) {
-    static int size;
+    int size = sModelSize;
     if (size == 0) {
         const char *root = getenv("BT3_DATA") != NULL ? getenv("BT3_DATA") : "gamedata";
         long most = 0xCE000;
@@ -982,6 +1579,7 @@ int Port_ModelSize(void) {
             fprintf(stderr, "bt3: the fight's model buffers are %d KB (the largest model there is to load)\n", size / 1024);
         }
     }
+    sModelSize = size;
     return size;
 }
 
@@ -1085,20 +1683,56 @@ static int have(const char *path) {
 }
 
 /* A file number of the disc that is a replaced character's own: the package's file, if it has that one. */
+/* The Mod Manager's preview: a folder (a package, switched on or not, or one the browser looks at) whose files answer
+   for one disc character's file numbers ahead of everything, while the manager shows it. Never in a session. */
+static Chara sPreview;
+static int sPreviewAs = -1;
+
+int PortCharas_Preview(const char *path, int as) {
+    char root[400];
+    const char *slash = path != NULL ? strrchr(path, '/') : NULL;
+    const Chara *c = NULL;
+    sPreviews++;
+    sPreviewAs = -1;
+    if (path == NULL || path[0] == '\0' || as < 0 || as >= DISC_CHARAS || Port_NetSession() || slash == NULL || slash[1] == '\0' ||
+        (size_t)(slash - path) >= sizeof(root)) {
+        return 0;
+    }
+    snprintf(root, sizeof(root), "%.*s", (int)(slash - path), path);
+    sDryNote[0] = '\0';
+    sDry = 1;
+    c = scan(root, slash + 1, NULL);
+    sDry = 0;
+    if (c == NULL) {
+        return 0;
+    }
+    sPreview = *c;
+    sPreviewAs = as;
+    return 1;
+}
+
+/* the package whose files answer for disc character id: the preview, else its replacement */
+static const Chara *served(int id) {
+    if (sPreviewAs >= 0 && id == sPreviewAs && !Port_NetSession()) {
+        return &sPreview;
+    }
+    return repl_of(id);
+}
+
 static int alias_replaced(int arc, int index, char *out, unsigned n) {
     const Chara *c;
     const char *path = NULL;
     if (arc == 1) {
         int id = index + 1; /* (the first archive's file id N is its file N - 1) */
         if (id >= 8 && id < 8 + DISC_CHARAS * 2) {
-            c = repl_of((id - 8) / 2);
+            c = served((id - 8) / 2);
             path = c != NULL ? c->member[0][(id - 8) % 2] : NULL;
         } else if (id >= 0x2F9 && id < 0x2F9 + DISC_CHARAS) {
-            c = repl_of(id - 0x2F9);
+            c = served(id - 0x2F9);
             path = c != NULL ? c->portrait[0] : NULL;
         } else if (id >= 0x590 && id < 0x590 + DISC_CHARAS * 10) {
             int k = (id - 0x590) % 10;
-            c = repl_of((id - 0x590) / 10);
+            c = served((id - 0x590) / 10);
             if (c != NULL) {
                 /* Disc IDs retain four normal/four damaged model slots.
                    Costumes 5..8 use only the virtual 34-file bank. */
@@ -1122,16 +1756,16 @@ static int alias_replaced(int arc, int index, char *out, unsigned n) {
                 }
             }
         } else if (id >= 0xBDA && id < 0xBDA + DISC_CHARAS) {
-            c = repl_of(id - 0xBDA);
+            c = served(id - 0xBDA);
             path = c != NULL ? c->file[F_VOICE] : NULL;
         } else if (id >= 0xC7B && id < 0xC7B + DISC_CHARAS) {
-            c = repl_of(id - 0xC7B);
+            c = served(id - 0xC7B);
             path = c != NULL ? c->file[F_VOICE + 1] : NULL;
         }
     } else {
         int id = index + 0xD48, set = id >= 0xCC32, at = id - (set ? 0xCC32 : 0x8D4E);
         if (id >= 0x8D4E && at >= 0 && at < DISC_CHARAS * 100 && (set || id < 0x8D4E + DISC_CHARAS * 100)) {
-            c = repl_of(at / 100);
+            c = served(at / 100);
             if (c != NULL && c->lines[set][0] != '\0') {
                 int w = snprintf(out, n, "%s/%03d.adx", c->lines[set], at % 100);
                 return w > 0 && (unsigned)w < n && have(out);
@@ -1159,7 +1793,9 @@ static int alias(const char *rel, char *out, unsigned n) {
     }
     if (arc == 1 || index < PORT_CHARA_FILE_INDEX) {
         PortCharas_Init();
-        return rlive() > 0 ? alias_replaced(arc, index, out, n) : 0;
+        /* (the Mod Manager's preview too: with no replacement on, an added character's folder on its base was not
+           asked, and the platform showed the disc's base character) */
+        return rlive() > 0 || (sPreviewAs >= 0 && !Port_NetSession()) ? alias_replaced(arc, index, out, n) : 0;
     }
     PortCharas_Init();
     if (index >= PORT_CHARA_LINE_INDEX && index < PORT_CHARA_LINE_INDEX + PORT_CHARA_MAX * 200) {
@@ -1408,6 +2044,162 @@ static int alias(const char *rel, char *out, unsigned n) {
 
 /* A link of a package's manifest as a character id, for an added character or a replaced one of the disc: -1
    where nothing is said (the character's own table counts). */
+/* The fight (src/battle/btl_obj.c, BtlObj_Setup): a package's forms into the parameter block of the model its
+   fighter was just set up from (the bytes from 0x98: transformations 0x98..0xAD, fusions 0xAE..0xC5). Its links (the
+   targets, the fusions and their partners) and the other numbers its manifest says; the rest as the model has them.
+   Nothing in a session, and nothing for a character no package is for. */
+void Port_CharaParamApply(int chara, void *param) {
+    unsigned char *p = param;
+    const Chara *c;
+    int k;
+
+    PortCharas_Init();
+    if (p == NULL || (c = chara_of(chara)) == NULL) {
+        return;
+    }
+    for (k = 0; k < 4; k++) {
+        if (c->target[k] >= 0) {
+            p[0x98 + k] = (unsigned char)c->target[k];
+        }
+    }
+    for (k = 0; k < 3; k++) {
+        int m;
+        if (c->target[4 + k] >= 0) {
+            p[0xB4 + k] = (unsigned char)c->target[4 + k];
+        }
+        for (m = 0; m < 4; m++) {
+            if (c->target[7 + k * 4 + m] >= 0) {
+                p[0xBA + k * 4 + m] = (unsigned char)c->target[7 + k * 4 + m];
+            }
+        }
+    }
+    for (k = 0; k < PAR_COUNT; k++) {
+        if (c->par[k] >= 0) {
+            p[PAR_BASE + k] = (unsigned char)c->par[k];
+        }
+    }
+    p[0xAD] = (unsigned char)((p[0xAD] & ~(c->freshSet << 4)) | ((c->freshOn & c->freshSet) << 4));
+    if (p[0xAC] != 0xFF && (p[0xAC] > 3 || p[0x98 + p[0xAC]] == 0xFF)) { /* (the plain R3 slot must lead somewhere) */
+        p[0xAC] = 0xFF;
+        for (k = 0; k < 3 && p[0xAC] == 0xFF; k++) {
+            if (p[0x98 + k] != 0xFF) {
+                p[0xAC] = (unsigned char)k;
+            }
+        }
+    }
+}
+
+/* ---- the skill list's transformation page ----------------------------------------------------------------------
+ * The pause menu's skill list is the text of the model (section 45 + language): a package's model brings the text its
+ * makers wrote, which often has no transformation page for a form made of another character's model (Poder
+ * Controlado, Zombie). For a package's fighter whose text has no transformation page ("$4") and whose table (just
+ * filled by Port_CharaParamApply) has transformations, a copy of the text with such a page is made, in the game's
+ * form: each target's form label (else its name) after its cost, R3 for the plain R3 one, else its direction with
+ * R3 (slots 0..3: left, up, right, down; src/battle/btl_act_j.c). The page takes the next number (the list pages
+ * through 0..pages - 1), its title "Transformation". Never in a session; a text that has the page is left alone. */
+enum { SKILL_BUFS = 12, SKILL_MAX = 12288 };
+static unsigned short sSkill[SKILL_BUFS][SKILL_MAX];
+static int sSkillNext;
+extern const char *Port_DiscCharaName(int chara); /* src/menu/port_tbo.c */
+
+/* UTF-8 into UTF-16 at out[*o] (no more than max) */
+static void skill_put(unsigned short *out, int *o, int max, const char *s) {
+    const unsigned char *p = (const unsigned char *)s;
+    while (*p != 0 && *o < max) {
+        unsigned c = *p++;
+        if (c >= 0xC0 && c < 0xE0 && (*p & 0xC0) == 0x80) {
+            c = (c & 0x1F) << 6 | (*p++ & 0x3F);
+        } else if (c >= 0xE0 && c < 0xF0 && (p[0] & 0xC0) == 0x80 && (p[1] & 0xC0) == 0x80) {
+            c = (c & 0x0F) << 12 | (p[0] & 0x3F) << 6 | (p[1] & 0x3F);
+            p += 2;
+        } else if (c >= 0x80) {
+            c = '?';
+        }
+        out[(*o)++] = (unsigned short)c;
+    }
+}
+
+static void skill_name(int t, char *out, size_t n) {
+    const Chara *c = chara_of(t);
+    if (c != NULL && c->labelSet && c->label[0] != '\0') {
+        snprintf(out, n, "%s", c->label);
+    } else if (c != NULL && c->shown[0] != '\0') {
+        snprintf(out, n, "%s", c->shown);
+    } else {
+        snprintf(out, n, "%s", t >= 0 && t < DISC_CHARAS ? Port_DiscCharaName(t) : "?");
+    }
+}
+
+unsigned short *Port_CharaSkillText(int chara, unsigned short *text, void *param) {
+    static const char *const kArrow[4] = {"\xE2\x86\x90", "\xE2\x86\x91", "\xE2\x86\x92", "\xE2\x86\x93"}; /* (← ↑ → ↓) */
+    const unsigned char *p = param;
+    unsigned short *out;
+    int i, end = -1, pages = 0, o = 0, k, any = 0;
+
+    PortCharas_Init();
+    if (text == NULL || p == NULL || Port_NetSession() || chara_of(chara) == NULL) {
+        return text;
+    }
+    for (k = 0; k < 4; k++) {
+        any |= p[0x98 + k] != 0xFF;
+    }
+    if (!any) {
+        return text;
+    }
+    /* its pages, and where its end ("@") is */
+    for (i = 0; i < SKILL_MAX - 1 && text[i] != 0; i++) {
+        if ((i == 0 || text[i - 1] == '\n' || text[i - 1] == 0xFEFF) && text[i] == '!' && text[i + 1] != 0) {
+            if (text[i + 2] == '$') {
+                if (text[i + 3] == '4') {
+                    return text; /* (it has its own) */
+                }
+                pages++;
+            } else if (text[i + 2] == '@') {
+                end = i;
+                break;
+            }
+        }
+    }
+    if (end < 0 && i < SKILL_MAX - 1 && text[i] == 0) { /* (a text that ends with no "@", at its zero: the game stops
+                                                            there too; its blank lines before it are left out) */
+        for (end = i; end > 1 && text[end - 1] == '\n' && text[end - 2] == '\n'; end--) {
+        }
+        if (end > 0 && text[end - 1] != '\n') {
+            end = -1; /* (the last line is not whole: left as it is) */
+        }
+    }
+    if (end < 0 || pages > 9) {
+        return text;
+    }
+    out = sSkill[sSkillNext];
+    sSkillNext = (sSkillNext + 1) % SKILL_BUFS;
+    memcpy(out, text, (size_t)end * sizeof(unsigned short));
+    o = end;
+    {
+        char line[200], name[100];
+        snprintf(line, sizeof(line), "!F$%dTransformation\n", pages);
+        skill_put(out, &o, SKILL_MAX - 64, line);
+        for (k = 0; k < 4; k++) {
+            int t = p[0x98 + k];
+            if (t == 0xFF) {
+                continue;
+            }
+            skill_name(t, name, sizeof(name));
+            snprintf(line, sizeof(line), "!F*%03d%s\n", p[0x9C + k] <= 9 ? p[0x9C + k] : 0, name);
+            skill_put(out, &o, SKILL_MAX - 64, line);
+            if (p[0xAC] == k) {
+                skill_put(out, &o, SKILL_MAX - 64, "!D#<PAD=\xEF\xBC\xB2\xEF\xBC\x93>\n!2#<PAD=\xE2\x80\xA0\xE2\x91\xA0>\n");
+            } else {
+                snprintf(line, sizeof(line), "!D#<PAD=%s\xEF\xBC\x8B\xEF\xBC\xB2\xEF\xBC\x93>\n!2#<PAD=%s\xEF\xBC\x8B\xE2\x80\xA0\xE2\x91\xA0>\n", kArrow[k], kArrow[k]);
+                skill_put(out, &o, SKILL_MAX - 64, line);
+            }
+        }
+    }
+    skill_put(out, &o, SKILL_MAX - 2, "!F@\n");
+    out[o] = 0;
+    return out;
+}
+
 int Port_CharaFormTarget(int chara, int slot) {
     const Chara *c;
     PortCharas_Init();

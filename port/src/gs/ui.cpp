@@ -1784,7 +1784,7 @@ static void mods_tab(void) {
         const PortCharaPkg *p = Port_CharaPkg(i);
         added += p->kind == PORT_PKG_ADDS;
         replaced += p->kind == PORT_PKG_REPLACES;
-        off += p->kind == PORT_PKG_OFF;
+        off += p->kind == PORT_PKG_OFF || p->kind == PORT_PKG_DISABLED;
     }
     if (Port_NetSession()) {
         ImGui::TextWrapped("El online clásico de dos jugadores usa solo personajes originales; "
@@ -1822,6 +1822,8 @@ static void mods_tab(void) {
                 ImGui::TextDisabled("añade un personaje (ID %d)", p->id);
             } else if (p->kind == PORT_PKG_REPLACES) {
                 ImGui::TextDisabled("reemplaza al personaje %d", p->id);
+            } else if (p->kind == PORT_PKG_DISABLED) {
+                ImGui::TextDisabled("desactivado (Mod Manager)");
             } else {
                 ImGui::TextDisabled("sin usar");
             }

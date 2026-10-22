@@ -3431,6 +3431,38 @@ Not seen by a person: a replacement on a screen, in a menu or in a fight; the Mo
 replaced character into an added one; the fight's display with more health than the disc gives; Windows and
 macOS at run time.
 
+## White dots on a shiny character (2026-10-14)
+
+Reported by the user: Perfect Cell's black, glossy parts had small white dots scattered over them. Replayed from
+a recording of the user's presses (New Game, Duel, Goku against Perfect Cell) without a window: the dots are in
+0.1.34's picture, not in the software reference's (`BT3_GS=1`), and not with `BT3_NZ=0`. So they came with the
+rule of 0.1.31 that draws without the shader's own depth where "it changes nothing" (gs_draw.c, key bit 23).
+
+Why it did change something: the full shader writes `floor(z * steps) / steps`, worked out in floats, and that can
+come out one last bit of the float ABOVE the depth the chip interpolates for the very same triangle. A second
+layer over the same triangles that does not write depth (the gloss) is then tested with the interpolated depth
+against a stored value one bit larger, fails "greater or equal", and the pixel keeps the layer below: a dot.
+
+Fix, first try (2080bfe, tagged v0.1.34.1 but never published): a depth bias of two float bits on the pipelines
+of bit 23. Wrong: with 16 million depth steps a step is about one such bit near the far end, so the bias was a
+step or two, and the user saw layers that should lose by one step win (shadow layers over clothes).
+
+Fix as it is now, in the shader that writes depth (gs.frag): where the division came out above z, the step below
+is written, so what is stored is never above the z it came from. Then "z >= stored" and "step of z >= stored" are
+the same thing, which is what the rule of bit 23 assumed, and nothing is biased.
+
+Checked with the recording, 60 pictures of the fight, every pixel: the default and `BT3_NZ=0` give the same
+picture in all 60 (0.1.34: 45 of 60 differ, by up to 328 pixels; the bias: 12 of 60, by 1 or 2 pixels). Against
+0.1.34's own full-shader picture, 8 of the 60 differ in one pixel each (the step below, where 0.1.34 wrote the
+step above). The replay check is unchanged.
+Not checked: Windows (Direct3D 12), macOS (Metal) and the OpenGL back end; other shiny characters; the scene in
+which the user saw the shadow layers (not in the recording).
+
+## Input lag: measured, and "Low input lag" (2026-10-14)
+
+Asked by the user: how large is the input lag, can it be lowered, or is it fixed by the game?
+
+
 `BT3_LAG_LOG=1` prints when things happen, in microseconds: `V` a vertical blank (after its wait), `W` the game
 arriving at a blank's wait, `R` a pad read, `E` the window's events taken (a controller's state is renewed then),
 `S` a picture handed to the window, `L` the owed blanks waited for (below). Measured with a recording of the user's
@@ -3605,4 +3637,4 @@ played: a player who had added MP3s saw every one twice. A `songs.txt` line that
 A copy whose MP3 is gone stays a song, and an ADX without the mark (made by hand, ffmpeg, add_song.py) is never
 left out. The files are not touched. Counted at start, four folders: MP3 + its copy + WAV + FLAC gave 3 songs
 (4 before); the copy alone 1; a hand-made ADX beside an MP3 of the same name 2; the list naming the copy 3. Heard
-(Linux): WAV and FLAC songs in a fight, and the MP3 beside its old ADX copy.
+

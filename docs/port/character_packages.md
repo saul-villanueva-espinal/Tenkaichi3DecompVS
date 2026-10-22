@@ -30,9 +30,18 @@ Contents: [1 Where packages go](#1-where-packages-go) · [2 The files](#2-the-fi
   environment variable `BT3_CHARACTERS` names another folder.
 - Every folder directly inside `characters` is looked at. A folder that holds none of the files below is passed
   over. Folders whose name starts with a dot, or is 64 characters or longer, are not read.
-- Packages are read **in the order of their folder names**, without regard to upper and lower case. The order
-  decides the ids of added characters (section 4) and which of two packages wins a conflict (section 5).
-- The folder is read once, when the game starts. Change a package, start the game again.
+- Packages are read in the order of `characters/load_order.txt` (one folder a line, the Mod Manager's order; a
+  folder can be switched off there), then the folders it does not name **in the order of their names**, without
+  regard to upper and lower case. The order decides the ids of added characters (section 4) and which of two
+  packages wins a conflict (section 5).
+- The folder is read once, when the game starts. Change a package, start the game again. (Changes made in the Mod
+  Manager take effect at once.)
+- **The Mod Manager adds packages too** (main menu > Mod Manager): drop a package's folder, a folder of several, or
+  an archive (zip, 7z, rar, tar) on the game's window, or pick one in its browser and press Square. Every package
+  found is copied into `characters` (the original stays where it was); one already there with the same files is
+  skipped, another of the same name gets " (2)". A folder name with accents is written with plain letters. Archives
+  are unpacked by a program of the system: `tar` on Windows (zip on Windows 10, 7z and rar on Windows 11), on Linux
+  `bsdtar`, `unzip`, `7z` or `unrar`, whichever is installed. Links in a package are not copied.
 - F1 > Mods lists every package the game found, what it does, and anything wrong with it. The same remarks are in
   the game's log, each line starting `bt3: characters:`.
 
@@ -54,8 +63,8 @@ all "the model of costume 1". If a folder has two files of one kind, the first b
 | `*_voice_jp.pak` | voice bank, **Japanese** | `0xBDA + id` | 591,872 |
 | `voice_us/NNN.adx` | spoken lines, English: `000.adx` .. `099.adx` | `0xCC32 + id*100 + NNN` | none (streamed) |
 | `voice_jp/NNN.adx` | spoken lines, Japanese | `0x8D4E + id*100 + NNN` | none (streamed) |
-| `portrait.bin` | the large picture of the menus | `0x2F9 + id` | 92,160 |
-| `member_1p.bin`, `member_2p.bin` | the fight's member block (the small picture of a team mate), for the left and the right side | `8 + id*2 + side` | 4,096 |
+| `portrait.bin`, or `*_img.cdbt` | the large picture of the menus | `0x2F9 + id` | 92,160 |
+| `member_1p.bin`, `member_2p.bin`, or `*_tag_P1.dbt`, `*_tag_P2.dbt` | the fight's member block (the small picture of a team mate), for the left and the right side | `8 + id*2 + side` | 4,096 |
 | `chip.bin` | the small square of the roster: one entry of the character select's chip pack | menu archive `0x1C1`, section 45, entry `id + 1` | exactly the game's 5,504-byte entry |
 | `character.txt` | the manifest (section 3) | | first 16,383 bytes are read |
 
@@ -236,6 +245,28 @@ A link is one of:
   cell of its own; it is one of the forms under that character's cell. An added character that only a replaced
   disc character transforms into keeps a cell of its own.
 - The fusion input is R3 held with left, up or right, in a team battle with the partner on the team.
+- A link may be `none`: that transformation or fusion (or partner) is switched off, with no remark.
+
+**The other numbers of a form.** What a transformation or a fusion costs and what it looks like are numbers of the
+character's own table too. These keys set them; a key that is not written leaves the table's own (the Mod Manager's
+FORMS screen writes them all for the part it changed):
+
+| Key | Value | What it sets (the table's byte) |
+|---|---|---|
+| `left_cost`, `up_cost`, `right_cost`, `down_cost` | `0`..`9` | blast stocks it costs (+0x9C) |
+| `left_type`, ... | `0`..`4` | 0 power up, 1 back to the earlier form, 2 great ape, 3 absorption, 4 machine merge (+0xA0) |
+| `left_effect`, ... | `0`..`11` | the scene's effect; 3 needs the moon (+0xA4) |
+| `left_assist`, ... | a disc character id, or `none` | the other fighter its scene shows (+0xA8) |
+| `left_fresh`, ... | `0` or `1` | the new form starts with its clothes whole (bit 4..7 of +0xAD) |
+| `default` | `left`, `up`, `right`, `down` or `none` | the form plain R3 (no direction) takes (+0xAC) |
+| `fusion1_cost`, `fusion2_cost`, `fusion3_cost` | `0`..`9` | blast stocks the fusion costs (+0xAE) |
+| `fusion1_type`, ... | `dance` or `potara` | which kind of fusion (+0xB1) |
+| `fusion1_lead`, ... | a disc character id, or `none` | the partner its scene shows (+0xB7) |
+| `fusion1_scene`, ... | `0`..`5` | the scene's motions as the Mod Manager names them; kept, not used by the fight yet |
+
+They are put into the parameter table of the character's model when a fighter is set up from it (offline only, as
+everything of a package). A disc character's forms set in the Mod Manager go into a package made for them,
+`<the character's name> forms`, which replaces the character with nothing but its manifest.
 
 ## 7. Health, ki, blast stocks
 
@@ -298,8 +329,7 @@ These keys make a character stronger or weaker than the original. That is the pl
   recorded; one made with a replaced character needs that replacement. With anything else it still plays, but as
   a different fight.
 - **Per-opponent lines before a fight** for an added character: it speaks as its base to the base's opponents.
-- **Switching a package off without moving its folder.** Take the folder out of `characters`.
-- **Zip files.** A package is a folder.
+- **A package read from inside an archive.** The game reads folders; the Mod Manager unpacks an archive into one.
 
 ## 11. Online play
 
@@ -334,6 +364,31 @@ file is the disc's own), so the game plays exactly as before; then edit the file
 the ones you do not change**, so the package holds only your work.
 
 A package made this way holds the game's own data. It is for your own use. Pass on only what you made.
+
+### The pictures, from and to a PNG
+
+`chip.bin`, `member_1p.bin`, `member_2p.bin` and `portrait.bin` are textures of the game: one byte a pixel and a
+palette of 256 colours, in the order the console's video memory keeps them, with the commands that upload them;
+`portrait.bin` is packed as well. The same tool turns them into PNG files and back, with no game data needed:
+
+```
+python3 import_chara.py --to-png portrait.bin portrait.png
+python3 import_chara.py --from-png my_portrait.png portrait.bin --like portrait.bin
+```
+
+`--like` names any existing file of the same kind (the one an import wrote, or another package's): it gives the
+kind and the size, and only its picture is replaced. It may be the file that is written.
+
+| File | Size of the picture | Notes |
+|---|---|---|
+| `chip.bin` | 64 x 64 | the disc's chips keep the face in the middle and leave some rows at the top and the bottom empty: look at one with --to-png |
+| `member_1p.bin`, `member_2p.bin` | 64 x 32 | the team mate's small picture, for the left and the right side |
+| `portrait.bin` | 256 x 512 | stored squeezed: the menus show it about twice as wide, so draw it at 512 x 512 and scale the width down to 256 |
+
+A PNG of another size is resized to the picture's (best made at the right size, or a whole multiple of it). A PNG
+with more than 256 colours is brought down to 256. Transparency is kept: the console's alpha has 128 steps, so
+half-transparent edges come out a little coarser. A packed portrait has to stay within 92,160 bytes; a picture
+with a great deal of fine noise may not, and the tool then says so and writes nothing.
 
 ## 13. Testing a package
 

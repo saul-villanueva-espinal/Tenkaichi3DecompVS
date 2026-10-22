@@ -110,6 +110,9 @@ Put a character package here, a folder for each (characters/My Fighter/...). A p
 character select, or replaces one of the disc's (a line `replaces=<id>` in its character.txt). The game reads the
 folder when it starts; F1 > Mods lists every package, what it does, and what is wrong with it.
 
+Or let the game put it here: open the Mod Manager (main menu) and drop the package's folder, a folder of several,
+or an archive (zip, 7z, rar) on the game's window. It copies every package it finds into this folder.
+
 character_packages.md, in this folder, is the guide: the files of a package, character.txt, transformations,
 health, limits, and how to test one.
 
@@ -118,6 +121,11 @@ import_chara.py, in this folder, makes a package from a character of your own di
     python3 import_chara.py <your disc image .iso or gamedata folder> --names
     python3 import_chara.py <disc image or gamedata folder> <character id> <output folder> --with-forms
     python3 import_chara.py <disc image or gamedata folder> <character id> <output folder> --replace
+
+It also turns a package's pictures (chip.bin, member_1p.bin, portrait.bin) into PNG files and back:
+
+    python3 import_chara.py --to-png portrait.bin portrait.png
+    python3 import_chara.py --from-png my_picture.png portrait.bin --like portrait.bin
 
 Up to 57 added characters at once (a transformation counts as one). Packages are not written to your save, and
 none is used in an online match (Dragon Net Battle): there the game is the original on both sides.

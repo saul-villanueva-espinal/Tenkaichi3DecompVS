@@ -49,6 +49,11 @@ static s32 Port_EscTake(void) {
 }
 
 /* The fighters' names (Train While Waiting's choice), by character id. */
+static const char *const sTbNames[];
+/* (also the skill list's transformation page that port/src/plat_charas.c makes for a package's fighter) */
+const char *Port_DiscCharaName(s32 chara) {
+    return chara >= 0 && chara < 161 ? sTbNames[chara] : "";
+}
 static const char *const sTbNames[] = {
     "Goku (Early)",
     "Goku (Med)",
@@ -610,6 +615,11 @@ static char *Tb_Fighter(s32 chara) {
         got[chara] = 1;
     }
     return name[chara];
+}
+
+/* A disc character's name for the PC's screens (the Mod Manager's lists: port/src/plat_modmgr.c); "?" past the list. */
+char *PortTbo_FighterName(s32 chara) {
+    return Tb_Fighter(chara);
 }
 
 static void Tb_SparUpdate(s32 live) {
