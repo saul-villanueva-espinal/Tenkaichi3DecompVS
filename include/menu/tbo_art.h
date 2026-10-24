@@ -56,7 +56,14 @@
     X(MM_LOCK, "mm_lock") \
     X(MM_PIP, "mm_pip") \
     X(MM_PIP_OFF, "mm_pip_off") \
-    X(MM_BG_DUSK, "mm_bg_dusk")     /* the character select's mod grid */
+    X(MM_BG_DUSK, "mm_bg_dusk") \
+    X(TBO_CHALLENGE_TOWER, "challenge_tower") \
+    X(TBO_CHALLENGE_SURVIVAL, "challenge_survival") \
+    X(TBO_CHALLENGE_CUSTOM, "challenge_custom") \
+    X(TBO_MAIN_MANGA, "main_manga_reference") \
+    X(TBO_MAIN_MANGA_NEUTRAL, "main_manga_neutral") \
+    X(TBO_TOWER_MANGA, "tower_manga") \
+    X(TBO_TOWER_SELECTOR, "tower_selector")
 
 #define TBO_ART_ENUM(id, name) id,
 enum { TBO_ART_LIST(TBO_ART_ENUM) TBO_ART_COUNT };
@@ -81,3 +88,4 @@ enum { TBO_ART_LIST(TBO_ART_ENUM) TBO_ART_COUNT };
 #define TBO_LANG_ARROW_RIGHT_FILE "facc78c71c9e6bf4-46b3733838fe48ce-00001553.png"
 
 #endif
+

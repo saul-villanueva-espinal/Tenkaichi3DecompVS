@@ -151,7 +151,7 @@ int __wrap_Progress_Main(int arg) {
                 if(Port_CoopEnabled() && !Port_TourneyEnabled()) {
                     extern int PortRaid_OnlineError(void);
                     gPortMenuMode=1;PortRaid_OnlineError();gPortMenuMode=0;
-                    gProgress->mode=4;goto tournament_finished;
+                    goto tournament_finished;
                 }
                 if(Port_TourneyEnabled() && Port_TourneyFailed()) {
                     extern int PortTournamentOnline_Error(void);

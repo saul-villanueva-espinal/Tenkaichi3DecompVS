@@ -5,7 +5,7 @@ root=Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory() as tmp:
     exe=str(Path(tmp)/('tourney.exe' if os.name=='nt' else 'tourney'))
     subprocess.run([shutil.which('cc') or shutil.which('gcc'),'-std=c11','-D_POSIX_C_SOURCE=200809L','-Wall','-Wextra',
-                    '-Iport/include','port/tests/tournament_peer_test.c','port/src/gs/coop_net.c','port/src/plat_pc_battle.c',
+                    '-Iport/include','port/tests/tournament_peer_test.c','port/src/gs/coop_net.c','port/src/gs/coop_rooms.c','port/src/plat_pc_battle.c',
                     'port/src/plat_tournament.c','-lpthread']+(['-lws2_32'] if os.name=='nt' else [])+['-o',exe],cwd=root,check=True)
     for count,drop in [(4,False),(8,False),(16,False),(4,True)]:
         with socket.socket(socket.AF_INET,socket.SOCK_DGRAM) as sock:

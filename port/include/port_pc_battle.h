@@ -28,6 +28,8 @@ int Port_RaidRoomActive(void);
 int Port_PcRosterQueue(const PcBattle *b);
 int Port_PcRosterPlayerQueue(const PcBattle *b, int dp);
 int Port_PcTeamsMask(void);
+void Port_GetLocalIp(int ip[4]);
+
 void Port_RosterRemember(const PcBattle *b);
 int Port_RosterRecall(int mode, PcBattle *b);
 int Port_RosterFavorite(int chara, int toggle);

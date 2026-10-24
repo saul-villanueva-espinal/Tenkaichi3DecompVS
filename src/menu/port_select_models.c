@@ -186,7 +186,7 @@ void Port_SelectModelsEnd(void) {
 
 typedef struct RaidPreview {SelectModel model;BtlResSlot resource;} RaidPreview;
 static RaidPreview sRaidPreview[PORT_RAID_BOSSES];
-static s32 sRaidPreviewOn;
+static s32 sRaidPreviewOn,sRaidSelector;
 extern void *Heap_Alloc(s32,u32,s32,s32);
 extern void Heap_Free(void *);
 void Port_RaidModelsBegin(void) {
@@ -229,9 +229,10 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
     static const f32 pixels[5]={240,155,170,150,100};
     static const s32 order[5]={4,2,1,3,0};
     static f32 orbit;
-    s32 i,j,k,n;SelectModel *m;BtlObj *obj;BtlObjPart *root,*head;
+    s32 i,j,k,n,x0=sRaidSelector?171:292,x1=sRaidSelector?346:511;SelectModel *m;BtlObj *obj;BtlObjPart *root,*head;
     f32 height,width,depth,floor,body,target,dist,cx,fy,ph,maxWidth;Vec4 size;
     if(!sRaidPreviewOn) return;
+    if(sRaidSelector==2){x0=196;x1=328;}
     if(count<1) count=1;if(count>PORT_RAID_BOSSES) count=PORT_RAID_BOSSES;
     for(i=0;i<PORT_RAID_BOSSES;i++) {
         RaidPreview_Load(i);m=&sRaidPreview[i].model;
@@ -251,11 +252,14 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         if(root && head) {floor=root->mtx.m[3][1];body=(floor-head->mtx.m[3][1])*1.35f;if(body>height && body<height*1.6f) height=body;}
         if(height<.01f || height>1000.0f) height=3.0f;
         cx=focus>=0 || count==1?399:centers[i];fy=focus>=0?354:feet[i];ph=focus>=0 || count==1?285:pixels[i];
+        if(sRaidSelector) {cx=259;fy=323;ph=249;}
+        if(sRaidSelector==2){cx=264;fy=347;ph=280;}
         dist=height*433.0f/ph;
-        maxWidth=(510.0f-cx)*2.0f;if((cx-294.0f)*2.0f<maxWidth) maxWidth=(cx-294.0f)*2.0f;
+        maxWidth=(x1-2.0f-cx)*2.0f;if((cx-x0-2.0f)*2.0f<maxWidth) maxWidth=(cx-x0-2.0f)*2.0f;
         if(maxWidth>(focus>=0?155.0f:i==0?112.0f:64.0f)) maxWidth=focus>=0?155.0f:i==0?112.0f:64.0f;
         /* Tail/wing collision extents are unsuitable for humanoid framing. */
-        if(width>height*.45f) width=height*.45f;
+        if(sRaidSelector) width=height*(sRaidSelector==2?.48f:.70f);
+        else if(width>height*.45f) width=height*.45f;
         if(depth>height*.35f) depth=height*.35f;
         if(width>0 && width*433.0f/maxWidth>dist) dist=width*433.0f/maxWidth;
         if(depth>0 && depth*433.0f/maxWidth>dist) dist=depth*433.0f/maxWidth;
@@ -264,7 +268,7 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         View_InitLayout(&gOrbitCam->view,VIEW_LAYOUT_FULL);size=gOrbitCam->view.screenSize;
         View_SetProjection(&gOrbitCam->view,&size,433.0f,1.0f,gOrbitCam->view.aspect,
                            1792.0f+cx,1824.0f+fy-ph*.5f,1.0f,10877000.0f,.3f,65536.0f,1.0f);
-        gOrbitCam->view.scissorX0=292;gOrbitCam->view.scissorX1=511;gOrbitCam->view.scissorY0=40;gOrbitCam->view.scissorY1=359;
+        gOrbitCam->view.scissorX0=x0;gOrbitCam->view.scissorX1=x1;gOrbitCam->view.scissorY0=40;gOrbitCam->view.scissorY1=359;
         OrbitCam_SetTarget(0,target,0);OrbitCam_SetDist(dist);OrbitCam_SetDistRange(.1f,1000.0f);
         if(focus>=0) {m->angle+=.003f;if(m->angle>3.14159265f) m->angle-=6.2831853f;}
         else m->angle=3.14159265f+sinf(orbit)*.18f;
@@ -273,8 +277,8 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
            other cameras is meaningless here and can hide entire later models.
            Clear depth buffer only within the preview scissor bounding box. */
         Dma_AddFrame(GFX_FRAME_FBP(),GFX_FBW,-1);
-        Dma_AddScissor(292,511,40,359);Dma_AddZbuf(GFX_ZBP,0);
-        Dma_AddFillRect((GFX_OFX>>4)+292,(GFX_OFY>>4)+40,512-292,360-40,0);
+        Dma_AddScissor(x0,x1,40,359);Dma_AddZbuf(GFX_ZBP,0);
+        Dma_AddFillRect((GFX_OFX>>4)+x0,(GFX_OFY>>4)+40,x1-x0+1,360-40,0);
         Gfx_AddDefaultEnv();
         View_Apply(&m->view,1);BtlObj_UpdateVisibility(0);BtlObj_FinishVisibility(0);
         /* Independent menu previews must not run the full-screen battle
@@ -285,6 +289,10 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         Gfx_MarkPass(0);Gfx_AddDefaultEnv();Dma_AddScissor(0,511,0,447);
     }
 }
+/* Only the new Boss selector uses the centered preview camera. */
+void Port_RaidModelsDrawSelector(void) {sRaidSelector=1;Port_RaidModelsDraw(1,0);sRaidSelector=0;}
+void Port_TowerModelsDraw(void) {sRaidSelector=2;Port_RaidModelsDraw(1,0);sRaidSelector=0;}
+void Port_RaidModelsTurn(f32 delta) {if(sRaidPreviewOn) sRaidPreview[0].model.angle+=delta;}
 void Port_RaidModelsEnd(void) {
     s32 i;if(!sRaidPreviewOn) return;
     Port_GsDrain(); /* finish pending texture/geometry reads before releasing them */

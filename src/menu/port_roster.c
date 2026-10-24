@@ -65,6 +65,8 @@ static const char *sSagaTabs[NR_SAGA_COUNT] = {
 };
 
 static PcBattle sNr;
+/* Scoped to the challenge tower; never changes the global selector setting. */
+static s32 sNrTower,sTowerFloor,sTowerFilter;
 static s32 sNrKind,sNrSide,sNrSlot[2],sNrFilled[2][10],sNrCursor[2],sNrPhase,sNrSaga;
 static s32 sNrFavorite[PORT_CHARA_ID_LIMIT],sNrList[PORT_TOTAL_CHARAS],sNrCount,sNrAge,sNrDp;
 static s32 sNrConnection,sNrField,sNrIp[5]={127,0,0,1,29740};
@@ -115,6 +117,11 @@ static void Nr_List(void) {
     s32 i,id,saga;sNrCount=0;
     for(i=0;i<PORT_TOTAL_CHARAS;i++) {
         id=Port_PcRosterId(i);
+        if(sNrTower && sTowerFilter==4) {
+            extern s32 Port_CharaFormTarget(s32,s32);
+            if(id>=0 && (PORT_CHARA_ADDED(id)||Port_CharaFormTarget(id,0)>=0||Port_CharaFormTarget(id,1)>=0))sNrList[sNrCount++]=i;
+            continue;
+        }
         if(id<0) {
             if(sNrSaga==NR_SAGA_ALL) sNrList[sNrCount++]=i;
             continue;
@@ -350,8 +357,11 @@ static void Nr_DrawNetwork(void) {
     Nr_Box(280,403,216,24,1,1);Nr_Text(290,406,"START  CONFIRMAR",.5f,198,1);
 }
 
+#include "port_tower_selector.inc"
+
 static void Nr_Draw(void) {
     char title[120];static char *titles[]={"DUELO","ENTRENAMIENTO","TAG TEAM SIMULT\303\201NEO","RAID COOPERATIVO","RELEVOS 10 CONTRA 10","TODOS CONTRA TODOS"};
+    if(sNrTower){Tm_Draw();return;}
     Ps_PageSet();Nr_Background();
     sprintf(title,"%s  |  SELECCI\303\223N DE PERSONAJES",sNrKind==3?"BATALLA DEFINITIVA":titles[sNr.mode]);
     Nr_Text(10,3,title,0.43f,490,1);
@@ -365,7 +375,7 @@ static void Nr_Draw(void) {
 s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     extern int Port_Setting(const char *, int);
     extern int Port_RosterTestMode(void);
-    if (!Port_Setting("native_roster", 0) && !Port_RosterTestMode()) {
+    if (!sNrTower && !Port_Setting("native_roster", 0) && !Port_RosterTestMode()) {
         s32 ok = 0;
         if (!gMenuArc5) gMenuArc5 = File_LoadSync(gProgress->baseFile, NULL, 0);
         if (out != NULL && out->count[0] == 1) {
@@ -420,7 +430,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     }
     max=sNr.mode==PC_RELAY?10:(sNr.mode==PC_TAG||sNr.mode==PC_FFA)?5:sNr.mode==PC_RAID?4:1;
     sNr.count[0]=sNr.count[1]=max;if(sNr.mode==PC_RAID) {sNr.count[0]=sNr.players;sNr.count[1]=1;}
-    remembered=Port_RosterRecall(sNr.mode,&last);
+    remembered=sNrTower?0:Port_RosterRecall(sNr.mode,&last);
     if(remembered && last.count[0]<=max && last.count[1]<=max && last.players==sNr.players) sNr=last;else remembered=0;
     memset(&sNr.rules,0,sizeof(sNr.rules));
     memset(sNrFilled,0,sizeof(sNrFilled));if(remembered) memset(sNrFilled,1,sizeof(sNrFilled));
@@ -443,6 +453,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     for(i=0;i<PORT_CHARA_ID_LIMIT;i++) sNrFavorite[i]=0;
     for(i=0;i<Port_PcRosterCount();i++) {s32 id=Port_PcRosterId(i);sNrFavorite[id]=Port_RosterFavorite(id,0);}
     TeamSel_Init(2);gPortNativeRosterActive=1;
+    if(sNrTower){sTowerFilter=0;sTowerConfirm=0;Port_RaidModelsBegin();}
     {extern volatile s32 gPortPcTeamReady;gPortPcTeamReady=0;}
     Nr_List();sNrCursor[1]=sNrCount>4?4:0;Nr_Face();Nr_StageRequest();Port_RosterLog(0,kind,sNr.mode,Port_PcRosterCount(),PORT_TOTAL_CHARAS);
     ColorFade_StartIn(0,0,0,20);
@@ -454,7 +465,12 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             p1=gPad[1].gamePressed;r1=gPad[1].gameRepeat|p1;
         }
         if(gProgress->flags&MPROG_FREEZE) p0=r0=p1=r1=0;
-        Ps_PageSet();click=Port_RosterPointerRead(&x,&y);
+        if(sNrTower)Ps_PageFull();else Ps_PageSet();click=Port_RosterPointerRead(&x,&y);
+        if(sNrTower) {
+            Tm_Input(p0,r0,x,y,click,&done,&result);Nr_Face();Nr_Draw();Font_FlushAll();ColorFade_Draw();
+            Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
+            if(done)break;else continue;
+        }
 
         /* Mouse / Pointer Interaction */
         if(click) {
@@ -638,10 +654,15 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     while(gTeamSel->faceState!=TEAMSEL_LOAD_IDLE || gTeamSel->stageState!=TEAMSEL_LOAD_IDLE) {
         Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();Nr_Draw();Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
     }
-    if(result) {*out=sNr;sNrBgm=gTeamSel->bgmIds[gTeamSel->stage->bgm];if(sNrBgm==TS_BGM_RANDOM)sNrBgm=Rand_Range(9)+8;Port_RosterRemember(&sNr);Port_RosterLog(2,kind,sNr.count[0],sNr.count[1],sNr.stage);}
+    if(result) {*out=sNr;sNrBgm=sNrTower?sNr.rules.bgm1-1:gTeamSel->bgmIds[gTeamSel->stage->bgm];if(sNrBgm==TS_BGM_RANDOM)sNrBgm=Rand_Range(9)+8;if(!sNrTower)Port_RosterRemember(&sNr);Port_RosterLog(2,kind,sNr.count[0],sNr.count[1],sNr.stage);}
+    if(sNrTower)Port_RaidModelsEnd();
     gPortNativeRosterActive=0;TeamSel_Term();Dma_ResetBuffers();
     gTsProgress->team[0]=saved[0];gTsProgress->team[1]=saved[1];gTsProgress->players=savedPlayers;gTsProgress->battleType=savedType;gTsProgress->dpLevel=savedDp;gTsProgress->stageCell=savedStage;gTsProgress->bgm=savedBgm;
     return result;
+}
+s32 Port_TowerRosterPick(PcBattle *out,s32 floor) {
+    s32 ok;sNrTower=1;sTowerFloor=floor<0?0:floor>4?4:floor;
+    ok=Port_NativeRosterPick(out,3,0);sNrTower=0;return ok;
 }
 s32 Port_NativeRosterBattle(s32 kind) {
     PcBattle chosen;s32 mode=gProgress->mode,dp=0;

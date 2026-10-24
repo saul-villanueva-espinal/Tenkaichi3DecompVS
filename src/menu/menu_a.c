@@ -928,6 +928,10 @@ static s32 MainMenu_PortModes(void) {
 }
 
 #endif
+#ifdef PORT
+/* Manga hub revision 2: retain original art outside the moving selection. */
+#include "port_main_manga.inc"
+#endif
 /* The main menu's own frame loop. Returns 1 when a mode was chosen (gProgress->mode is set), 0 on cancel. */
 s32 MainMenu_Run(s32 section) {
     s32 result = 1;
@@ -942,6 +946,7 @@ s32 MainMenu_Run(s32 section) {
         *(s32 *)((u8 *)gProgress + 0x620) = sPortModesDuel[0];
         *(s32 *)((u8 *)gProgress + 0x624) = sPortModesDuel[1];
     }
+    return MainManga_Run();
 #endif
     MainMenu_Init(section);
 #ifdef PORT

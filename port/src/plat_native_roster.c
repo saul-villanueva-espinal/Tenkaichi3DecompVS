@@ -50,3 +50,14 @@ void Port_RosterLog(int event,int a,int b,int c,int d) {
     else if(event==1) fprintf(stderr,"bt3: roster nativo: equipo %d posicion %d personaje %d traje %d\n",a+1,b+1,c,d);
     else fprintf(stderr,"bt3: roster nativo: confirmado tipo %d equipos %d vs %d escenario %d\n",a,b,c,d);
 }
+
+/* Copy host strings into caller-owned game buffers; never expose a host heap pointer. */
+void Port_RaidRosterDetails(char *name,int nameSize,char *form,int formSize,int chara) {
+    extern const char *Port_CharaMenuName(int);
+    const char *full=Port_CharaMenuName(chara),*comma;
+    if(!full || !full[0]) full=Port_FighterName(chara);
+    comma=strchr(full,',');
+    if(nameSize>0) {snprintf(name,(size_t)nameSize,"%s",full);char *p=strchr(name,',');if(p)*p=0;}
+    if(comma) {comma++;while(*comma==' ')comma++;}
+    if(formSize>0) snprintf(form,(size_t)formSize,"%s",comma&&*comma?comma:"Base");
+}

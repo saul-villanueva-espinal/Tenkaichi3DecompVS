@@ -7,6 +7,7 @@
 static unsigned frame;
 void Port_VerifyStart(void){}
 void Port_CoopWaitFrame(void){}
+int Port_CoopWaitEvents(void){return 0;}
 void PortCharas_Init(void){}
 int Port_DataFingerprint(unsigned long long *p){*p=123456;return 1;}
 unsigned long long Port_CharacterFingerprint(void){return getenv("FIXTURE_BAD_ASSET")?0:456789;}

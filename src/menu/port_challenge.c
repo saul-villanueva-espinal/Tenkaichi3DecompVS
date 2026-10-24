@@ -184,50 +184,8 @@ static void Challenge_Star(f32 x, f32 y, f32 r, u32 col) {
     }
 }
 
-static void Challenge_DrawBg(void) {
-    s32 k;
-    /* Deep space dark navy gradient */
-    Ps_Rect(0, 0, 512, 448, Ps_Rgba(8, 14, 26, 255), Ps_Rgba(4, 7, 14, 255));
-    /* Ambient diagonal beams */
-    Ps_Quad(0, 0, 260, 0, 0, 260, 140, 140, Ps_Rgba(0, 180, 255, 18), Ps_Rgba(0, 180, 255, 0), Ps_Rgba(0, 180, 255, 0), Ps_Rgba(0, 180, 255, 0));
-    Ps_Quad(250, 448, 512, 240, 512, 448, 380, 448, Ps_Rgba(255, 120, 20, 16), Ps_Rgba(255, 120, 20, 0), Ps_Rgba(255, 120, 20, 0), Ps_Rgba(255, 120, 20, 0));
-
-    /* Top gold border and bottom action bar border */
-    Ps_Rect(0, 44, 512, 46, Ps_Rgba(255, 196, 56, 220), Ps_Rgba(255, 120, 20, 220));
-    Ps_Rect(0, 404, 512, 406, Ps_Rgba(0, 180, 255, 180), Ps_Rgba(0, 90, 160, 180));
-}
-
-static void Challenge_DrawHeader(s32 activeTab) {
-    s32 i;
-    u32 gold = Ps_Rgba(255, 204, 50, 255);
-    u32 cyan = Ps_Rgba(0, 210, 255, 255);
-
-    /* Header title & subtitle */
-    Ps_Text(18, 8, "TORRE DE DESAFIOS Y BATALLAS PERSONALIZADAS", 0.60f, 476, 1);
-    Ps_Text(20, 27, "DESAFIOS OFFLINE - RELEVOS 10v10 Y TAG TEAM 5v5", 0.33f, 474, 2);
-
-    /* Tabs Bar */
-    {
-        static const char *const sTabLabels[CHALLENGE_TABS] = {
-            "[1] TORRE DE SAGAS",
-            "[2] SUPERVIVENCIA 10v10",
-            "[3] BATALLA PERSONALIZADA"
-        };
-        f32 tabW = 484.0f / CHALLENGE_TABS;
-        for (i = 0; i < CHALLENGE_TABS; i++) {
-            f32 tx = 14.0f + i * tabW;
-            s32 sel = (i == activeTab);
-            if (sel) {
-                Ps_Rect(tx, 50, tx + tabW - 4, 72, gold, Ps_Rgba(220, 110, 10, 240));
-                Ps_Rect(tx + 1, 51, tx + tabW - 5, 71, Ps_Rgba(16, 24, 44, 230), Ps_Rgba(8, 12, 24, 240));
-                Ps_Text(tx + 10, 55, (char *)sTabLabels[i], 0.38f, tabW - 20, 1);
-            } else {
-                Ps_Rect(tx, 52, tx + tabW - 4, 70, Ps_Rgba(25, 38, 60, 150), Ps_Rgba(12, 18, 30, 170));
-                Ps_Text(tx + 10, 56, (char *)sTabLabels[i], 0.34f, tabW - 20, 3);
-            }
-        }
-    }
-}
+/* Reference UI revision 6 - manga tower: also reload resources in the picker cancel frame. */
+#include "port_challenge_ui.inc"
 
 static void Challenge_GenerateSurvivalEnemies(PcFighter *outFighters, s32 count) {
     s32 i;
@@ -264,9 +222,8 @@ s32 PortChallenge_Run(void) {
     s32 clears = Port_Setting("challenge_cleared", 0);
     s32 bestSurvival = Port_Setting("challenge_best_waves", 0);
     s32 result = 0, done = 0, frameAge = 0;
-    u32 gold = Ps_Rgba(255, 204, 50, 255);
-    u32 cyan = Ps_Rgba(0, 210, 255, 255);
-    u32 green = Ps_Rgba(50, 255, 100, 255);
+    s32 savedPointerActive=gPortNativeRosterActive;
+
 
     Bgm_Play(PORT_BGM_FILE(0)); /* Epic BGM */
     ColorFade_StartIn(0, 0, 0, 15);
@@ -285,36 +242,15 @@ s32 PortChallenge_Run(void) {
         r0 = gPad[0].gameRepeat | p0;
         if (gProgress->flags & MPROG_FREEZE) p0 = r0 = 0;
 
-        Ps_PageSet();
+        Challenge_ResourcesBegin();
+        gPortNativeRosterActive=1;
+        TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();
+        Ps_PageFull();Ps_SetShift(0);
         click = Port_RosterPointerRead(&mx, &my);
 
-        /* Mouse interactions */
-        if (click) {
-            /* Click on top tabs (y: 50..72) */
-            if (my >= Ps_Y(50) && my <= Ps_Y(72) && mx >= Ps_X(14) && mx <= Ps_X(498)) {
-                s32 t = (s32)((mx - Ps_X(14)) * CHALLENGE_TABS / (Ps_X(498) - Ps_X(14)));
-                if (t >= 0 && t < CHALLENGE_TABS) {
-                    activeTab = t;
-                    Snd_PlaySe(1, 0);
-                }
-            }
-            /* Click on floor list items in Tab 0 */
-            if (activeTab == 0 && mx >= Ps_X(14) && mx <= Ps_X(198)) {
-                for (i = 0; i < CHALLENGE_FLOORS; i++) {
-                    f32 fy = 82.0f + i * 62.0f;
-                    if (my >= Ps_Y(fy) && my <= Ps_Y(fy + 58)) {
-                        if (floorCur == i) p0 |= PADG_CROSS;
-                        else { floorCur = i; Snd_PlaySe(1, 0); }
-                    }
-                }
-            }
-            /* Click bottom action buttons (y: 408..440) */
-            if (my >= Ps_Y(408) && my <= Ps_Y(440)) {
-                if (mx < Ps_X(220)) p0 |= PADG_CROSS;
-                else if (mx < Ps_X(360)) p0 |= PADG_CIRCLE;
-                else p0 |= PADG_SQUARE;
-            }
-        }
+        /* Hit regions are the same virtual 512 x 448 rectangles as the artwork. */
+        if (click) Challenge_Pointer(activeTab, mx, my, &activeTab, &floorCur, &p0);
+        r0 |= p0;
 
         /* Pad navigation */
         if (p0 & (PADG_L1 | PADG_R1)) {
@@ -325,8 +261,8 @@ s32 PortChallenge_Run(void) {
         if (activeTab == 0) {
             /* TAB 0: TORRE DE SAGAS */
             s32 old = floorCur;
-            if (r0 & (PADG_UP | PADG_UP2)) floorCur--;
-            else if (r0 & (PADG_DOWN | PADG_DOWN2)) floorCur++;
+            if (r0 & (PADG_UP | PADG_UP2)) floorCur++;
+            else if (r0 & (PADG_DOWN | PADG_DOWN2)) floorCur--;
             floorCur = Ps_Wrap(floorCur, 0, CHALLENGE_FLOORS - 1);
             if (floorCur != old) Snd_PlaySe(1, 0);
 
@@ -344,7 +280,7 @@ s32 PortChallenge_Run(void) {
                 if(floorCur==2) {battle.rules.regenPerSec=150;battle.rules.regenSides=2;}
                 if(floorCur==3) battle.rules.infiniteKiChara1=118; /* Kid Buu 117 */
                 if(floorCur==4) battle.rules.armorSides=2;
-                battle.count[0] = 5; /* Player chooses up to 5 warriors */
+                battle.count[0] = 5; /* Player confirms five warriors */
                 battle.count[1] = fl->enemyCount;
                 for (i = 0; i < fl->enemyCount; i++) {
                     battle.fighter[1][i].chara = fl->enemies[i];
@@ -353,7 +289,7 @@ s32 PortChallenge_Run(void) {
 
                 Snd_PlaySe(1, 1);
                 /* Launch team selection with preset enemies (kind == 3) */
-                if (Port_NativeRosterPick(&battle, 3, 0)) {
+                if (Challenge_Pick(&battle, floorCur)) {
                     if(!Port_PcRosterQueue(&battle)) {Snd_PlaySe(1,7);continue;}
                     sChallengeFloor=floorCur;sChallengeSurvival=0;
                     result = 1;
@@ -376,7 +312,7 @@ s32 PortChallenge_Run(void) {
                 Challenge_GenerateSurvivalEnemies(battle.fighter[1], 10);
 
                 Snd_PlaySe(1, 1);
-                if (Port_NativeRosterPick(&battle, 3, 0)) {
+                if (Challenge_Pick(&battle, -1)) {
                     if(!Port_PcRosterQueue(&battle)) {Snd_PlaySe(1,7);continue;}
                     sChallengeFloor=-1;sChallengeSurvival=1;
                     result = 1;
@@ -433,7 +369,7 @@ s32 PortChallenge_Run(void) {
                 Challenge_GenerateCustomEnemies(battle.fighter[1], battle.count[1], sCustomArchetype);
 
                 Snd_PlaySe(1, 1);
-                if (Port_NativeRosterPick(&battle, 3, 0)) {
+                if (Challenge_Pick(&battle, -1)) {
                     if(!Port_PcRosterQueue(&battle)) {Snd_PlaySe(1,7);continue;}
                     result = 1;
                     done = 1;
@@ -449,210 +385,7 @@ s32 PortChallenge_Run(void) {
             break;
         }
 
-        /* ------------------ RENDERING ------------------ */
-        Challenge_DrawBg();
-        Challenge_DrawHeader(activeTab);
-
-        if (activeTab == 0) {
-            /* TAB 0: Floor cards on left, Mission Briefing on right */
-            const ChallengeFloorDef *fl = &sFloors[floorCur];
-            for (i = 0; i < CHALLENGE_FLOORS; i++) {
-                f32 fy = 82.0f + i * 62.0f;
-                s32 isCur = (i == floorCur);
-                s32 isClear = (clears & (1 << i));
-
-                if (isCur) {
-                    Ps_Rect(14, fy, 202, fy + 58, gold, Ps_Rgba(255, 120, 10, 255));
-                    Ps_Rect(16, fy + 2, 200, fy + 56, Ps_Rgba(20, 32, 60, 240), Ps_Rgba(10, 16, 32, 250));
-                } else {
-                    Ps_Rect(14, fy, 202, fy + 58, Ps_Rgba(30, 45, 75, 160), Ps_Rgba(15, 22, 40, 180));
-                    Ps_Rect(16, fy + 2, 200, fy + 56, Ps_Rgba(12, 18, 30, 220), Ps_Rgba(6, 10, 18, 240));
-                }
-
-                Ps_Text(22, fy + 6, (char *)sFloors[i].floorTag, 0.46f, 70, isCur ? 1 : 2);
-                Ps_Text(22, fy + 23, (char *)sFloors[i].title, 0.36f, 172, isCur ? 1 : 0);
-
-                /* Status & Difficulty */
-                if (isClear) Ps_Text(100, fy + 6, "COMPLETADO", 0.32f, 90, 5);
-                else Ps_Text(120, fy + 6, "PENDIENTE", 0.30f, 70, 3);
-
-                for (k = 0; k < 5; k++) {
-                    u32 sCol = (k < sFloors[i].difficulty) ? gold : Ps_Rgba(60, 80, 110, 180);
-                    Challenge_Star(26.0f + k * 12.0f, fy + 45.0f, 4.0f, sCol);
-                }
-            }
-
-            /* Right Mission Briefing Box (X: 210 to 498, Y: 82 to 398) */
-            Ps_Rect(210, 82, 498, 398, Ps_Rgba(255, 196, 56, 180), Ps_Rgba(0, 160, 240, 180));
-            Ps_Rect(212, 84, 496, 396, Ps_Rgba(12, 20, 38, 250), Ps_Rgba(6, 10, 20, 255));
-
-            /* Header bar inside briefing */
-            Ps_Rect(212, 84, 496, 116, Ps_Rgba(25, 42, 80, 240), Ps_Rgba(12, 20, 42, 250));
-            Ps_Text(224, 88, (char *)fl->title, 0.52f, 260, 1);
-            Ps_Text(224, 104, (char *)fl->saga, 0.34f, 260, 2);
-
-            /* Lore text */
-            Ps_Text(224, 126, (char *)fl->desc1, 0.35f, 264, 0);
-            Ps_Text(224, 142, (char *)fl->desc2, 0.35f, 264, 0);
-
-            /* Enemy Squad Roster Chips (Y: 168..270) */
-            {
-                char cntBuf[80];
-                sprintf(cntBuf, "ESCUADRON RIVAL DE LA CPU (%d LUCHADORES):", fl->enemyCount);
-                Ps_Text(224, 168, cntBuf, 0.38f, 264, 1);
-
-                for (i = 0; i < fl->enemyCount; i++) {
-                    f32 cx = 224.0f + (i % 2) * 132.0f;
-                    f32 cy = 188.0f + (i / 2) * 20.0f;
-                    Ps_Rect(cx, cy, cx + 128, cy + 18, Ps_Rgba(30, 50, 90, 200), Ps_Rgba(15, 25, 50, 220));
-                    Ps_Disc(cx + 8, cy + 9, 4, gold, Ps_Rgba(255, 120, 10, 255));
-                    Ps_Text(cx + 16, cy + 2, (char *)Challenge_CharaName(fl->enemies[i]), 0.32f, 108, 0);
-                }
-            }
-
-            /* Combat Arena & Music (Y: 295..340) */
-            {
-                char arenaBuf[120], bgmBuf[120];
-                sprintf(arenaBuf, "ESCENARIO:  %s", sStageNames[fl->stage % 35]);
-                sprintf(bgmBuf,   "BGM MUSICA: %s", sBgmNames[fl->bgm % 20]);
-
-                Ps_Rect(224, 296, 484, 338, Ps_Rgba(16, 28, 54, 220), Ps_Rgba(8, 14, 28, 240));
-                Ps_Text(232, 302, arenaBuf, 0.34f, 244, 2);
-                Ps_Text(232, 320, bgmBuf, 0.34f, 244, 2);
-            }
-
-            /* Modifier Alert Box (Y: 346..388) */
-            Ps_Rect(224, 346, 484, 388, Ps_Rgba(255, 140, 20, 220), Ps_Rgba(180, 80, 10, 240));
-            Ps_Rect(225, 347, 483, 387, Ps_Rgba(35, 15, 5, 245), Ps_Rgba(20, 8, 4, 255));
-            Ps_Text(232, 352, "CONDICION ESPECIAL DEL PISO:", 0.34f, 244, 1);
-            Ps_Text(232, 368, (char *)fl->modifier, 0.32f, 244, 4);
-        } else if (activeTab == 1) {
-            /* TAB 1: MODO SUPERVIVENCIA 10v10 */
-            /* Left Trophy & Rules Box */
-            Ps_Rect(14, 82, 220, 398, Ps_Rgba(255, 196, 56, 180), Ps_Rgba(255, 120, 20, 180));
-            Ps_Rect(16, 84, 218, 396, Ps_Rgba(12, 18, 32, 250), Ps_Rgba(6, 9, 18, 255));
-
-            /* Golden Star Trophy Emblem */
-            Ps_Disc(117, 138, 36, gold, Ps_Rgba(255, 120, 10, 255));
-            Ps_Disc(117, 138, 30, Ps_Rgba(16, 26, 48, 255), Ps_Rgba(8, 14, 26, 255));
-            Challenge_Star(117, 138, 18, gold);
-
-            /* Record Waves */
-            {
-                char recBuf[80];
-                sprintf(recBuf, "%d OLEADAS", bestSurvival);
-                Ps_Text(24, 188, "RECORD ACTUAL DE VICTORIAS:", 0.32f, 186, 1);
-                Ps_Text(46, 206, recBuf, 0.65f, 160, 1);
-            }
-
-            /* Rules list */
-            Ps_Text(24, 246, "REGLAS DE SUPERVIVENCIA:", 0.36f, 186, 2);
-            Ps_Text(24, 268, "- Relevos continuos de 10 luchadores.", 0.31f, 186, 0);
-            Ps_Text(24, 286, "- Tu equipo inicia con 25% de salud.", 0.31f, 186, 0);
-            Ps_Text(24, 304, "- Rivales CPU de nivel 20.", 0.31f, 186, 0);
-            Ps_Text(24, 322, "- 290 casillas para ampliar el roster.", 0.31f, 186, 0);
-            Ps_Text(24, 350, "Triangulo: Reiniciar record personal.", 0.30f, 186, 3);
-
-            /* Right Action Box */
-            Ps_Rect(228, 82, 498, 398, Ps_Rgba(0, 210, 255, 180), Ps_Rgba(0, 120, 220, 180));
-            Ps_Rect(230, 84, 496, 396, Ps_Rgba(10, 18, 36, 250), Ps_Rgba(5, 9, 18, 255));
-
-            Ps_Text(244, 100, "DESAFIO DE RESISTENCIA 10v10", 0.52f, 240, 1);
-            Ps_Text(244, 124, "Lleva al limite tus habilidades en el modo definitivo.", 0.36f, 240, 0);
-            Ps_Text(244, 142, "Elige a tus diez mejores combatientes y resiste", 0.36f, 240, 0);
-            Ps_Text(244, 160, "el embate de escuadrones rivales implacables.", 0.36f, 240, 0);
-
-            Ps_Rect(244, 200, 482, 310, Ps_Rgba(20, 36, 68, 220), Ps_Rgba(10, 18, 34, 240));
-            Ps_Text(256, 212, "CONFIGURACION DEL DESAFIO:", 0.40f, 210, 2);
-            Ps_Text(256, 234, "Equipo del Jugador:  10 Combatientes", 0.34f, 210, 0);
-            Ps_Text(256, 254, "Equipo Rival CPU:    10 Invasores por Oleada", 0.34f, 210, 0);
-            Ps_Text(256, 274, "Escenario de Batalla: Arena Sorpresa Aleatoria", 0.34f, 210, 0);
-
-            Ps_Rect(244, 330, 482, 380, gold, Ps_Rgba(255, 120, 10, 255));
-            Ps_Rect(246, 332, 480, 378, Ps_Rgba(16, 24, 44, 240), Ps_Rgba(8, 12, 24, 255));
-            Ps_Text(260, 346, "PULSA [X] PARA ELEGIR TUS 10 GUERREROS", 0.42f, 210, 1);
-        } else {
-            /* TAB 2: BATALLA PERSONALIZADA (Editor) */
-            /* Left Settings Column (X: 14 to 290) */
-            Ps_Rect(14, 82, 290, 398, Ps_Rgba(0, 210, 255, 180), Ps_Rgba(0, 120, 220, 180));
-            Ps_Rect(16, 84, 288, 396, Ps_Rgba(10, 16, 30, 250), Ps_Rgba(5, 8, 16, 255));
-
-            {
-                static const char *const sOptLabels[CUSTOM_SETTINGS_COUNT] = {
-                    "1. Formato de Batalla",
-                    "2. Cantidad de Rivales",
-                    "3. Arquetipo Enemigo",
-                    "4. Dificultad de la IA",
-                    "5. Escenario de Combate",
-                    "6. Banda Sonora (BGM)",
-                    "7. Modificador de Danio"
-                };
-
-                for (i = 0; i < CUSTOM_SETTINGS_COUNT; i++) {
-                    f32 oy = 90.0f + i * 38.0f;
-                    s32 isCur = (i == sCustomCur);
-
-                    if (isCur) {
-                        Ps_Rect(22, oy, 282, oy + 34, gold, Ps_Rgba(255, 120, 10, 255));
-                        Ps_Rect(24, oy + 2, 280, oy + 32, Ps_Rgba(20, 36, 68, 240), Ps_Rgba(10, 18, 34, 250));
-                    } else {
-                        Ps_Rect(22, oy, 282, oy + 34, Ps_Rgba(20, 30, 52, 160), Ps_Rgba(10, 16, 28, 180));
-                    }
-
-                    Ps_Text(30, oy + 4, (char *)sOptLabels[i], 0.32f, 240, isCur ? 1 : 2);
-
-                    /* Value text */
-                    {
-                        char valBuf[80];
-                        valBuf[0] = 0;
-                        switch (i) {
-                        case 0: Ps_Copy(valBuf, sFormatNames[sCustomFormat], 80); break;
-                        case 1: sprintf(valBuf, "%d Guerreros", sCustomEnemyNum); break;
-                        case 2: Ps_Copy(valBuf, sArchetypeNames[sCustomArchetype], 80); break;
-                        case 3: Ps_Copy(valBuf, sAiNames[sCustomAi], 80); break;
-                        case 4: Ps_Copy(valBuf, sStageNames[sCustomStage % 35], 80); break;
-                        case 5: Ps_Copy(valBuf, sBgmNames[sCustomBgm % 20], 80); break;
-                        case 6: Ps_Copy(valBuf, sModNames[sCustomMod], 80); break;
-                        case 7: Ps_Copy(valBuf, "-> Pulsa [X] para confirmar", 80); break;
-                        }
-                        Ps_Text(30, oy + 18, valBuf, 0.30f, 240, isCur ? 0 : 3);
-                    }
-                }
-            }
-
-            /* Right Live Summary Box (X: 298 to 498) */
-            Ps_Rect(298, 82, 498, 398, gold, Ps_Rgba(255, 120, 10, 255));
-            Ps_Rect(300, 84, 496, 396, Ps_Rgba(12, 20, 38, 250), Ps_Rgba(6, 10, 20, 255));
-
-            Ps_Text(312, 96, "RESUMEN DE LA BATALLA:", 0.44f, 180, 1);
-            Ps_Text(312, 122, "Modo Seleccionado:", 0.33f, 180, 2);
-            Ps_Text(312, 138, (char *)sFormatNames[sCustomFormat], 0.31f, 180, 0);
-
-            Ps_Text(312, 164, "Formacion Rival:", 0.33f, 180, 2);
-            {
-                char rivalBuf[80];
-                sprintf(rivalBuf, "%d combatientes (%s)", sCustomEnemyNum, sArchetypeNames[sCustomArchetype]);
-                Ps_Text(312, 180, rivalBuf, 0.31f, 180, 0);
-            }
-
-            Ps_Text(312, 206, "Escenario de Duelo:", 0.33f, 180, 2);
-            Ps_Text(312, 222, (char *)sStageNames[sCustomStage % 35], 0.31f, 180, 0);
-
-            Ps_Text(312, 248, "Banda Sonora (BGM):", 0.33f, 180, 2);
-            Ps_Text(312, 264, (char *)sBgmNames[sCustomBgm % 20], 0.31f, 180, 0);
-
-            Ps_Text(312, 290, "Condicion de Danio:", 0.33f, 180, 2);
-            Ps_Text(312, 306, (char *)sModNames[sCustomMod], 0.31f, 180, 4);
-
-            Ps_Rect(310, 336, 486, 384, Ps_Rgba(0, 210, 255, 200), Ps_Rgba(0, 120, 220, 220));
-            Ps_Rect(311, 337, 485, 383, Ps_Rgba(10, 18, 36, 240), Ps_Rgba(5, 9, 18, 255));
-            Ps_Text(320, 350, "PULSA [X] PARA SELECCIONAR", 0.38f, 160, 1);
-            Ps_Text(320, 364, "A TUS LUCHADORES DEL EQUIPO", 0.32f, 160, 2);
-        }
-
-        /* ------------------ BOTTOM ACTION BAR ------------------ */
-        Ps_Rect(0, 406, 512, 448, Ps_Rgba(8, 12, 22, 240), Ps_Rgba(4, 6, 12, 255));
-        Ps_Text(18, 416, "Cruceta: navegar  |  X: confirmar desafio  |  O: volver  |  L1/R1: cambiar pestanias", 0.34f, 476, 3);
+        Challenge_DrawReference(activeTab, floorCur, clears, bestSurvival);
 
         Font_FlushAll();
         ColorFade_Draw();
@@ -671,6 +404,9 @@ s32 PortChallenge_Run(void) {
         Dma_Flush();
     }
 
+    Challenge_ResourcesEnd();
+    gPortNativeRosterActive=savedPointerActive;
+    Ps_SetTextKind(0);Ps_SetShift(0);
     return result;
 }
 #endif

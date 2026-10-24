@@ -7,6 +7,9 @@ extern "C" {
 int Port_CoopEnabled(void);
 int Port_CoopConfig(PcBattle *b);
 int Port_CoopMe(void);
+int Port_CoopInputDelay(void);
+int Port_CoopPlayerDropped(int player);
+int Port_CoopConnected(void);
 unsigned Port_CoopSeed(void);
 int Port_CoopLobbyStatus(int *known, int *total);
 int Port_CoopLobbyCopy(PcBattle *out); /* game thread during the lobby pump */

@@ -24,6 +24,44 @@ static const u16 sTboSize[TBO_ART_COUNT][3] = {
     {422, 256, 0}, /* btn_leftright */
     {256, 256, 0}, /* btn_circle */
     {289, 120, 0}, /* btn_start */
+    {1672, 941, 0}, /* raid_energy */
+    {1376, 768, 0}, /* mm_bg */
+    {603, 104, 0}, /* mm_bar */
+    {604, 105, 0}, /* mm_bar_sel */
+    {282, 87, 0}, /* mm_tab */
+    {282, 87, 0}, /* mm_tab_sel */
+    {383, 77, 0}, /* mm_bar_grey */
+    {606, 83, 0}, /* mm_navbar */
+    {606, 82, 0}, /* mm_field */
+    {171, 93, 0}, /* mm_key */
+    {606, 281, 0}, /* mm_window_dark */
+    {339, 339, 0}, /* mm_card */
+    {944, 406, 0}, /* mm_window */
+    {324, 325, 0}, /* mm_emblem */
+    {283, 137, 0}, /* mm_platform */
+    {214, 172, 0}, /* mm_folder */
+    {222, 195, 0}, /* mm_folder_mod */
+    {220, 202, 0}, /* mm_folder_batch */
+    {215, 188, 0}, /* mm_zip */
+    {215, 207, 0}, /* mm_keycap */
+    {215, 207, 0}, /* mm_keycap_sel */
+    {300, 312, 0}, /* mm_cell */
+    {140, 130, 0}, /* mm_up */
+    {141, 132, 0}, /* mm_down */
+    {130, 127, 0}, /* mm_left */
+    {131, 127, 0}, /* mm_right */
+    {121, 121, 0}, /* mm_ball */
+    {103, 131, 0}, /* mm_lock */
+    {125, 125, 0}, /* mm_pip */
+    {124, 124, 0}, /* mm_pip_off */
+    {1376, 768, 0}, /* mm_bg_dusk */
+    {1672, 941, 0}, /* challenge_tower */
+    {1672, 941, 0}, /* challenge_survival */
+    {1672, 941, 0}, /* challenge_custom */
+    {1672, 941, 0}, /* main_manga_reference */
+    {1672, 941, 0}, /* main_manga_neutral */
+    {1672, 941, 0}, /* tower_manga */
+    {1672, 941, 0}, /* tower_selector */
 };
 
 #endif

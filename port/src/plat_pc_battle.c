@@ -184,3 +184,67 @@ int Port_PcRosterPlayerQueue(const PcBattle *b, int dp) {
     return 1;
 }
 int Port_PcTeamsMask(void) { return sTakenMask; }
+
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
+void Port_GetLocalIp(int ip[4]) {
+    ip[0] = 192; ip[1] = 168; ip[2] = 1; ip[3] = 111;
+#ifdef _WIN32
+    {
+        HMODULE ws = LoadLibraryA("ws2_32.dll");
+        if (ws) {
+            typedef int (PASCAL *fn_WSAStartup)(WORD, LPWSADATA);
+            typedef int (PASCAL *fn_WSACleanup)(void);
+            typedef UINT_PTR (PASCAL *fn_socket)(int, int, int);
+            typedef int (PASCAL *fn_connect)(UINT_PTR, const struct sockaddr *, int);
+            typedef int (PASCAL *fn_getsockname)(UINT_PTR, struct sockaddr *, int *);
+            typedef int (PASCAL *fn_closesocket)(UINT_PTR);
+            typedef unsigned long (PASCAL *fn_inet_addr)(const char *);
+            typedef unsigned long (PASCAL *fn_ntohl)(unsigned long);
+            typedef unsigned short (PASCAL *fn_htons)(unsigned short);
+
+            fn_WSAStartup pWSAStartup = (fn_WSAStartup)(void *)GetProcAddress(ws, "WSAStartup");
+            fn_WSACleanup pWSACleanup = (fn_WSACleanup)(void *)GetProcAddress(ws, "WSACleanup");
+            fn_socket psocket = (fn_socket)(void *)GetProcAddress(ws, "socket");
+            fn_connect pconnect = (fn_connect)(void *)GetProcAddress(ws, "connect");
+            fn_getsockname pgetsockname = (fn_getsockname)(void *)GetProcAddress(ws, "getsockname");
+            fn_closesocket pclosesocket = (fn_closesocket)(void *)GetProcAddress(ws, "closesocket");
+            fn_inet_addr pinet_addr = (fn_inet_addr)(void *)GetProcAddress(ws, "inet_addr");
+            fn_ntohl pntohl = (fn_ntohl)(void *)GetProcAddress(ws, "ntohl");
+            fn_htons phtons = (fn_htons)(void *)GetProcAddress(ws, "htons");
+
+            if (pWSAStartup && pWSACleanup && psocket && pconnect && pgetsockname && pclosesocket && pinet_addr && pntohl && phtons) {
+                WSADATA w;
+                if (!pWSAStartup(0x0202, &w)) {
+                    UINT_PTR s = psocket(2 /* AF_INET */, 2 /* SOCK_DGRAM */, 0);
+                    if (s != (UINT_PTR)~0) {
+                        struct sockaddr_in target, local;
+                        memset(&target, 0, sizeof(target));
+                        target.sin_family = 2;
+                        target.sin_port = phtons(80);
+                        target.sin_addr.s_addr = pinet_addr("8.8.8.8");
+                        if (pconnect(s, (const struct sockaddr *)&target, (int)sizeof(target)) == 0) {
+                            int len = (int)sizeof(local);
+                            if (pgetsockname(s, (struct sockaddr *)&local, &len) == 0) {
+                                unsigned long addr = pntohl(local.sin_addr.s_addr);
+                                if (addr != 0 && (addr >> 24) != 127) {
+                                    ip[0] = (int)((addr >> 24) & 0xFF);
+                                    ip[1] = (int)((addr >> 16) & 0xFF);
+                                    ip[2] = (int)((addr >> 8) & 0xFF);
+                                    ip[3] = (int)(addr & 0xFF);
+                                }
+                            }
+                        }
+                        pclosesocket(s);
+                    }
+                    pWSACleanup();
+                }
+            }
+            FreeLibrary(ws);
+        }
+    }
+#endif
+}
+

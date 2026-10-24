@@ -19,6 +19,7 @@
 #include <string.h>
 #include "gs_internal.h"
 #include "gs_draw.h"
+#include "gs_gl_batch.h"
 #include "shaders.h"
 #include "ui.h"
 
@@ -800,7 +801,8 @@ static void frame_end(void) {
     int cur = -1, best = -1, i;
     uint32_t n;
     struct { int32_t mode[4]; float misc[4]; float rect[4]; float orig[4]; float extra[4]; } fu, lastFu;
-    int haveFu = 0;
+    int haveFu = 0, lastUniform = -1, currentVuVao = 0;
+    unsigned mergedDraws = 0, reusedUniforms = 0, ordinaryDraws = 0;
 
     GsGpu_TitlePoll();
     while (SDL_PollEvent(&ev)) {
@@ -984,8 +986,17 @@ static void frame_end(void) {
             haveScissor = 0;
         }
         set_pipe(d->pipeline);
-        glBindVertexArray(d->vu ? sVaoVu : sVaoGs);
-        if (d->vu) { set_uniform_u(&gsVuUni[d->uniform]); }
+        if(currentVuVao!=(d->vu!=0)) {
+            glBindVertexArray(d->vu ? sVaoVu : sVaoGs);
+            currentVuVao=d->vu!=0;
+        }
+        if (d->vu) {
+            if(lastUniform<0 || (lastUniform!=d->uniform &&
+               memcmp(&gsVuUni[lastUniform],&gsVuUni[d->uniform],sizeof(Vu0Uniform))))
+                set_uniform_u(&gsVuUni[d->uniform]);
+            else reusedUniforms++;
+            lastUniform=d->uniform;
+        }
         memset(&fu, 0, sizeof(fu));
         memcpy(fu.mode, d->mode, sizeof(fu.mode));
         memcpy(fu.misc, d->misc, sizeof(fu.misc));
@@ -1001,12 +1012,22 @@ static void frame_end(void) {
         set_textures((GLuint)d->tex, d->sampler, sDateCopy, 6, 0, 6);
         if (d->blendc != lastBlendc) { glBlendColor(d->blendc, d->blendc, d->blendc, d->blendc); lastBlendc = d->blendc; }
         set_scissor(d->scissor);
+        GsDraw batch=*d;
+        /* Lines/points have their own topology: only triangle lists batch. */
+        if(getenv("BT3_GL_NO_BATCH")==NULL && (d->vu || sPipes[d->pipeline].topo==0)) {
+            while(n+1<gsDrawCount && GsGl_CanBatch(&batch,&gsDraws[n+1],gsVuUni)) {
+                batch.count+=gsDraws[++n].count;mergedDraws++;
+            }
+        }
+        ordinaryDraws++;
         if (d->vu) {
-            glDrawElements(GL_TRIANGLES, (GLsizei)d->count, GL_UNSIGNED_INT, (const void *)(uintptr_t)(d->first * sizeof(uint32_t)));
+            glDrawElements(GL_TRIANGLES, (GLsizei)batch.count, GL_UNSIGNED_INT, (const void *)(uintptr_t)(d->first * sizeof(uint32_t)));
         } else {
-            glDrawArrays(sPipes[d->pipeline].topo == 0 ? GL_TRIANGLES : sPipes[d->pipeline].topo == 1 ? GL_LINES : GL_POINTS, (GLint)d->first, (GLsizei)d->count);
+            glDrawArrays(sPipes[d->pipeline].topo == 0 ? GL_TRIANGLES : sPipes[d->pipeline].topo == 1 ? GL_LINES : GL_POINTS, (GLint)d->first, (GLsizei)batch.count);
         }
     }
+    if(getenv("BT3_GS_VERBOSE")!=NULL && gGsFrame%120==0)
+        fprintf(stderr,"gl-batch: frame %u: %u ordinary submissions, %u adjacent draws merged, %u repeated uniform uploads avoided\n",gGsFrame,ordinaryDraws,mergedDraws,reusedUniforms);
 
     /* the shown buffer: the one sceGsSwapDBuff set up for this frame, else the first target */
     best = gGsMainFbp >= 0 ? GsDraw_TargetGet((uint32_t)gGsMainFbp, 0) : -1;

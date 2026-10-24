@@ -17,6 +17,7 @@
 #include "../port_release.h"
 #include "../plat_fighters.h"
 #include "../../include/port_tournament.h"
+#include "../../include/port_coop.h"
 #include "menu_text.h"
 #include "menu_translation.h"
 #include "../quit_dialog.h"
@@ -2559,7 +2560,7 @@ static void Port_DrawFeatureHints(ImDrawList *dl) {
         char text[100] = "";
         // Relay counts use the original game font in Hud_Draw.
         (void)a; (void)b;
-        if (Port_CoopEnabled()) snprintf(text, sizeof(text), "RAID ONLINE  Jugador %d (mando local 1)", Port_CoopMe() + 1);
+        if (Port_CoopEnabled()) snprintf(text, sizeof(text), "RAID ONLINE  J%d | %d conectados | margen de red: %d cuadros", Port_CoopMe()+1, Port_CoopConnected(), Port_CoopInputDelay());
         if(Port_TourneyEnabled()) {
             PortTourney t;int a,b;
             Port_TourneyActive(&a,&b);

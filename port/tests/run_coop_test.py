@@ -11,7 +11,7 @@ root = Path(__file__).resolve().parents[2]
 with tempfile.TemporaryDirectory() as tmp:
     exe = str(Path(tmp) / ('peer.exe' if os.name == 'nt' else 'peer'))
     subprocess.run([shutil.which('cc') or shutil.which('gcc'), '-std=c11', '-D_POSIX_C_SOURCE=200809L', '-Wall', '-Wextra',
-                    '-Iport/include', 'port/tests/coop_peer_test.c', 'port/src/gs/coop_net.c',
+                    '-Iport/include', 'port/tests/coop_peer_test.c', 'port/src/gs/coop_net.c', 'port/src/gs/coop_rooms.c',
                     'port/src/plat_pc_battle.c','port/src/plat_tournament.c', '-lpthread'] + (['-lws2_32'] if os.name == 'nt' else []) + ['-o', exe], cwd=root, check=True)
     for player_count in (4,5,6):
         with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:

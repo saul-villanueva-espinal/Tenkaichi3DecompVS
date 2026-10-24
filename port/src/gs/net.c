@@ -1656,7 +1656,9 @@ static void relaunch(int role, const char *join, int port) {
         remove("net_session/card1/BASLUS-21678DBZT3/dbzsm.ico");
     } else {
         extern int Port_CoopEnabled(void);
-        SETENV("BT3_SETTINGS", Port_CoopEnabled() ? "coop_session/settings.txt" : NULL);
+        /* Keep this player's renderer, resolution and input preferences. The
+           private save folder isolates game progress, not presentation settings. */
+        if (!Port_CoopEnabled()) SETENV("BT3_SETTINGS", NULL);
         SETENV("BT3_VERIFY", Port_CoopEnabled() ? "0" : NULL);
         SETENV("BT3_SAVES", Port_CoopEnabled() ? "coop_session" : NULL); /* (a save folder named on the command line is not carried over a session: known) */
         SETENV("BT3_NOMOVIE", "1");

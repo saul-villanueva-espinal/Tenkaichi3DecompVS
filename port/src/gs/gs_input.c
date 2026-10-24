@@ -270,6 +270,17 @@ int PortTbo_TextRead(void) {
 static char sTboCopy[64];
 static int sTboCopyDue;
 static int sTboPasteDue; /* the keypad's PASTE (Join Room): the clipboard's room code, typed on the window's thread */
+static int sRaidPasteDue,sRaidPasteHave;
+static char sRaidPaste[256];
+
+void PortRaid_ClipboardRequest(void) {
+    SDL_LockSpinlock(&sTboLock);sRaidPasteDue=1;sRaidPasteHave=0;SDL_UnlockSpinlock(&sTboLock);
+}
+int PortRaid_ClipboardRead(char *out,int size) {
+    int have;SDL_LockSpinlock(&sTboLock);have=sRaidPasteHave;
+    if(have && size>0) SDL_strlcpy(out,sRaidPaste,(size_t)size);
+    sRaidPasteHave=0;SDL_UnlockSpinlock(&sTboLock);return have;
+}
 
 void PortTbo_Copy(const char *text) {
     SDL_LockSpinlock(&sTboLock);
@@ -313,12 +324,13 @@ static void tbo_paste_code(const char *clip) {
 
 void PortInput_TboClipboard(void) {
     char text[sizeof(sTboCopy)];
-    int due, paste;
+    int due, paste, raidPaste;
     SDL_LockSpinlock(&sTboLock);
     due = sTboCopyDue;
     sTboCopyDue = 0;
     paste = sTboPasteDue;
     sTboPasteDue = 0;
+    raidPaste=sRaidPasteDue;sRaidPasteDue=0;
     memcpy(text, sTboCopy, sizeof(text));
     SDL_UnlockSpinlock(&sTboLock);
     if (due) {
@@ -328,6 +340,12 @@ void PortInput_TboClipboard(void) {
         char *clip = SDL_GetClipboardText();
         tbo_paste_code(clip);
         SDL_free(clip);
+    }
+    if(raidPaste) {
+        char *clip=SDL_GetClipboardText();
+        SDL_LockSpinlock(&sTboLock);
+        SDL_strlcpy(sRaidPaste,clip?clip:"",sizeof(sRaidPaste));sRaidPasteHave=1;
+        SDL_UnlockSpinlock(&sTboLock);SDL_free(clip);
     }
 }
 
@@ -982,6 +1000,23 @@ void PortInput_VibrationTest(int player) {
    read long after the window's events were last taken). The events themselves stay queued for the window. */
 void PortInput_Fresh(void) {
     SDL_PumpEvents();
+}
+
+/* Network waits must not make Windows classify the battle window as hung.
+   Consume only presentation events; never run game tasks or advance clocks.
+   Escape leaves the failed/stalled match through its ordinary cleanup path. */
+int Port_CoopWaitEvents(void) {
+    SDL_Event event;
+    if (!GsGpu_Enabled()) return 0;
+    while (SDL_PollEvent(&event)) {
+        if (event.type == SDL_EVENT_QUIT) {
+            extern void Port_CoopLeave(void);
+            Port_CoopLeave();
+            exit(0);
+        }
+        if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && event.key.key == SDLK_ESCAPE) return 1;
+    }
+    return 0;
 }
 
 int Port_PadRead(int socket, unsigned char *data) {
