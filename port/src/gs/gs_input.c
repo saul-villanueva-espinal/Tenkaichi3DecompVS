@@ -1021,6 +1021,7 @@ int Port_CoopWaitEvents(void) {
         if (event.type == SDL_EVENT_KEY_DOWN && !event.key.repeat && event.key.key == SDLK_ESCAPE) return 1;
     }
     return 0;
+}
 
 /* The render thread (BT3_GS_THREAD): the window's events, taken while it waits for work or for a picture's time.
    The controllers' and the keys' state the game's thread reads is then never more than a millisecond old. */
