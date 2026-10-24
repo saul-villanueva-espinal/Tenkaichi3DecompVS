@@ -1358,10 +1358,23 @@ static void video_tab(PortVideo &v) {
             bool late = Port_LateInput() != 0;
             if (ImGui::Checkbox("Baja latencia de entrada (experimental)", &late)) { Port_LateInputSet(late); }
             ImGui::SetItemTooltip("El juego lee el mando, calcula y espera antes de mostrar la imagen:\n"
-                                  "unos 33 ms en combate. Esta opción mueve la espera al inicio, para que la imagen responda\n"
+                                  "unos 33 ms en combate. Con esta opción la espera va primero, para que la imagen responda\n"
                                   "a tu pulsación en los pocos milisegundos que necesita la PC. La lógica del juego se conserva.\n"
-                                  "No se usa en línea ni con interpolación. Desactivado por defecto: si la PC no puede\n"
-                                  "mantener el ritmo, puede producir tirones que no ocurren con el orden original.");
+                                  "Con Movimiento suave: la imagen intermedia responde de inmediato y la completa un refresco después.\n"
+                                  "No se usa en línea. Desactivado por defecto: en PCs que no alcancen la tasa puede causar tirones.");
+        }
+        {
+            extern int Port_Setting(const char *name, int def);
+            extern void Port_SettingSave(const char *name, int value);
+            bool thr = Port_Setting("render_thread", 0) != 0;
+            if (ImGui::Checkbox("Render on a second processor core (experimental, after a restart)", &thr)) {
+                Port_SettingSave("render_thread", thr ? 1 : 0);
+                Port_SettingsWrite(); /* (kept outside the window's own values: written here, or it was lost at the end) */
+            }
+            ImGui::SetItemTooltip("The picture is prepared and shown on a core of its own while the game computes the next\n"
+                                  "moment: faster where the processor is the slow part (older or low-power machines).\n"
+                                  "The same picture and the same game. Takes effect when the game is started again.\n"
+                                  "Not with the OpenGL renderer, and not on machines with two cores or fewer.");
         }
     }
     SDL_DisplayID *displays = SDL_GetDisplays(&count);
@@ -1452,18 +1465,29 @@ static void video_tab(PortVideo &v) {
 }
 
 static void effects_tab(PortVideo &v) {
-    static const struct { const char *name, *tip; } fx[6] = {
+    static const struct { const char *name, *tip; } fx[7] = {
         {"Contorno", "La línea negra que rodea a los luchadores."},
         {"Silueta tras obstáculos", "Color que permite ver al luchador detrás del escenario."},
         {"Niebla de profundidad", "La neblina que colorea los elementos lejanos."},
         {"Destellos y resplandor", "Resplandor de los objetos brillantes y destellos del cielo."},
         {"Desenfoque de distancia", "Desenfoque de las zonas lejanas del escenario."},
         {"Desenfoque de movimiento", "Desenfoque del escenario al girar o mover rápido la cámara."},
+        {"Clima ambiental", "Neblina de polvo o bruma que flota sobre algunos escenarios (Desierto, Rocoso, Atalaya de Kami, etc.).\n"
+                            "Desactivarlo permite que esos escenarios vayan tan rápidos como los demás (un 20% más rápido a 3x)."},
     };
-    for (int i = 0; i < 6; i++) {
+    for (int i = 0; i < 7; i++) {
         bool on = !((v.fxOff >> i) & 1);
         if (ImGui::Checkbox(fx[i].name, &on)) { v.fxOff = (v.fxOff & ~(1 << i)) | (on ? 0 : 1 << i); }
         ImGui::SetItemTooltip("%s", fx[i].tip);
+        if (i == 6 && on) { /* Weather on: how much of it (fx_off bit 128: half the sprites) */
+            static const char *const amount[2] = {"Full", "Light"};
+            int light = (v.fxOff >> 7) & 1;
+            ImGui::Indent();
+            ImGui::SetNextItemWidth(ImGui::GetFontSize() * 8.0f);
+            if (ImGui::Combo("Weather amount", &light, amount, 2)) { v.fxOff = (v.fxOff & ~128) | (light ? 128 : 0); }
+            ImGui::SetItemTooltip("Light: half of the haze's sprites, a thinner haze; about half of what switching it off gains.");
+            ImGui::Unindent();
+        }
     }
     ImGui::Spacing();
     ImGui::SliderInt("Intensidad del resplandor", &v.glow, 0, 200, "%d%%", ImGuiSliderFlags_AlwaysClamp);
@@ -1705,6 +1729,7 @@ static void audio_tab(PortVideo &v) {
         if (ImGui::Checkbox("Adaptar música a la velocidad del juego", &follows)) {
             gPortMusicFollows = follows;
             Port_SettingSave("music_follows_speed", follows);
+            Port_SettingsWrite(); // (in the file at once: it was lost at the end unless another setting was written after it)
         }
         ImGui::SetItemTooltip("Cuando el juego usa una velocidad distinta de 100%% (partidas en línea o pestaña Trucos):\n"
                               "desactivado, la música suena a su velocidad normal; activado, sigue la velocidad del juego,\n"
@@ -1859,6 +1884,9 @@ static void cheats_tab(void) {
             Port_GameSpeedSet(speed);
             Port_AudioRefresh();
         }
+        if (ImGui::IsItemDeactivatedAfterEdit()) {
+            Port_SettingsWrite(); // (when the slider is let go: the speed was lost at the end unless another setting was written)
+        }
         ImGui::SetItemTooltip("Velocidad fuera de las partidas en línea (el sonido conserva su tono). 100%% es la velocidad original;\n"
                               "114%% es la usada en competitivo. Las partidas en línea tienen su propia velocidad,\n"
                               "elegida por el anfitrión o la cola de búsqueda.");
@@ -1866,6 +1894,7 @@ static void cheats_tab(void) {
         if (ImGui::Button("Restablecer")) {
             Port_GameSpeedSet(100);
             Port_AudioRefresh();
+            Port_SettingsWrite();
         }
         ImGui::Separator();
         ImGui::Spacing();
@@ -2875,6 +2904,11 @@ static unsigned sFontNext;
 
 static const FontName *font_name(int style, const char *text) {
     int choice = MenuText_GetFont();
+    if (choice == 0) {
+        for (int i = 1; i < MenuText_FontCount(); i++) {
+            if (MenuText_FontAvailable(i, MENU_TEXT_MENU)) { choice = i; break; }
+        }
+    }
     int resolution = choice ? 4 : 1; // (a font's strip: 4 times the disc's, for a window larger than the game's picture)
     if (text == NULL || text[0] == '\0' || (choice == 0 && !NameFont_Ready())) { // (not ready: asked again next frame)
         return NULL;
@@ -3313,11 +3347,11 @@ static bool frame_build(void) {
            window (the letterbox gs_gpu.c just blitted into). */
         float sx = (float)gUiPresentW / 512.0f;
         float sy = (float)gUiPresentH / 448.0f;
-        // With a menu font every name is drawn here, so the names belong to the game picture, behind the settings
-        // and other windows. With "Original" only an added stage or song is, in front of everything as before.
-        ImDrawList *dl = MenuText_GetFont() != 0 ? ImGui::GetBackgroundDrawList() : ImGui::GetForegroundDrawList();
+        // Stage/song names belong to the game picture, behind settings and other windows,
+        // including added names rendered while Menu font is Original.
+        ImDrawList *dl = ImGui::GetBackgroundDrawList();
 
-        if (nameOn && MenuText_GetFont() != 0) {
+        if (nameOn) {
             const FontName *fn = font_name(NF_STAGE, PortStages_Name(gUiNameIdx));
             float x = (float)gUiPresentX + (float)gUiNameX * sx, y = (float)gUiPresentY + (float)gUiNameY * sy;
             if (fn != NULL) {
@@ -3326,30 +3360,8 @@ static bool frame_build(void) {
             } else {
                 name_text(dl, PortStages_Name(gUiNameIdx), x, y, (float)gUiNameW * sx, (float)gUiNameH * sy, true);
             }
-        } else if (nameOn && gUiNameIdx >= (int)sNameCount) { // no pre-rendered name for this one
-            /* In the game's lettering if the disc's names have all its characters, else as plain text. The menu's
-               rectangle is the strip image's (384x48, set 64 right and 14 down in the 512x64 row of the disc's own
-               name picture); the lettering goes where that row is. The menu's movie draws the row a little below
-               the clip's position: kNameDy, measured by drawing a disc name both ways (the same for the songs). */
-            static const float kNameDy = 1.5f;
-            const FontName *fn = font_name(NF_STAGE, PortStages_Name(gUiNameIdx));
-            if (fn != NULL) {
-                float kx = (float)gUiNameW * sx / 384.0f, ky = (float)gUiNameH * sy / 48.0f;
-                font_draw(dl, fn, (float)gUiPresentX + (float)gUiNameX * sx - 64.0f * kx, (float)gUiPresentY + (float)gUiNameY * sy + (kNameDy - 14.0f) * ky, kx, ky, true);
-            } else {
-                name_text(dl, PortStages_Name(gUiNameIdx), (float)gUiPresentX + (float)gUiNameX * sx, (float)gUiPresentY + (float)gUiNameY * sy,
-                          (float)gUiNameW * sx, (float)gUiNameH * sy, true);
-            }
-        } else if (nameOn) {
-            float x = (float)gUiPresentX + (float)gUiNameX * sx;
-            float y = (float)gUiPresentY + (float)gUiNameY * sy;
-            float w = (float)gUiNameW * sx;
-            float h = (float)gUiNameH * sy;
-            dl->AddImage(ImTextureRef((ImTextureID)(intptr_t)sNameTex), ImVec2(x, y), ImVec2(x + w, y + h),
-                         ImVec2(0.0f, (float)gUiNameIdx / (float)sNameCount),
-                         ImVec2(1.0f, (float)(gUiNameIdx + 1) / (float)sNameCount));
         }
-        if (songOn && MenuText_GetFont() != 0) {
+        if (songOn) {
             const FontName *fn = font_name(gUiSongLit ? NF_SONG_LIT : NF_SONG, PortSongs_Name(gUiSongIdx));
             float x = (float)gUiPresentX + (float)gUiSongX * sx, y = (float)gUiPresentY + (float)gUiSongY * sy;
             if (fn != NULL) {
@@ -3357,25 +3369,6 @@ static bool frame_build(void) {
             } else {
                 name_text(dl, PortSongs_Name(gUiSongIdx), x, y, (float)gUiSongW * sx, (float)gUiSongH * sy, false);
             }
-        } else if (songOn && gUiSongIdx >= (int)sSongCount) {
-            // (the rectangle is the 512x32 row of the disc's song-name picture itself)
-            const FontName *fn = font_name(gUiSongLit ? NF_SONG_LIT : NF_SONG, PortSongs_Name(gUiSongIdx));
-            if (fn != NULL) {
-                static const float kSongDx = -0.2f, kSongDy = 2.35f;
-                float kx = (float)gUiSongW * sx / 512.0f, ky = (float)gUiSongH * sy / 32.0f;
-                font_draw(dl, fn, (float)gUiPresentX + (float)gUiSongX * sx + kSongDx * kx, (float)gUiPresentY + (float)gUiSongY * sy + kSongDy * ky, kx, ky, false);
-            } else {
-                name_text(dl, PortSongs_Name(gUiSongIdx), (float)gUiPresentX + (float)gUiSongX * sx, (float)gUiPresentY + (float)gUiSongY * sy,
-                          (float)gUiSongW * sx, (float)gUiSongH * sy, false);
-            }
-        } else if (songOn) {
-            float x = (float)gUiPresentX + (float)gUiSongX * sx;
-            float y = (float)gUiPresentY + (float)gUiSongY * sy;
-            float w = (float)gUiSongW * sx;
-            float h = (float)gUiSongH * sy;
-            dl->AddImage(ImTextureRef((ImTextureID)(intptr_t)sSongTex), ImVec2(x, y), ImVec2(x + w, y + h),
-                         ImVec2(0.0f, (float)gUiSongIdx / (float)sSongCount),
-                         ImVec2(1.0f, (float)(gUiSongIdx + 1) / (float)sSongCount));
         }
     }
     ImGui::Render();
