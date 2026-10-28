@@ -910,9 +910,13 @@ int Port_SessionCan(void) {
     return sBootTaken > 0;
 }
 
-/* Whether there is a game of the player's own to go back to: not in a program that was started for its session
-   (BT3_NET_HOST / BT3_NET_JOIN with BT3_NET_SESSION), which has kept none. */
-int Port_SessionOwn(void) {
+/* 1 when the session that runs was asked for in this run (the state before it is kept, to go back to); 0 for a
+   program started as the session (BT3_NET_SESSION: tests, and the start again of a program without the list),
+   which starts the program again when the session ends. */
+static int sOwnKept;
+int Port_SessionAsked(void) {
+
+int Port_SessionOwn(void) { return Port_SessionAsked(); }
     return sOwnKept;
 }
 
@@ -1006,4 +1010,5 @@ int Port_SessionOwn(void) { return 0; }
 void Port_SessionRequest(int role, const char *address, int port) { (void)role; (void)address; (void)port; }
 void Port_SessionPoll(void) {}
 void Port_SessionReturn(void) {}
+int Port_SessionAsked(void) { return 0; }
 #endif

@@ -22,6 +22,8 @@
 #include "menu_translation.h"
 #include "../quit_dialog.h"
 #include "net_chat.h"
+#include "net_lobby.h"
+#include "net_update.h"
 
 static int sMeter = -1; // the meter (frame rate, connection): -1 not read yet
 static bool meter_on(void);
@@ -40,8 +42,9 @@ int Port_AspectMilli(void);
 extern "C" int gPortTboTyping;                     // gs_input.c: a keypad of Tenkaichi Budokai Online takes text
 extern "C" int PortInput_TboEvent(const SDL_Event *ev);
 extern "C" void PortInput_TboClipboard(void);      // ... and its "Copy Code": onto the clipboard, from this thread
-void Match_UpdateAsk(void);                    // net_match.c: asks GitHub for the newest release, once
-int Match_UpdateLatest(void);                  // ... its number (0.1.33 is 133), 0 while unknown
+int Port_GameMode(void);                       // a11y_game.c: the game's progress mode (4 the main menu, 80 the port's screens)
+const char *Port_OnlineBlocked(void);          // gs/net.c: an update is under way, no new online session (the line), or NULL
+int Lobby_Active(void);                        // gs/net_lobby.c: this copy is in a lobby
 int Port_Menus43(void);                       // plat_stub.c: the menus are shown at 4:3 in a wider picture
 int Port_LateInput(void);                     // plat_stub.c: "Low input lag", the blanks are waited for before the pad read
 void Port_LateInputSet(int on);
@@ -77,9 +80,7 @@ int Port_ClashSquareX(void);                   // what a press is worth, in quar
 void Port_ClashSquareXSet(int quarters);
 extern int gsInterp;                           // gs_draw.c: in-between pictures on (1) / off (0); -1 before the first frame
 void Port_SettingsWrite(void);
-int Port_LobbyStart(int host, const char *address, int port); // gs/net.c
-int Port_LobbyStartCode(int host, const char *code);         // the same with a room code (the matchmaking service)
-int Port_LobbyServiceAvailable(void);
+int Port_LobbyStartCode(int host, const char *code);         // gs/net.c: a code of the matchmaking service (a lobby's)
 int Port_LobbyStartQuick(int queue);                         // a quick match: 0 single, 1 team, 2..4 DP battle of 10 / 15 / 20
 void Port_LobbyQueuesAsk(void);                              // asks the service how many wait in each queue
 void Port_LobbyHelloAsk(void);                               // asks it whether this release is new enough
@@ -89,14 +90,30 @@ const char *Port_LobbyCode(void);                            // the host's room 
 const char *Port_LobbyError(void);                           // why the matchmaking failed (state -3)
 int Port_LobbyRelayed(void);                                 // the other player was reached through the relay
 int Port_LobbyPoll(void);
+int Port_LobbyCheckingData(void);                           // a start waits for this game's gameplay fingerprint
+const char *Port_LobbyQuickRefusal(void);                   // why no quick match: NULL none, "" data being checked
 void Port_LobbyCancel(void);
 void Port_LobbyLaunch(void);
+int Port_NetSpectating(void);                                // this copy watches a match
+void Port_NetSpecLeave(void);                                // ... stop watching (at the game's next blank)
+void Port_NetSpecViewSet(int view);                          // ... 0 player 1's view, 1 player 2's, 2 both (split)
+int Port_NetSpecView(void);
+int Port_NetSpecStatus(int *out);                            // ... catching up (%), waiting, desync blank
+int Port_NetWatchers(void);                                  // how many watch this match (the players)
+const char *Port_NetWatcher(int i);                          // ... their names
 }
 static bool sReady, sOpen;
 static MenuTranslationOption sLanguages[256];
 static int sLanguageCount, sLanguageChoice;
 static bool sLanguageRestartPending;
 static bool sNet;                              // the open window is the online screen (Dragon Net Battle), not the settings
+// A spectator's own pause menu is the game's (src/menu/port_tbo.c, PortTbo_SpecDraw): Esc, or the test's moment, asks
+// for it here; the controller's START and the key bound to it reach it through the pad.
+extern "C" volatile int gPortSpecMenuAsk;
+volatile int gPortSpecMenuAsk;
+extern "C" void Port_UiNotice(const char *text);
+static void spec_view_next(void);               // watching a match: the next view (player 1, player 2, both)
+static const char *spec_view_name(int view);
 static int sForceTab = -1;                     // BT3_UI_OPEN=<tab>: open at start on that tab (testing)
 static int sCapKind, sCapPlayer, sCapAction;   // waiting for a key (1) or a controller button (2) to bind
 static Uint64 sCapUntil;                       // ... until then: a controller has no button that is not a binding, so the wait ends by itself
@@ -540,6 +557,7 @@ int Ui_Init(SDL_Window *window, SDL_GPUDevice *device, void *gl_context, const c
     io.IniFilename = NULL; // no window-layout file next to the game
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard | ImGuiConfigFlags_NavEnableGamepad; // (a controller opens it too: START + SELECT)
     style();
+    Update_Cleanup(); // (the files the last update replaced, kept until this start: gs/net_update.c)
     for (size_t i = 0; i < sizeof(fonts) / sizeof(fonts[0]); i++) {
         FILE *fp = fopen(fonts[i], "rb");
         if (fp != NULL) {
@@ -712,8 +730,13 @@ static void build_quit(void) {
     }
 }
 
-// Dragon Net Battle: the screen behind the main menu's entry. For now only its shape: what a player fills in to
-// host or join. Nothing is sent anywhere yet.
+// Dragon Net Battle: the first online window of the port, behind the main menu's item 4. Tenkaichi Budokai Online's
+// screens (src/menu/port_tbo.c) do everything it does; it is opened from F1 > Online > Advanced, and listed in the
+// main menu only when the player asks for it there (setting net_dnb_menu). Since 0.1.39 a match with a friend is a
+// lobby's (gs/net_lobby.c), as on the screens: the Host tab opens a lobby (with a code, or on a port) with its rules,
+// the Join tab joins one (its code, or its owner's address); the lobby itself is the screens' page, which the main
+// menu opens as soon as this game is in one. There is no room of two and no "Watch" any more: a spectator is a
+// lobby's member in a spectator's place. Quick match is as it was.
 extern "C" {
 extern volatile int gPortNetMenuRequest;
 extern volatile int gPortNetWindowClose; // gs/state.c
@@ -741,8 +764,9 @@ static void quick_status(int state, int &lastState, const char *name) {
         state = 0;
     }
     if (state == 3 || state == 1) {
-        ImGui::TextUnformatted(state == 1 ? "Jugador encontrado. Conectando..." : "Buscando un jugador en esta cola...");
-        if (state == 3 && since != 0) {
+        ImGui::TextUnformatted(Port_LobbyCheckingData() ? "Checking your game data... The search begins when it is done."
+                               : state == 1 ? "Found a player. Connecting..." : "Searching for a player in this queue...");
+        if (state == 3 && since != 0 && !Port_LobbyCheckingData()) {
             Uint64 left = kSearchMs - (SDL_GetTicks() - since);
             ImGui::TextDisabled("Buscando durante %d:%02d más. Deja la ventana abierta.", (int)(left / 60000), (int)(left / 1000 % 60));
         }
@@ -761,7 +785,20 @@ static void quick_status(int state, int &lastState, const char *name) {
     } else if (lastState == -5) {
         ImGui::TextWrapped("No se encontraron jugadores en esta cola durante los últimos tres minutos. Vuelve a buscar o elige otra cola.");
     }
-    if (ImGui::Button(lastState == -5 ? "Volver a buscar" : "Buscar partida", ImVec2(U(200.0f), 0.0f))) {
+    // Quick match is with strangers: the original disc's data only (gs/net.c refuses the search otherwise; said here
+    // before it is asked for). With friends, by code or address, the same data on both sides is enough.
+    const char *refused = Port_LobbyQuickRefusal();
+    if (refused != NULL && refused[0] != '\0' && lastState != -3) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.55f, 0.35f, 1.0f));
+        ImGui::TextWrapped("%s", refused);
+        ImGui::PopStyleColor();
+    } else if (refused != NULL) {
+        ImGui::TextDisabled("Checking your game data...");
+    }
+    ImGui::BeginDisabled(refused != NULL && refused[0] != '\0');
+    bool search = ImGui::Button(lastState == -5 ? "Search again" : "Search for a match", ImVec2(U(200.0f), 0.0f));
+    ImGui::EndDisabled();
+    if (search) {
         since = SDL_GetTicks() + 1;
         // The same for everyone in a quick match, whoever turns out to be the host: rollback of up to 8 frames and
         // the input delay measured from the connection. (The Host tab's own choices are for matches with someone
@@ -781,9 +818,9 @@ static void quick_status(int state, int &lastState, const char *name) {
 static void build_net(void) {
     static char name[17] = "Jugador", address[64] = "", port[8] = "7000";
     static int tab, roll = -1, delay = 1, battle = -1, timeLimit = 3, speed = -1;
-    static bool useCode = Port_LobbyServiceAvailable() != 0;
+    static bool useCode = true;       // a lobby with a code (no port forwarding) or on a port
     static char roomCode[8] = "";     // the code to join with
-    static int lastState = 0;         // what the lobby said last (for its messages after a failure)
+    static int lastState = 0;         // what the search said last (for its messages after a failure)
     ImGuiIO &io = ImGui::GetIO();
     bool open = true;
     bool service = Port_LobbyServiceAvailable() != 0;
@@ -808,12 +845,19 @@ static void build_net(void) {
                 ImGui::TextDisabled("Tienes 0.%d.%d; se necesita 0.%d.%d o posterior. github.com/z3xox/Tenkaichi3Decomp/releases", mine / 100, mine % 100, min / 100, min % 100);
                 ImGui::Separator();
             } else if (latest > mine) {
-                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Actualización disponible: versión 0.%d.%d.", latest / 100, latest % 100);
-                ImGui::TextDisabled("github.com/z3xox/Tenkaichi3Decomp/releases");
+                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Update available: release 0.%d.%d.", latest / 100, latest % 100);
+                ImGui::TextDisabled("F1 to update, or github.com/z3xox/Tenkaichi3Decomp/releases");
+                ImGui::Separator();
+            }
+            if (Port_OnlineBlocked() != NULL) { // an update is under way (gs/net_update.c): no new session starts
+                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.55f, 0.35f, 1.0f));
+                ImGui::TextWrapped("%s", Port_OnlineBlocked());
+                ImGui::PopStyleColor();
                 ImGui::Separator();
             }
         }
-        ImGui::TextWrapped("Combate contra un jugador en otra PC. Uno crea la partida y el otro se une con la dirección del anfitrión.");
+        ImGui::TextWrapped("Fight players on other computers. One of you opens a lobby, the others join it with its code or "
+                           "the owner's address; its page (Tenkaichi Budokai Online) has the places, the rules and the matches.");
         ImGui::Spacing();
         ImGui::SetNextItemWidth(U(260.0f));
         {
@@ -830,15 +874,20 @@ static void build_net(void) {
         }
         ImGui::Spacing();
         if (ImGui::BeginTabBar("net")) {
-            if (ImGui::BeginTabItem("Crear partida")) {
-                static const char *const kRoll[] = {"Desactivado (esperar al otro jugador)", "Hasta 2 cuadros", "Hasta 4 cuadros", "Hasta 6 cuadros", "Hasta 8 cuadros"};
+            // BT3_UI_NET_TAB=host|quick|join (testing, with BT3_UI_OPEN=9): the online screen opens on that tab
+            static const char *firstTab = getenv("BT3_UI_NET_TAB");
+            static int firstFrames = 10; // (not on the tab bar's first frame alone: it has no tabs yet then)
+            auto tabFlags = [](const char *which) {
+                ImGuiTabItemFlags f = firstTab != NULL && strcmp(firstTab, which) == 0 ? ImGuiTabItemFlags_SetSelected : 0;
+                return f;
+            };
+            if (ImGui::BeginTabItem("Host", NULL, tabFlags("host"))) {
+                static const char *const kRoll[] = {"Off (wait for each other)", "Up to 2 frames", "Up to 4 frames", "Up to 6 frames", "Up to 8 frames"};
                 tab = 0;
-                ImGui::BeginDisabled(!service);
-                ImGui::Checkbox("Usar código de sala (sin abrir puertos)", &useCode);
-                ImGui::SetItemTooltip("Obtienes un código corto para compartir con el otro jugador. Ambos juegos se encuentran mediante un\n"
-                                      "servicio de búsqueda de partidas. Funciona con la mayoría de routers domésticos. Sin él, usas un puerto\n"
-                                      "que debe ser accesible para el otro jugador (apertura de puertos o una red virtual).");
-                ImGui::EndDisabled();
+                ImGui::Checkbox("Use a code (no port forwarding needed)", &useCode);
+                ImGui::SetItemTooltip("Your lobby gets a short code to tell the others, and the games find each other through a\n"
+                                      "small matchmaking service. Works with most home routers. Without it the lobby is on a port,\n"
+                                      "which must be reachable from the others (port forwarding or a virtual network).");
                 ImGui::BeginDisabled(useCode);
                 ImGui::SetNextItemWidth(U(120.0f));
                 ImGui::InputText("Puerto", port, sizeof(port), ImGuiInputTextFlags_CharsDecimal);
@@ -897,11 +946,11 @@ static void build_net(void) {
                                               "solo 100%%.", Port_NetSpeedStandard());
                     }
                 }
-                ImGui::TextDisabled("Las opciones del anfitrión se aplican a ambos jugadores.");
+                ImGui::TextDisabled("The lobby's first rules; its owner changes them on its page. Everyone needs the same game data.");
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Partida rápida")) {
-                static const char *const kQueue[] = {"Combate individual", "Combate por equipos", "Combate PD (10 PD)", "Combate PD (15 PD)", "Combate PD (20 PD)"};
+            if (ImGui::BeginTabItem("Quick match", NULL, tabFlags("quick"))) {
+                static const char *const kQueue[] = {"Single battle", "Team battle", "DP battle (10 DP)", "DP battle (15 DP)", "DP battle (20 DP)"};
                 static Uint64 asked;
                 bool busy = sNetBusy || !service;
                 tab = 2;
@@ -926,7 +975,8 @@ static void build_net(void) {
                         Port_LobbyQueuesAsk();
                     }
                 }
-                ImGui::TextWrapped("Juega con alguien que busque en la misma cola. Todas las partidas rápidas son sin límite de tiempo y a %d%% de velocidad.", Port_NetSpeedStandard());
+                ImGui::TextWrapped("Be matched with whoever is searching the same queue. All quick matches have no time limit and run at %d%% speed, "
+                                   "between games with the original disc's data.", Port_NetSpeedStandard());
                 ImGui::BeginDisabled(busy);
                 for (int i = 0; i < 5; i++) {
                     char label[80];
@@ -945,7 +995,7 @@ static void build_net(void) {
                 ImGui::PopStyleColor();
                 ImGui::EndTabItem();
             }
-            if (ImGui::BeginTabItem("Unirse")) {
+            if (ImGui::BeginTabItem("Join", NULL, tabFlags("join"))) {
                 tab = 1;
                 ImGui::BeginDisabled(!service);
                 ImGui::SetNextItemWidth(U(120.0f));
@@ -973,11 +1023,22 @@ static void build_net(void) {
                 ImGui::EndTabItem();
             }
             ImGui::EndTabBar();
+            if (firstTab != NULL && --firstFrames <= 0) {
+                firstTab = NULL;
+            }
         }
         ImGui::Spacing();
         {
             int state = Port_LobbyPoll();
             sNetBusy = state == 1 || state == 3;
+            if (state == 5) { // the code or address was a lobby's: this game is its member; its screen is the game's
+                Port_LobbyCancel(); // (the lobby has the socket now)
+                const char *said = MenuTranslation_PortText(PORT_TEXT_LOBBY_JOINED);
+                Port_UiNotice(said != NULL ? said : "You are in the lobby. Its screen opens from the main menu (Tenkaichi Budokai Online).");
+                set_open(false);
+                ImGui::End();
+                return;
+            }
             if (state == 2) {
                 Port_LobbyLaunch(); // the other player is there: the game turns into the session at its next blank
                 set_open(false);
@@ -990,45 +1051,12 @@ static void build_net(void) {
             if (tab == 2) {
                 ImGui::BeginDisabled(!service);
                 quick_status(state, lastState, name);
-                ImGui::EndDisabled();
-            } else if (state == 3 || (state == 1 && byCode)) { // a room code: asking the service, then reaching the other player
-                if (tab == 0 && Port_LobbyCode()[0] != '\0') {
-                    ImGui::TextUnformatted("Código de sala:");
-                    ImGui::SameLine();
-                    ImGui::SetWindowFontScale(1.8f);
-                    ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", Port_LobbyCode());
-                    ImGui::SetWindowFontScale(1.0f);
-                    {
-                        static Uint64 copiedAt;
-                        ImGui::SameLine();
-                        if (ImGui::Button("Copiar")) {
-                            copiedAt = SDL_SetClipboardText(Port_LobbyCode()) ? SDL_GetTicks() : 0;
-                        }
-                        ImGui::SetItemTooltip("Copia el código para compartirlo con el otro jugador.");
-                        if (copiedAt != 0 && SDL_GetTicks() - copiedAt < 2000) {
-                            ImGui::SameLine();
-                            ImGui::TextDisabled("Copiado");
-                        }
-                    }
-                    ImGui::TextUnformatted(state == 3 ? "Comparte este código con el otro jugador. Esperando a que se una..." : "El otro jugador se ha unido. Conectando...");
-                } else {
-                    ImGui::TextUnformatted(state == 1 ? "Sala encontrada. Conectando con el anfitrión..." : tab == 0 ? "Obteniendo un código de sala..." : "Buscando la sala...");
-                }
-                if (ImGui::Button("Cancelar", ImVec2(U(120.0f), 0.0f))) {
+            } else if (state == 3 || state == 1) { // joining a code: asking the service, then reaching the lobby's owner
+                ImGui::TextUnformatted(Port_LobbyCheckingData() ? "Checking your game data... Connecting begins when it is done."
+                                       : state == 1 ? "Found the lobby. Connecting to its owner..." : "Looking for the lobby...");
+                if (ImGui::Button("Cancel", ImVec2(U(120.0f), 0.0f))) {
                     Port_LobbyCancel();
                     lastState = 0;
-                }
-            } else if (state == 1) {
-                if (tab == 0) {
-                    ImGui::Text("Esperando al otro jugador en el puerto %s...", port);
-                    if (Port_LobbyOther()) {
-                        ImGui::TextWrapped("Un jugador con otra versión intenta unirse. Ambos necesitan la misma versión.");
-                    }
-                } else {
-                    ImGui::Text("Buscando %s...", address);
-                }
-                if (ImGui::Button("Cancelar", ImVec2(U(120.0f), 0.0f))) {
-                    Port_LobbyCancel();
                 }
             } else {
                 if (lastState == -3) {
@@ -1037,52 +1065,63 @@ static void build_net(void) {
                     ImGui::TextWrapped("Los juegos no pudieron conectarse, ni directamente ni mediante el servidor intermediario. "
                                        "Puedes crear la partida abriendo un puerto o usando una red virtual como Tailscale.");
                 }
-                bool can = byCode ? (tab == 0 || strlen(roomCode) == 6) : atoi(port) > 0 && (tab == 0 || address[0] != '\0');
-                ImGui::BeginDisabled(!can || (byCode && !service));
-                if (ImGui::Button(tab == 0 ? "Crear partida" : "Unirse a la partida", ImVec2(U(200.0f), 0.0f))) {
-                    if (tab == 0 && roll >= 0) {
-                        Port_NetOptions(roll * 2, delay == 0 ? -2 : delay - 1);
-                        if (battle >= 0) {
-                            Port_NetSpeedSet(speed);
-                            Port_SettingSave("net_speed_host", speed);
-                            Port_NetRulesSet(battle == 0 ? 0 : battle == 1 ? 1 : 2, battle >= 2 ? battle - 2 : 0, timeLimit);
-                            Port_SettingSave("net_battle", battle);
-                            Port_SettingSave("net_time", timeLimit);
-                        }
-                        Port_SettingSave("net_rollback2", roll * 2);
-                        Port_SettingSave("net_delay2", delay - 1);
-                        Port_SettingsWrite();
-                    } else {
-                        Port_NetOptions(-1, -1); // joining: the host's choices arrive with its answer
-                    }
+                bool can = Port_OnlineBlocked() == NULL && (byCode ? (tab == 0 || strlen(roomCode) == 6) : atoi(port) > 0 && atoi(port) < 65536 && (tab == 0 || address[0] != '\0'));
+                bool lobby = false; // a lobby was opened or joined: its page is the screens' (the main menu opens it)
+                ImGui::BeginDisabled(!can);
+                if (ImGui::Button(tab == 0 ? "Open a lobby" : "Join the lobby", ImVec2(U(200.0f), 0.0f))) {
                     Port_NetNameSet(name);
                     Port_SettingTextSave("net_name", name);
-                    Port_SettingsWrite();
                     lastState = 0;
-                    if (byCode) {
-                        Port_LobbyStartCode(tab == 0, roomCode);
+                    if (tab == 0) {
+                        if (roll < 0) {
+                            roll = Port_RollCan() ? 4 : 0;
+                        }
+                        if (battle < 0) {
+                            battle = 0;
+                        }
+                        if (speed < 0) {
+                            speed = Port_NetSpeedStandard();
+                        }
+                        Port_SettingSave("net_speed_host", speed);
+                        Port_SettingSave("net_battle", battle);
+                        Port_SettingSave("net_time", timeLimit);
+                        Port_SettingSave("net_rollback2", roll * 2);
+                        Port_SettingSave("net_delay2", delay - 1);
+                        Port_LobbyCancel();
+                        Port_LobbyCreate(useCode ? 1 : 0, useCode ? 0 : atoi(port), battle, timeLimit, speed, roll * 2, delay); // (the lobby's delay: 0 automatic, else frames + 1, as here)
+                        lobby = true;
+                    } else if (byCode) {
+                        Port_NetOptions(-1, -1);
+                        Port_LobbyStartCode(0, roomCode); // (a lobby's code: Port_LobbyPoll says 5, below, and this game is its member)
                     } else {
-                        Port_LobbyStart(tab == 0, address, atoi(port));
+                        Port_LobbyCancel();
+                        Port_LobbyJoin(address, atoi(port));
+                        lobby = true;
                     }
+                    Port_SettingsWrite();
                 }
                 ImGui::EndDisabled();
                 ImGui::SameLine();
                 if (ImGui::Button("Volver", ImVec2(U(120.0f), 0.0f))) {
                     open = false;
                 }
+                if (lobby) {
+                    const char *said = MenuTranslation_PortText(PORT_TEXT_LOBBY_JOINED);
+                    Port_UiNotice(said != NULL ? said : "You are in the lobby. Its screen opens from the main menu (Tenkaichi Budokai Online).");
+                    set_open(false);
+                    ImGui::End();
+                    return;
+                }
                 if (state == -2) {
-                    ImGui::TextWrapped("El anfitrión tiene otra versión. Ambos jugadores necesitan la misma versión.");
+                    ImGui::TextWrapped("The other game is a different version. Everyone needs the same release.");
                 } else if (state < 0) {
-                    ImGui::TextWrapped(tab == 0 ? "No se puede usar ese puerto. Es posible que otro programa lo esté usando." : "No se reconoce esa dirección.");
+                    ImGui::TextWrapped("The search could not be started.");
                 }
             }
         }
         ImGui::Spacing();
-        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
-        ImGui::TextWrapped("Al conectarse, el juego inicia la partida: ambos jugadores reciben la misma plantilla, "
-                           "con todo desbloqueado. Tu guardado se conserva. Al salir de la partida, vuelves "
-                           "al punto donde estabas. El anfitrión también controla los menús.");
-        ImGui::PopStyleColor();
+        ImGui::TextDisabled("In a match both players get the same roster, with everything unlocked, and your own save is");
+        ImGui::TextDisabled("left alone. When the match ends everyone is back on the lobby's page.");
     }
     ImGui::End();
     if (!open) {
@@ -1117,7 +1156,7 @@ static void bind(int value) {
 }
 
 static bool chat_can_open(void) {
-    return sReady && !sOpen && !sQuit && PortChat_Enabled() && Port_NetActive();
+    return sReady && !sOpen && !sQuit && PortChat_Enabled() && Port_NetActive() && !Port_NetSpectating();
 }
 
 static void chat_open(void) {
@@ -1202,6 +1241,16 @@ int Ui_Event(const SDL_Event *ev) {
     }
     if (sChat && !sOpen && !sQuit) {
         return chat_event(ev);
+    }
+    if (!sOpen && !sQuit && Port_NetSpectating() && ev->type == SDL_EVENT_KEY_DOWN && !ev->key.repeat && ev->key.scancode == SDL_SCANCODE_ESCAPE) {
+        gPortSpecMenuAsk = 1; // a spectator's own pause menu (the game's, over the match: only on this screen)
+        return 1;
+    }
+    if (!sOpen && !sQuit && Port_NetSpectating() &&
+        ((ev->type == SDL_EVENT_KEY_DOWN && !ev->key.repeat && ev->key.scancode == SDL_SCANCODE_V) ||
+         (ev->type == SDL_EVENT_GAMEPAD_BUTTON_DOWN && ev->gbutton.button == SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER))) {
+        spec_view_next(); // (a spectator's keys and controller play nobody: the view is all they change)
+        return 1;
     }
     if (ev->type == SDL_EVENT_KEY_DOWN && !ev->key.repeat && *PortInput_ChatKey() > 0 && (int)ev->key.scancode == *PortInput_ChatKey() &&
         chat_can_open()) {
@@ -1502,32 +1551,240 @@ static void effects_tab(PortVideo &v) {
                           "emulators show it upscaled). Off: as soft as the PlayStation 2 draws it. No difference at 1x.");
 }
 
-// ---- "an update is available" ----
-// Once per run the newest published release's number is asked of GitHub (net_match.c), unless "Check for updates" is
-// off. If it is newer than this program: a line over the picture for ten seconds, and a line with a button to the
-// release page at the top of this window for the rest of the run. Nothing is downloaded by the game.
-// Not when nobody is looking (the offscreen and dummy video drivers); BT3_UPDATE_CHECK=1 / 0 says otherwise, and
-// BT3_UPDATE_LATEST=<number> is taken as the answer without asking (testing).
-static int sUpdCheck = -1; // the setting; -1 not read yet
-static bool sUpdAsked, sUpdTold;
+// ---- the automatic update (gs/net_update.c) ----
+// (Based on PR #107 by JosephLlacchua: the in-game download, its progress bar, the restart into the new version.)
+// A few seconds after start the newest published release is asked of GitHub, unless "Check for updates" is off. If it
+// is newer than this build (its full number: 0.1.38.9; a local "dev" build is offered nothing): a line over the main
+// menu and the online screens, and at the top of this window Update now / Later / What's new. Update now downloads
+// and checks it in the background; Restart now (never during an online session) installs it over the folder and
+// starts the new version. Later: no line over the menus until the next start.
+// Not when nobody is looking (the offscreen and dummy video drivers); BT3_UPDATE_CHECK=1 / 0 says otherwise.
+// BT3_UPDATE_AUTO=1 (testing) presses Update now and Restart now by itself.
+static int sUpdCheck = -1;   // the setting; -1 not read yet
+static bool sUpdAsked;       // the check was started (or decided against)
+static Uint64 sUpdSince;     // when the game was first ready (the check waits a few seconds after it)
+static bool sUpdLater;       // "Later": no line over the menus for the rest of this run
+static bool sUpdNotes;       // "What's new" is open
+static bool sUpdTold;        // the result of the last start's update was put over the picture
+static char sUpdWhy[256];    // Restart now could not be done: why
+static void set_notice(const char *text, Uint64 ms);
 
-static int update_latest(void) {
-    const char *fake = SDL_getenv("BT3_UPDATE_LATEST");
+// {version} and {percent} of a port catalog line put in (the English when the language has none)
+static void upd_fill(char *out, size_t size, const char *id, const char *english, const char *version, int percent) {
+    const char *line = MenuTranslation_PortText(id);
+    char num[16];
+    size_t n = 0;
+
+    if (line == NULL || line[0] == '\0') {
+        line = english;
+    }
+    SDL_snprintf(num, sizeof(num), "%d", percent);
+    for (size_t i = 0; line[i] != '\0' && n + 1 < size; i++) {
+        const char *put = SDL_strncmp(line + i, "{version}", 9) == 0 ? version : SDL_strncmp(line + i, "{percent}", 9) == 0 ? num : NULL;
+        if (put != NULL) {
+            for (size_t k = 0; put[k] != '\0' && n + 1 < size; k++) {
+                out[n++] = put[k];
+            }
+            i += 8;
+        } else {
+            out[n++] = line[i];
+        }
+    }
+    out[n] = '\0';
+}
+
+static int upd_percent(const UpdateStatus &u) {
+    return u.total > 0 ? (int)(u.got * 100 / u.total) : 0;
+}
+
+static bool upd_online(void) { // an online session or a lobby is on: it is never interrupted
+    return Port_NetActive() || Lobby_Active() || Port_NetSpectating();
+}
+
+static void upd_restart(void) {
+    sUpdWhy[0] = '\0';
+    if (upd_online()) {
+        SDL_strlcpy(sUpdWhy, "Finish the online session first.", sizeof(sUpdWhy));
+        return;
+    }
+    Update_Install(); // (in a thread: update_tick starts the new version when it is done)
+}
+
+static void update_tick(void) {
     if (sUpdCheck < 0) {
         sUpdCheck = Port_Setting("update_check", 1) != 0;
     }
-    if (fake != NULL) {
-        return SDL_atoi(fake);
+    if (!sReady) {
+        return;
     }
-    if (!sUpdAsked) {
-        const char *drv = SDL_GetCurrentVideoDriver(), *env = SDL_getenv("BT3_UPDATE_CHECK");
-        bool seen = drv == NULL || (SDL_strcmp(drv, "offscreen") != 0 && SDL_strcmp(drv, "dummy") != 0);
-        sUpdAsked = true;
-        if (env != NULL ? SDL_atoi(env) != 0 : (sUpdCheck != 0 && seen)) {
-            Match_UpdateAsk();
+    {
+        UpdateStatus u;
+        Update_Status(&u);
+        if (u.state == UPD_INSTALLED) { // the files are swapped: the new version starts, this one closes
+            static bool gone;
+            if (!gone) {
+                gone = true;
+                Port_SettingsWrite();
+                if (Update_Relaunch()) {
+                    exit(0); // (as closing the window does)
+                }
+                SDL_strlcpy(sUpdWhy, "The update is installed, but the new version could not be started: close the game and start it again.",
+                            sizeof(sUpdWhy));
+            }
         }
     }
-    return sUpdCheck != 0 || SDL_getenv("BT3_UPDATE_CHECK") != NULL ? Match_UpdateLatest() : 0;
+    if (!sUpdTold) { // the update installed before this start
+        const char *ver;
+        char line[256];
+        sUpdTold = true;
+        if (Update_LastResult(&ver) > 0) {
+            upd_fill(line, sizeof(line), PORT_TEXT_UPDATE_DONE, "Updated to {version}.", ver, 0);
+            set_notice(line, 10000);
+        }
+    }
+    if (!sUpdAsked) {
+        if (sUpdSince == 0) {
+            sUpdSince = SDL_GetTicks();
+        } else if (SDL_GetTicks() - sUpdSince >= 4000) {
+            const char *drv = SDL_GetCurrentVideoDriver(), *env = SDL_getenv("BT3_UPDATE_CHECK");
+            bool seen = drv == NULL || (SDL_strcmp(drv, "offscreen") != 0 && SDL_strcmp(drv, "dummy") != 0);
+            sUpdAsked = true;
+            if (env != NULL ? SDL_atoi(env) != 0 : (sUpdCheck != 0 && seen)) {
+                Update_Check();
+            }
+        }
+    }
+    if (SDL_getenv("BT3_UPDATE_AUTO") != NULL && SDL_atoi(SDL_getenv("BT3_UPDATE_AUTO")) != 0) { // (testing)
+        UpdateStatus u;
+        Update_Status(&u);
+        if (u.state == UPD_AVAILABLE && u.canInstall) {
+            Update_Download();
+        } else if (u.state == UPD_READY && !upd_online()) {
+            upd_restart();
+        }
+    }
+}
+
+// The line over the main menu and the online screens (empty: none now).
+static void update_line(char *out, size_t size) {
+    UpdateStatus u;
+    int mode = Port_GameMode();
+
+    out[0] = '\0';
+    if (!sReady || sOpen || (mode != 4 && mode != 80)) {
+        return;
+    }
+    Update_Status(&u);
+    if (u.state == UPD_AVAILABLE && !sUpdLater) {
+        upd_fill(out, size, PORT_TEXT_UPDATE_AVAILABLE, "Update {version} available. F1 to update.", u.latest, 0);
+    } else if (u.state == UPD_DOWNLOADING || u.state == UPD_VERIFYING) {
+        upd_fill(out, size, PORT_TEXT_UPDATE_DOWNLOADING, "Downloading update {version}: {percent}%", u.latest, upd_percent(u));
+    } else if (u.state == UPD_READY) {
+        upd_fill(out, size, PORT_TEXT_UPDATE_READY, "Update {version} is ready. F1 > Restart now.", u.latest, 0);
+    }
+}
+
+// The top of the settings window: what there is to update, and the buttons.
+static void update_panel(void) {
+    UpdateStatus u;
+    const char *ver;
+    int last = Update_LastResult(&ver);
+    const ImVec4 gold(1.0f, 0.85f, 0.3f, 1.0f), red(1.0f, 0.55f, 0.35f, 1.0f), green(0.45f, 0.85f, 0.5f, 1.0f);
+
+    Update_Status(&u);
+    if (last > 0 && u.state < UPD_AVAILABLE) {
+        ImGui::TextColored(green, "Updated to %s.", ver);
+        ImGui::Separator();
+    }
+    if (u.state < UPD_AVAILABLE) {
+        return;
+    }
+    // the line that says where it stands
+    if (u.state == UPD_AVAILABLE) {
+        ImGui::TextColored(gold, "Update %s available (this is %s).", u.latest, u.current);
+    } else if (u.state == UPD_DOWNLOADING) {
+        ImGui::TextColored(gold, "Downloading %s: %d%% (%.1f of %.1f MB). You can go on playing.", u.latest, upd_percent(u), (double)u.got / 1e6,
+                           (double)u.total / 1e6);
+        ImGui::ProgressBar((float)upd_percent(u) / 100.0f, ImVec2(-1.0f, 0.0f), "");
+    } else if (u.state == UPD_VERIFYING) {
+        ImGui::TextColored(gold, "Checking the download of %s (its signature)...", u.latest);
+        ImGui::ProgressBar(1.0f, ImVec2(-1.0f, 0.0f), "");
+    } else if (u.state == UPD_READY) {
+        ImGui::TextColored(green, "Update %s is downloaded and verified.", u.latest);
+    } else if (u.state == UPD_INSTALLING || u.state == UPD_INSTALLED) {
+        ImGui::TextColored(gold, "Installing %s...", u.latest);
+    } else if (u.state == UPD_FAILED) {
+        ImGui::PushStyleColor(ImGuiCol_Text, red);
+        ImGui::TextWrapped("The update to %s was not installed: %s", u.latest, u.why);
+        ImGui::PopStyleColor();
+    }
+    // the buttons
+    if (u.state == UPD_AVAILABLE && u.canInstall) {
+        if (ImGui::Button("Update now")) {
+            Update_Download();
+        }
+        ImGui::SetItemTooltip("Downloads the new version in the background and checks its signature; you go on playing\n"
+                              "meanwhile (online play waits until it is installed). Then Restart now installs it.\n"
+                              "Your saves, settings, game data, mods and texture packs are not touched.");
+        ImGui::SameLine();
+        if (!sUpdLater) {
+            if (ImGui::Button("Later")) {
+                sUpdLater = true;
+            }
+            ImGui::SetItemTooltip("No reminder over the menus until the next start.");
+            ImGui::SameLine();
+        }
+    } else if (u.state == UPD_READY) {
+        bool busy = upd_online();
+        if (busy) {
+            ImGui::BeginDisabled();
+        }
+        if (ImGui::Button("Restart now")) {
+            upd_restart();
+        }
+        if (busy) {
+            ImGui::EndDisabled();
+        }
+        ImGui::SetItemTooltip(busy ? "Not during an online session: finish it first."
+                                   : "Installs the update over the game's folder and starts the new version (if anything\n"
+                                     "goes wrong, every file is put back). Your saves and settings are not touched.");
+        ImGui::SameLine();
+    } else if (u.state == UPD_FAILED && u.canInstall) {
+        if (ImGui::Button("Try again")) {
+            Update_Download();
+        }
+        ImGui::SameLine();
+    }
+    if (ImGui::Button(sUpdNotes ? "Hide what's new" : "What's new")) {
+        sUpdNotes = !sUpdNotes;
+    }
+    ImGui::SameLine();
+    if (ImGui::Button("Release page")) {
+        SDL_OpenURL(u.page);
+    }
+    ImGui::SetItemTooltip("Opens the release page in your browser. To update by hand, copy the new files over the old ones.");
+    if (!u.canInstall && u.cannot[0] != '\0') {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("%s", u.cannot);
+        ImGui::PopStyleColor();
+    }
+    if (Port_OnlineBlocked() != NULL && u.state != UPD_INSTALLED) {
+        ImGui::PushStyleColor(ImGuiCol_Text, ImGui::GetStyleColorVec4(ImGuiCol_TextDisabled));
+        ImGui::TextWrapped("%s", Port_OnlineBlocked());
+        ImGui::PopStyleColor();
+    }
+    if (sUpdWhy[0] != '\0') {
+        ImGui::PushStyleColor(ImGuiCol_Text, red);
+        ImGui::TextWrapped("%s", sUpdWhy);
+        ImGui::PopStyleColor();
+    }
+    if (sUpdNotes) {
+        const char *notes = Update_Notes();
+        ImGui::BeginChild("notes", ImVec2(0.0f, U(180.0f)), ImGuiChildFlags_Borders);
+        ImGui::TextWrapped("%s", notes[0] != '\0' ? notes : "(The release has no notes.)");
+        ImGui::EndChild();
+    }
+    ImGui::Separator();
 }
 
 static void misc_tab(void) {
@@ -1538,8 +1795,11 @@ static void misc_tab(void) {
             Port_SettingSave("update_check", sUpdCheck);
             Port_SettingsWrite();
         }
-        ImGui::SetItemTooltip("Consulta una vez al iniciar si hay una versión más reciente en GitHub. Si existe, muestra un aviso\n"
-                              "y un botón para abrir su página. No descarga archivos automáticamente.");
+        ImGui::SetItemTooltip("Once per start, ask GitHub for the newest release and say so if it is newer than this one.\n"
+                              "Nothing is downloaded until you press Update now (at the top of this window).");
+        ImGui::SameLine();
+        ImGui::TextDisabled("(installed: %s)", Update_Version()); // (PR #107: the version that is running)
+        ImGui::SetItemTooltip("The version of Tenkaichi3Decomp currently running (\"dev\": built locally, never offered updates).");
     }
     // the start of the game (PR #50): read by FirstRun_Main, so they count from the next start
     static int sSkipLogos = -1, sSkipIntro = -1, sSkipCopy = -1;
@@ -1584,7 +1844,14 @@ static void misc_tab(void) {
                           "corner while it saves, and the save loaded at start without a page. Load in the options\n"
                           "still asks first, then loads at once. A missing card, a full card or a failed save is\n"
                           "still shown. Online the game's own pages always run. Off: the game's own pages.");
-    ImGui::Spacing();
+}
+
+// F1 > Online: the settings of online play (Tenkaichi Budokai Online's screens are the way in: the game's main menu), and
+// under Advanced the old Dragon Net Battle window, which the screens have replaced (it is kept for testing and for
+// whoever still wants it: the same connections, in a plain window).
+// (Since 0.1.39 spectators are a lobby's members in its spectators' places, whom its owner lets in or removes: the
+// row "Let others watch your matches", for the rooms of two, went with them.)
+static void online_tab(void) {
     bool desyncEnds = Port_Setting("net_desync_end", 0) != 0;
     if (ImGui::Checkbox("End an online match on a desync", &desyncEnds)) {
         Port_SettingSave("net_desync_end", desyncEnds);
@@ -1615,6 +1882,26 @@ static void misc_tab(void) {
                               "Compacto: 4 / 2, más estrecho.\n"
                               "Normal: 6 / 4.\n"
                               "Grande: 8 / 6, más ancho, para pantallas grandes.");
+    }
+    ImGui::Spacing();
+    if (getenv("BT3_UI_ADVANCED") != NULL) { // (testing, with BT3_UI_OPEN=7: the section opened, for a picture of it)
+        ImGui::SetNextItemOpen(true, ImGuiCond_Once);
+    }
+    if (ImGui::CollapsingHeader("Advanced")) {
+        ImGui::TextWrapped("Dragon Net Battle is the first online window of this port. Tenkaichi Budokai Online (the main "
+                           "menu) does everything it does: lobbies by code or by address, and quick matches.");
+        ImGui::BeginDisabled(Port_NetActive() != 0);
+        if (ImGui::Button("Open Dragon Net Battle")) {
+            gPortNetMenuRequest = 1; // (opened in place of this window at the next frame: frame_build)
+            set_open(false);
+        }
+        ImGui::EndDisabled();
+        bool listed = Port_Setting("net_dnb_menu", 0) != 0;
+        if (ImGui::Checkbox("List Dragon Net Battle in the main menu", &listed)) {
+            Port_SettingSave("net_dnb_menu", listed ? 1 : 0);
+            Port_SettingsWrite();
+        }
+        ImGui::SetItemTooltip("Shows the entry beside Tenkaichi Budokai Online the next time the main menu is opened.");
     }
 }
 
@@ -2318,10 +2605,10 @@ static void build(void) {
         open = false;
     }
     if (sForceTab < 0 && (pad_pressed(ImGuiKey_GamepadL1) || pad_pressed(ImGuiKey_GamepadR1))) {
-        static const int tabs[] = {0, 1, 2, 3, 4, 5, 7, 8};
+        static const int tabs[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9};
         int at = 0;
-        while (at < 7 && tabs[at] != sTab) at++;
-        sForceTab = tabs[(at + (ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false) ? 7 : 1)) % 8];
+        while (at < 9 && tabs[at] != sTab) at++;
+        sForceTab = tabs[(at + (ImGui::IsKeyPressed(ImGuiKey_GamepadL1, false) ? 9 : 1)) % 10];
         sPadTab = true;
     }
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
@@ -2331,21 +2618,47 @@ static void build(void) {
         ImGui::SetNextWindowSize(ImVec2(sw < io.DisplaySize.x * 0.96f ? sw : io.DisplaySize.x * 0.96f,
                                         sh < io.DisplaySize.y * 0.94f ? sh : io.DisplaySize.y * 0.94f), ImGuiCond_Appearing);
     }
-    if (ImGui::Begin("Ajustes", &open, ImGuiWindowFlags_NoCollapse)) {
-        {
-            int latest = update_latest();
-            if (latest > PORT_RELEASE) {
-                ImGui::AlignTextToFramePadding();
-                ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Actualización disponible: 0.%d.%d (versión actual: 0.%d.%d).", latest / 100, latest % 100,
-                                   PORT_RELEASE / 100, PORT_RELEASE % 100);
+    if (ImGui::Begin("Settings", &open, ImGuiWindowFlags_NoCollapse)) {
+        PortLobbyView lv;
+        bool inLobby = Port_LobbyView(&lv) && lv.inMatch;
+        if (inLobby) { // a lobby's match: the ways back (the owner: for everyone) and out
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Lobby%s%s", lv.code[0] != '\0' ? " " : "", lv.code);
+            if (lv.owner) {
                 ImGui::SameLine();
-                if (ImGui::Button("Página de descarga")) {
-                    SDL_OpenURL("https://github.com/" PORT_UPDATE_REPO "/releases/latest");
+                if (ImGui::Button("Back to the lobby")) {
+                    Port_LobbyDo(LOBBY_BACK, 0, 0);
+                    open = false;
                 }
-                ImGui::SetItemTooltip("Abre la página de la versión en tu navegador. Para actualizar, reemplaza los archivos anteriores por los nuevos.");
-                ImGui::Separator();
+                ImGui::SetItemTooltip("Ends the match for everyone: all go back to the lobby window, where the rules can be changed.");
             }
+            ImGui::SameLine();
+            if (ImGui::Button(lv.owner ? "Close the lobby" : "Leave the lobby")) {
+                Port_LobbyDo(LOBBY_LEAVE, 0, 0);
+                open = false;
+            }
+            ImGui::SetItemTooltip(lv.owner ? "Ends the match and the lobby for everyone." : "Back to the main menu. A player leaving ends the match; a spectator leaving changes nothing for the others.");
+            ImGui::Separator();
         }
+        if (Port_NetSpectating()) { // watching a match: whose view, and the way out
+            ImGui::AlignTextToFramePadding();
+            ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "Spectating %s vs %s", Port_NetName(0), Port_NetName(1));
+            ImGui::SameLine();
+            if (ImGui::Button("Change view")) {
+                spec_view_next();
+            }
+            ImGui::SetItemTooltip("Player 1's view, player 2's, or both (split screen). Also V or R1 while watching.");
+            if (!inLobby) { // (in a lobby: "Leave the lobby", above)
+                ImGui::SameLine();
+                if (ImGui::Button("Stop watching")) {
+                    Port_NetSpecLeave();
+                    open = false;
+                }
+            }
+            ImGui::TextDisabled("View: %s", spec_view_name(Port_NetSpecView()));
+            ImGui::Separator();
+        }
+        update_panel();
         // the tabs in a region of their own, above a last line that is always there
         ImGui::BeginChild("body", ImVec2(0.0f, -ImGui::GetFrameHeightWithSpacing() - ImGui::GetStyle().ItemSpacing.y), ImGuiChildFlags_NavFlattened);
         if (ImGui::BeginTabBar("tabs")) {
@@ -2384,9 +2697,11 @@ static void build(void) {
                 controls_tab();
                 ImGui::EndTabItem();
             }
-            if (tab("Trucos", 5)) { ImGui::BeginDisabled(Port_CoopEnabled()); cheats_tab(); ImGui::EndDisabled(); ImGui::EndTabItem(); }
-            if (tab("Modificaciones", 7)) { mods_tab(); ImGui::EndTabItem(); }
-            if (tab("Equipos / Modos extra", 8)) { experiments_tab(); ImGui::EndTabItem(); }
+            if (tab("Cheats", 5)) { ImGui::BeginDisabled(Port_CoopEnabled()); cheats_tab(); ImGui::EndDisabled(); ImGui::EndTabItem(); }
+            if (tab("Misc", 6)) { misc_tab(); ImGui::EndTabItem(); }
+            if (tab("Online", 7)) { online_tab(); ImGui::EndTabItem(); }
+            if (tab("Modificaciones", 8)) { mods_tab(); ImGui::EndTabItem(); }
+            if (tab("Equipos / Modos extra", 9)) { experiments_tab(); ImGui::EndTabItem(); }
             ImGui::EndTabBar();
         }
         ImGui::EndChild();
@@ -2506,9 +2821,14 @@ void Ui_DrawAgain(SDL_GPUCommandBuffer *cmd, SDL_GPUTexture *target) {
     SDL_EndGPURenderPass(pass);
 }
 
-static char sNotice[160];
+static char sNotice[256];
 static Uint64 sNoticeUntil;
 static volatile int sNoticeNew;
+
+static void set_notice(const char *text, Uint64 ms) { // (from this thread: shown at once, for `ms`)
+    SDL_strlcpy(sNotice, text, sizeof(sNotice));
+    sNoticeUntil = SDL_GetTicks() + ms;
+}
 
 extern "C" void Port_UiNotice(const char *text) {
     SDL_strlcpy(sNotice, text != NULL ? text : "", sizeof(sNotice));
@@ -2840,6 +3160,40 @@ static void save_icon_draw(Uint64 now) {
         dl->AddRectFilled(ImVec2(cx, y0 + h * 0.1f), ImVec2(cx + w * 0.1f, y0 + h * 0.3f), col(255, 255, 255, 220));
     }
     dl->AddRectFilled(ImVec2(x0 + w * 0.18f, y0 + h * 0.48f), ImVec2(x1 - w * 0.18f, y1 - h * 0.14f), col(245, 140, 35, 235), h * 0.05f);
+}
+
+// Watching a match (gs/net.c, a spectator): a line at the top, whose match and whose view, and how to change it.
+static const char *spec_view_name(int view) {
+    static char text[48];
+    if (view == 2) {
+        return "both (split screen)";
+    }
+    SDL_snprintf(text, sizeof(text), "%s", Port_NetName(view)[0] != '\0' ? Port_NetName(view) : view == 0 ? "player 1" : "player 2");
+    return text;
+}
+
+static void spec_view_next(void) {
+    Port_NetSpecViewSet((Port_NetSpecView() + 1) % 3);
+}
+
+// For the players: who watches their match (small, in the top right corner).
+static void watchers_line(void) {
+    ImGuiIO &io = ImGui::GetIO();
+    char text[200];
+    int n = Port_NetWatchers();
+    size_t at = (size_t)SDL_snprintf(text, sizeof(text), "%d watching: ", n);
+    for (int i = 0; i < n && at < sizeof(text); i++) {
+        at += (size_t)SDL_snprintf(text + at, sizeof(text) - at, "%s%s", i > 0 ? ", " : "", Port_NetWatcher(i));
+    }
+    ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x - U(6.0f), U(6.0f)), ImGuiCond_Always, ImVec2(1.0f, 0.0f));
+    ImGui::SetNextWindowBgAlpha(0.35f);
+    if (ImGui::Begin("##watchers", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs |
+                                             ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings)) {
+        ImGui::SetWindowFontScale(0.85f);
+        ImGui::TextDisabled("%s", text);
+        ImGui::SetWindowFontScale(1.0f);
+    }
+    ImGui::End();
 }
 
 // The meter: frames shown and the game's speed, and in an online match the connection. A setting (Video tab).
@@ -3192,12 +3546,21 @@ static bool frame_build(void) {
         gPortNetMenuRequest = 0;
         net_open();
     }
-    if (sReady && !sUpdTold && update_latest() > PORT_RELEASE && SDL_GetTicks() >= sNoticeUntil) {
-        int latest = update_latest(); // (told once, and not over another notice)
-        sUpdTold = true;
-        SDL_snprintf(sNotice, sizeof(sNotice), "Actualización disponible: 0.%d.%d. F1 para abrir la página de descarga.", latest / 100, latest % 100);
-        sNoticeUntil = SDL_GetTicks() + 10000;
+    { // BT3_SPEC_PAUSE_AT=<seconds>: testing, a spectator's own pause menu (the game's) opens that long into its match
+        static Uint64 since;
+        static bool done;
+        if (!done && getenv("BT3_SPEC_PAUSE_AT") != NULL && sReady && Port_NetSpectating() && !sOpen) {
+            if (since == 0) {
+                since = SDL_GetTicks();
+            } else if (SDL_GetTicks() - since > (Uint64)atoi(getenv("BT3_SPEC_PAUSE_AT")) * 1000) {
+                done = true;
+                gPortSpecMenuAsk = 1;
+            }
+        }
     }
+    update_tick();
+    char updLine[256];
+    update_line(updLine, sizeof(updLine)); // (the update's line over the main menu and the online screens)
     int coopKnown=0, coopTotal=0;
     int coopLobby=Port_CoopLobbyStatus(&coopKnown,&coopTotal);
     bool notice = sNotice[0] != '\0' && SDL_GetTicks() < sNoticeUntil;
@@ -3220,7 +3583,7 @@ static bool frame_build(void) {
     PortModesView modes; // the main menu's hint of the extra modes
     Port_ModesView(&modes);
     bool modesOn = sReady && modes.hint;
-    bool online = sReady && Port_NetActive() && PortChat_Enabled();
+    bool online = sReady && Port_NetActive() && PortChat_Enabled() && !Port_NetSpectating();
     if (sChat && !online) { // (the match ended while a line was typed)
         chat_close();
     }
@@ -3231,9 +3594,11 @@ static bool frame_build(void) {
     bool banner = sReady && sBanner[0] != '\0';
     Uint64 now = SDL_GetTicks();
     bool saving = save_icon_on(now) && sReady && gUiPresentW > 0 && gUiPresentH > 0;
+    bool watched = sReady && Port_NetWatchers() > 0 && !sOpen;  // a player's: who watches the match
     meter_count();
     sBuilt = false;
-    if (!sReady || (!coopLobby && !sOpen && !sQuit && !notice && !overlay && !meter && !names && !bars && !modesOn && !chat && !banner && !feature_overlay_on() && !saving)) {
+    bool upd = updLine[0] != ' ';
+    if (!sReady || (!coopLobby && !sOpen && !sQuit && !notice && !overlay && !meter && !names && !bars && !modesOn && !chat && !banner && !saving && !watched && !upd && !feature_overlay_on())) {
         return false;
     }
     if (sPadHold && sCapKind != 2) { // a binding was taken: the controller works the window again once nothing is held
@@ -3361,8 +3726,23 @@ static bool frame_build(void) {
         }
         dl->AddText(font, size, ImVec2(x, y), IM_COL32(255, 236, 120, 255), sBanner, NULL, wrap);
     }
-    if (saving) { save_icon_draw(now); }
-    if (notice && !Port_HudHidden()) { // a line over the picture for a few seconds (the end of an online match)
+    if (saving) {
+        save_icon_draw(now);
+    }
+    if (watched) {
+        watchers_line();
+    }
+    if (upd) { // the update's line (update_line): at the top, over the main menu and the online screens
+        ImGuiIO &io = ImGui::GetIO();
+        ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.035f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+        ImGui::SetNextWindowBgAlpha(0.80f);
+        if (ImGui::Begin("##update", NULL, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoInputs |
+                                               ImGuiWindowFlags_NoFocusOnAppearing | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoSavedSettings)) {
+            ImGui::TextColored(ImVec4(1.0f, 0.85f, 0.3f, 1.0f), "%s", updLine);
+        }
+        ImGui::End();
+    }
+    if (notice) { // a line over the picture for a few seconds (the end of an online match)
         ImGuiIO &io = ImGui::GetIO();
         ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.12f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
         ImGui::SetNextWindowBgAlpha(0.85f);
