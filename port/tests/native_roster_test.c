@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "port_pc_battle.h"
+int Port_MapValid(int id) {return id>=0&&id<36;}
 int Port_CharaCount(void) {return 8;}
 const char *Port_CharaMenuName(int c) {return c==95?"Black Freezer":"";}
 const char *Port_FighterName(int c) {(void)c;return "Cell Junior";}

@@ -63,7 +63,12 @@
     X(TBO_MAIN_MANGA, "main_manga_reference") \
     X(TBO_MAIN_MANGA_NEUTRAL, "main_manga_neutral") \
     X(TBO_TOWER_MANGA, "tower_manga") \
-    X(TBO_TOWER_SELECTOR, "tower_selector")
+    X(TBO_TOWER_SELECTOR, "tower_selector") \
+    X(TBO_MANGA_LOBBY, "manga_lobby") \
+    X(TBO_MANGA_ONLINE_SELECT, "manga_online_select") \
+    X(TBO_MANGA_TOWER_SELECT, "manga_tower_select") \
+    X(TBO_MANGA_DUEL, "manga_duel") \
+    X(TBO_MANGA_DUEL_NEUTRAL, "manga_duel_neutral")
 
 #define TBO_ART_ENUM(id, name) id,
 enum { TBO_ART_LIST(TBO_ART_ENUM) TBO_ART_COUNT };

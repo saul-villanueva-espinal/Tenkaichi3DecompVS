@@ -164,8 +164,8 @@ void Hud_ClearTexMarks(void) {
 void HudNode_Update(HudNode *node) {
     u32 i;
 #ifdef PORT
-    extern int Port_PhotoActive(void);
-    if (Port_PhotoActive()) return;
+    extern int Port_PhotoActive(void),Port_PhotoPaused(void);
+    if (Port_PhotoActive()&&Port_PhotoPaused()) return;
 #endif
 
     if (node->update != NULL) {

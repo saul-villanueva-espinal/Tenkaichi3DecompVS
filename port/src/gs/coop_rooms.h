@@ -8,6 +8,10 @@ const char *RoomRelay_Server(void); /* env BT3_ROOM_SERVER or tbo/online_server.
 const char *RoomRelay_Code(void);
 const char *RoomRelay_Error(void);
 int RoomRelay_Active(void);
+int RoomRelay_Protocol(void);
+void RoomRelay_Controls(const int *members,int count);
+int RoomRelay_ControlMember(int player);
+int RoomRelay_ControlPad(int member);
 int RoomRelay_Slot(void);
 int RoomRelay_Socket(void);
 void RoomRelay_SetSocket(int sock);

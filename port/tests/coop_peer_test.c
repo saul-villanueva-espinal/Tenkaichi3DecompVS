@@ -11,6 +11,8 @@
 #include <unistd.h>
 #endif
 static char *self;
+int Port_MapValid(int id) {return id>=0&&id<36;}
+unsigned long long Port_MapFingerprint(int id) {(void)id;return 0;}
 static unsigned frame;
 void Port_VerifyStart(void) {}
 void Port_CoopWaitFrame(void) {}

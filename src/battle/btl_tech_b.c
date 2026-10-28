@@ -1403,7 +1403,26 @@ void BtlSuper_GetStagePlacement(BtlTechBChr *chr, s32 slot, s32 n, Vec4 *pos, Ve
     s32 stage = Battle_GetStage();
     BtlTechPlaceTbl *tbl;
 
-    if ((u32)(slot - 2) < 3 && (tbl = chr->place[slot - 2]) != NULL) {
+    if (pos != NULL) {
+        pos->x = 0.0f;
+        pos->y = 0.0f;
+        pos->z = 0.0f;
+        pos->w = 1.0f;
+    }
+    if (rot != NULL) {
+        rot->x = 0.0f;
+        rot->y = 0.0f;
+        rot->z = 0.0f;
+        rot->w = 0.0f;
+    }
+
+    if (chr != NULL && (u32)(slot - 2) < 3 && (tbl = chr->place[slot - 2]) != NULL) {
+        if (stage < 0 || stage >= 35) {
+            stage = 0;
+        }
+        if ((u32)n >= 5) {
+            n = 0;
+        }
         pos->x = tbl->rec[stage * 5 + n].x;
         pos->y = tbl->rec[stage * 5 + n].y;
         pos->z = tbl->rec[stage * 5 + n].z;

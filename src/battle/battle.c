@@ -518,7 +518,8 @@ void Battle_Loop(void) {
     s32 draw;
     s32 done = 0;
 #ifdef PORT
-    extern int Port_PhotoActive(void);
+    extern int Port_PhotoActive(void),Port_PhotoPaused(void);
+    extern void Port_PhotoCameraPrepare(void);
     extern void Port_BattleOverlayUpdate(s32 active);
     extern void Port_PhotoCameraUpdate(s32 active);
     s32 photoWas = 0;
@@ -532,9 +533,10 @@ void Battle_Loop(void) {
             Battle_GetWork()->flags &= ~BATTLE_FLAG_RESTART;
         }
 #ifdef PORT
-        if (Port_PhotoActive()) {
+        if (Port_PhotoActive() && Port_PhotoPaused()) {
             Gfx_BeginFrame();
             Pad_Update();
+            Port_PhotoCameraPrepare();
             Port_PhotoCameraUpdate(1);
             photoWas = 1;
             BtlCam_SelectView(0);
@@ -546,10 +548,13 @@ void Battle_Loop(void) {
             Dma_Flush();
             continue;
         }
-        if (photoWas) {
+        if (photoWas && !Port_PhotoActive()) {
             Port_PhotoCameraUpdate(0);
             photoWas = 0;
         }
+#endif
+#ifdef PORT
+        if(Port_PhotoActive())Port_PhotoCameraPrepare();
 #endif
         Job_Run();
         Gfx_BeginFrame();
@@ -577,6 +582,12 @@ void Battle_Loop(void) {
         Raid_DrawRng(0);
         {extern void Port_RaidViewBegin(void);Port_RaidViewBegin();}
 #endif
+#ifdef PORT
+        if(Port_PhotoActive()) {
+            Port_PhotoCameraUpdate(1);photoWas=1;
+            BtlCam_SelectView(0);BtlCam_ApplyView(0);BtlObj_UpdateVisibility(0);BtlObj_FinishVisibility(0);Battle_Draw();
+        } else
+#endif
         if (Battle_IsSplitScreen() && draw) {
             Battle_DrawSplit();
         } else {
@@ -590,6 +601,7 @@ void Battle_Loop(void) {
 #endif
     } while (!done);
 #ifdef PORT
+    Port_PhotoCameraUpdate(0);
     Port_BattleOverlayUpdate(0);
 #endif
 }

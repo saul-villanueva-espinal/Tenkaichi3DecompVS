@@ -1301,13 +1301,20 @@ static int describe(const char *root, const char *folder, const Chara *owner, Po
     out->base = c->replaces >= 0 ? c->replaces : c->base;
     for (k = 0; k < F_COUNT; k++) {
         if (c->file[k][0] != '\0') {
-            out->files |= 1 << k;
+            /* Compact manager descriptor: eight models, animations, effects,
+               voices. The runtime's 34-file layout must not be shifted into
+               this 32-bit field (or mistaken for portrait/member flags). */
+            if(k<8)out->files |= 1u << k;
+            else if(k>=F_A0 && k<=F_A7)out->files |= 1u << 8;
+            else if(k>=F_E0 && k<=F_E7)out->files |= 1u << 9;
+            else if(k==F_VOICE)out->files |= 1u << 10;
+            else if(k==F_VOICE_US)out->files |= 1u << 11;
             if (k < 8 && stat(c->file[k], &st) == 0 && st.st_size > 0xCE000) {
                 out->large = 1;
             }
         }
     }
-    for (out->costumes = 0; out->costumes < 4 && c->file[out->costumes][0] != '\0'; out->costumes++) {
+    for (out->costumes = 0; out->costumes < 8 && c->file[out->costumes][0] != '\0'; out->costumes++) {
     }
     out->files |= (c->portrait[0][0] != '\0') << PORT_DESC_PORTRAIT | (c->chip[0] != '\0') << PORT_DESC_CHIP |
                   (c->member[0][0][0] != '\0' || c->member[0][1][0] != '\0') << PORT_DESC_MEMBER |

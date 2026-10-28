@@ -23,7 +23,7 @@ enum { RH=40, MAX_INNER=1360, RR_CREATE=1, RR_JOIN, RR_ACCEPT, RR_DATA, RR_PING,
 static struct sockaddr_in sServer;
 static unsigned char sToken[16];
 static char sCode[9],sError[160];
-static int sActive,sSlot,sActiveSock = -1;
+static int sActive,sSlot,sActiveSock = -1,sProtocol=2;
 static uint32_t sRequest;
 static uint64_t sPing;
 static int sConnectBusy,sConnectDone,sConnectCancel;
@@ -88,13 +88,34 @@ static void room_env(const char *key,const char *value) {
     if(value)setenv(key,value,1);else unsetenv(key);
 #endif
 }
+int RoomRelay_Protocol(void) {
+    const char *v=getenv("BT3_ROOM_PROTOCOL");return sActive?sProtocol:v?atoi(v):2;
+}
+void RoomRelay_Controls(const int *members,int count) {
+    char text[64];int i,n=0;
+    if(!members||count<2||count>4)return;
+    for(i=0;i<count;i++)n+=snprintf(text+n,sizeof(text)-n,"%s%d",i?",":"",members[i]);
+    room_env("BT3_ROOM_CONTROLS",text);
+}
+int RoomRelay_ControlMember(int player) {
+    const char *p=getenv("BT3_ROOM_CONTROLS");int i,n;
+    if(!p||player<0||player>=4)return -1;
+    for(i=0;i<player;i++){p=strchr(p,',');if(!p)return -1;p++;}
+    n=atoi(p);return n>=0&&n<=11&&n%8<4?n:-1;
+}
+int RoomRelay_ControlPad(int member) {
+    int i;if(!getenv("BT3_ROOM_CONTROLS"))return -2;
+    for(i=0;i<4;i++)if(RoomRelay_ControlMember(i)==member)return i;
+    return -1;
+}
 int RoomRelay_ExportSession(void) {
-    char endpoint[128],ip[64],hex[33],slot[8];int i;
+    char endpoint[128],ip[64],hex[33],slot[8],protocol[8];int i;
     if(!sActive)return 0;
     if(!inet_ntop(AF_INET,&sServer.sin_addr,ip,sizeof(ip)))return 0;
     snprintf(endpoint,sizeof(endpoint),"%s:%u",ip,(unsigned)ntohs(sServer.sin_port));
     for(i=0;i<16;i++)snprintf(hex+i*2,3,"%02x",sToken[i]);
     snprintf(slot,sizeof(slot),"%d",sSlot);
+    snprintf(protocol,sizeof(protocol),"%d",sProtocol);room_env("BT3_ROOM_PROTOCOL",protocol);
     room_env("BT3_ROOM_RESUME_SERVER",endpoint);room_env("BT3_ROOM_RESUME_CODE",sCode);
     room_env("BT3_ROOM_RESUME_TOKEN",hex);room_env("BT3_ROOM_RESUME_SLOT",slot);return 1;
 }
@@ -118,6 +139,7 @@ void RoomRelay_ForgetSession(void) {
     room_env("BT3_ROOM_RESUME_SERVER",NULL);room_env("BT3_ROOM_RESUME_CODE",NULL);
     room_env("BT3_ROOM_RESUME_TOKEN",NULL);room_env("BT3_ROOM_RESUME_SLOT",NULL);
     room_env("BT3_ROOM_PARTY",NULL);room_env("BT3_ROOM_HERO",NULL);
+    room_env("BT3_ROOM_CONTROLS",NULL);room_env("BT3_ROOM_PROTOCOL",NULL);
 }
 const char *RoomRelay_Code(void) {return sCode;}
 const char *RoomRelay_Error(void) {return sError;}
@@ -193,7 +215,7 @@ static int open_room(int sock,int host,const char *code,uint64_t fingerprint,
             if(packet[5]==RR_ERROR) return error_packet(packet,len);
             if(packet[5]==RR_ACCEPT && len==RH+2 && packet[RH]<6 && packet[RH+1]>=2 && packet[RH+1]<=6 &&
                packet[RH]<packet[RH+1] && (resume?packet[RH]==expectedSlot:host?packet[RH]==0:packet[RH]>0)) {
-                memcpy(sCode,packet+28,8);sCode[8]=0;sSlot=packet[RH];sActive=1;sActiveSock=sock;sPing=now_ms();return 1;
+                memcpy(sCode,packet+28,8);sCode[8]=0;sSlot=packet[RH];sActive=1;sProtocol=protocol;sActiveSock=sock;sPing=now_ms();return 1;
             }
         }
         if(pump) pump();

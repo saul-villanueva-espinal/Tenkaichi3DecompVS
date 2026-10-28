@@ -1121,21 +1121,23 @@ void BtlObjBody_UpdateParts(BobjBody *body) {
     StgAabb_SetEmpty(&body->box);
     StgAabb_SetEmpty(&body->centerBox);
     for (;;) {
-        Vec3_Sub(&local, &part->offset, &part->bone->origin);
-        Mtx_MulVec4(&center, &part->part->mtx, &local);
-        Mtx_Copy(&m, &part->part->mtx);
-        Vec4_Copy((Vec4 *)m.m[3], &center);
-        BtlObjObb_SetMtx(&part->box, &m);
-        BtlObjBody_SetCenter(&part->center, (Vec4 *)m.m[3]);
-        ColBox_AddPoint(&body->box, &part->box.world[0]);
-        ColBox_AddPoint(&body->box, &part->box.world[1]);
-        ColBox_AddPoint(&body->box, &part->box.world[2]);
-        ColBox_AddPoint(&body->box, &part->box.world[3]);
-        ColBox_AddPoint(&body->box, &part->box.world[4]);
-        ColBox_AddPoint(&body->box, &part->box.world[5]);
-        ColBox_AddPoint(&body->box, &part->box.world[6]);
-        ColBox_AddPoint(&body->box, &part->box.world[7]);
-        ColBounds_AddSphere(&body->centerBox, &part->center);
+        if (part->bone != NULL && part->part != NULL) {
+            Vec3_Sub(&local, &part->offset, &part->bone->origin);
+            Mtx_MulVec4(&center, &part->part->mtx, &local);
+            Mtx_Copy(&m, &part->part->mtx);
+            Vec4_Copy((Vec4 *)m.m[3], &center);
+            BtlObjObb_SetMtx(&part->box, &m);
+            BtlObjBody_SetCenter(&part->center, (Vec4 *)m.m[3]);
+            ColBox_AddPoint(&body->box, &part->box.world[0]);
+            ColBox_AddPoint(&body->box, &part->box.world[1]);
+            ColBox_AddPoint(&body->box, &part->box.world[2]);
+            ColBox_AddPoint(&body->box, &part->box.world[3]);
+            ColBox_AddPoint(&body->box, &part->box.world[4]);
+            ColBox_AddPoint(&body->box, &part->box.world[5]);
+            ColBox_AddPoint(&body->box, &part->box.world[6]);
+            ColBox_AddPoint(&body->box, &part->box.world[7]);
+            ColBounds_AddSphere(&body->centerBox, &part->center);
+        }
         if (part->flags & 1) {
             break;
         }
@@ -1173,6 +1175,12 @@ void BtlObjBody_Init(BobjObj *obj) {
         for (;;) {
             bp->part = BtlObj_GetNode(obj, bp->node);
             bp->bone = BtlObj_FindBound(obj, bp->node);
+            if (bp->part == NULL) {
+                bp->part = BtlObj_GetNode(obj, 0);
+            }
+            if (bp->bone == NULL && mdl->nodes != NULL) {
+                bp->bone = mdl->nodes;
+            }
             if (bp->flags & 1) {
                 break;
             }

@@ -470,10 +470,17 @@ void BtlChar_ResetUnk1310(BtlCtlChr *chr) {
 
 /* Computes the relative placement offsets (from this fighter or from BtlOpp_GetPlayer's fighter) and raises flag 0xF6. */
 void BtlChar_RequestPlaceRelative(BtlCtlChr *chr, s32 arg1, s32 arg2, s32 self) {
-    BtlCtlChr *target = chr;
+    BtlCtlChr *target;
 
+    if (chr == NULL) {
+        return;
+    }
+    target = chr;
     if (!self) {
         target = BtlChar_Get(BtlOpp_GetPlayer(chr));
+        if (target == NULL) {
+            target = chr;
+        }
     }
     BtlSuper_GetStagePlacement(target, arg1, arg2, &chr->relPos, &chr->relRot);
     BtlChar_SetFlag(chr, 0xF6);

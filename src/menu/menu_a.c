@@ -1031,3 +1031,7 @@ s32 MainMenu_Run(s32 section) {
     Dma_ResetBuffers();
     return result;
 }
+
+/* Unified menu revision: online Tag Team and FFA entry points. */
+
+/* Oracle rooms now own Tag Team and FFA online preparation. */

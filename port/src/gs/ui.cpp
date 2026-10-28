@@ -2525,12 +2525,24 @@ struct FormHint { int x, y, count; Uint64 until; };
 static FormHint sFormHints[2];
 extern "C" {
 int gPortPhotoMode = 0;
+int gPortPhotoPaused = 1;
+static float sPhotoMove[3];
+static int sPhotoReset;
 int gPortHideHud = 0;
 float gPortPhotoYaw = 0.0f, gPortPhotoPitch = 0.0f, gPortPhotoDist = 1.0f;
 }
 
 extern "C" int Port_PhotoActive(void) {
     return __atomic_load_n(&gPortPhotoMode, __ATOMIC_ACQUIRE);
+}
+extern "C" int Port_PhotoPaused(void) {
+    return __atomic_load_n(&gPortPhotoPaused, __ATOMIC_ACQUIRE);
+}
+extern "C" void Port_PhotoMotion(float *motion, int *reset) {
+    SDL_LockSpinlock(&sFeatureLock);
+    for(int i=0;i<3;i++){motion[i]=sPhotoMove[i];sPhotoMove[i]=0;}
+    *reset=sPhotoReset;sPhotoReset=0;
+    SDL_UnlockSpinlock(&sFeatureLock);
 }
 extern "C" int Port_HudHidden(void) {
     return __atomic_load_n(&gPortHideHud, __ATOMIC_ACQUIRE);
@@ -2621,6 +2633,9 @@ extern "C" void Port_TogglePhotoMode(void) {
     }
     gPortPhotoYaw = gPortPhotoPitch = 0.0f;
     gPortPhotoDist = 1.0f;
+    for(float &axis:sPhotoMove)axis=0;
+    sPhotoReset=1;
+    __atomic_store_n(&gPortPhotoPaused,1,__ATOMIC_RELEASE);
     __atomic_store_n(&gPortPhotoMode, !Port_PhotoActive(), __ATOMIC_RELEASE);
     SDL_UnlockSpinlock(&sFeatureLock);
     sPhotoToast = Port_PhotoActive() ? "MODO FOTO ACTIVADO (Cámara libre 360)" : "MODO FOTO DESACTIVADO";
@@ -2644,14 +2659,16 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
     // ImGui receives keyboard events only while F1 is open. Gameplay photo
     // controls must read SDL's keyboard state, as the gamepads already do.
     const bool *keys = SDL_GetKeyboardState(NULL);
-    static bool photoWas, hudWas, resetWas;
+    static bool photoWas, hudWas, resetWas, pauseWas;
     bool photoDown=keys[SDL_SCANCODE_P],hudDown=keys[SDL_SCANCODE_H],resetDown=keys[SDL_SCANCODE_R];
     bool photoPressed=photoDown&&!photoWas,hudPressed=hudDown&&!hudWas,resetPressed=resetDown&&!resetWas;
+    bool pauseDown=keys[SDL_SCANCODE_SPACE],pausePressed=pauseDown&&!pauseWas;pauseWas=pauseDown;
     photoWas=photoDown;hudWas=hudDown;resetWas=resetDown;
     // Read the real SDL gamepad: ImGui navigation may be disabled while playing.
     bool combo = false;
     float stickX = 0.0f, stickY = 0.0f;
-    bool zoomIn = false, zoomOut = false;
+    bool zoomIn = false, zoomOut = false,padPause=false;
+    float moveSide=0,moveForward=0,moveUp=0;
     int count = 0;
     SDL_JoystickID *ids = SDL_GetGamepads(&count);
     for (int i = 0; i < count; i++) {
@@ -2662,14 +2679,21 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
         if (i != 0) continue;
         stickX = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTX) / 32768.0f;
         stickY = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_RIGHTY) / 32768.0f;
-        if (fabsf(stickX) < 0.18f) stickX = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTX) / 32768.0f;
-        if (fabsf(stickY) < 0.18f) stickY = SDL_GetGamepadAxis(pad, SDL_GAMEPAD_AXIS_LEFTY) / 32768.0f;
+        moveSide=SDL_GetGamepadAxis(pad,SDL_GAMEPAD_AXIS_LEFTX)/32768.0f;
+        moveForward=-SDL_GetGamepadAxis(pad,SDL_GAMEPAD_AXIS_LEFTY)/32768.0f;
+        moveUp=(SDL_GetGamepadAxis(pad,SDL_GAMEPAD_AXIS_RIGHT_TRIGGER)-SDL_GetGamepadAxis(pad,SDL_GAMEPAD_AXIS_LEFT_TRIGGER))/32768.0f;
+        if(fabsf(moveSide)<.18f)moveSide=0;
+        if(fabsf(moveForward)<.18f)moveForward=0;
+        if(fabsf(moveUp)<.18f)moveUp=0;
+        padPause=SDL_GetGamepadButton(pad,SDL_GAMEPAD_BUTTON_START);
         if (fabsf(stickX) < 0.18f) stickX = 0.0f;
         if (fabsf(stickY) < 0.18f) stickY = 0.0f;
         zoomIn = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_LEFT_SHOULDER);
         zoomOut = SDL_GetGamepadButton(pad, SDL_GAMEPAD_BUTTON_RIGHT_SHOULDER);
     }
     SDL_free(ids);
+    static bool padPauseWas;
+    pausePressed|=padPause&&!padPauseWas;padPauseWas=padPause;
     static bool comboWas;
     bool comboPressed = combo && !comboWas;
     comboWas = combo;
@@ -2682,30 +2706,36 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
 
     SDL_LockSpinlock(&sFeatureLock);
     if (Port_PhotoActive()) {
+        if(pausePressed)__atomic_store_n(&gPortPhotoPaused,!Port_PhotoPaused(),__ATOMIC_RELEASE);
+        float speed=(keys[SDL_SCANCODE_LSHIFT]||keys[SDL_SCANCODE_RSHIFT]?45.0f:12.0f)*dt;
+        sPhotoMove[0]+=(moveSide+(keys[SDL_SCANCODE_D]?1:0)-(keys[SDL_SCANCODE_A]?1:0))*speed;
+        sPhotoMove[1]-=(moveUp+(keys[SDL_SCANCODE_E]?1:0)-(keys[SDL_SCANCODE_Q]?1:0))*speed;
+        sPhotoMove[2]+=(moveForward+(keys[SDL_SCANCODE_W]?1:0)-(keys[SDL_SCANCODE_S]?1:0))*speed;
         gPortPhotoYaw += stickX * 2.0f * dt;
         gPortPhotoPitch -= stickY * 1.5f * dt;
         // Orbit Controls
-        if (keys[SDL_SCANCODE_LEFT] || keys[SDL_SCANCODE_A] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadLeft)) {
+        if (keys[SDL_SCANCODE_LEFT] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadLeft)) {
             gPortPhotoYaw -= 2.0f * dt;
         }
-        if (keys[SDL_SCANCODE_RIGHT] || keys[SDL_SCANCODE_D] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadRight)) {
+        if (keys[SDL_SCANCODE_RIGHT] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadRight)) {
             gPortPhotoYaw += 2.0f * dt;
         }
-        if (keys[SDL_SCANCODE_UP] || keys[SDL_SCANCODE_W] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadUp)) {
+        if (keys[SDL_SCANCODE_UP] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadUp)) {
             gPortPhotoPitch += 1.5f * dt;
         }
-        if (keys[SDL_SCANCODE_DOWN] || keys[SDL_SCANCODE_S] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadDown)) {
+        if (keys[SDL_SCANCODE_DOWN] || ImGui::IsKeyDown(ImGuiKey_GamepadDpadDown)) {
             gPortPhotoPitch -= 1.5f * dt;
         }
-        if (zoomIn || keys[SDL_SCANCODE_Q] || ImGui::IsKeyDown(ImGuiKey_GamepadL1)) {
+        if (zoomIn || keys[SDL_SCANCODE_MINUS] || ImGui::IsKeyDown(ImGuiKey_GamepadL1)) {
             gPortPhotoDist *= (1.0f - 1.2f * dt);
             if (gPortPhotoDist < 0.25f) gPortPhotoDist = 0.25f;
         }
-        if (zoomOut || keys[SDL_SCANCODE_E] || ImGui::IsKeyDown(ImGuiKey_GamepadR1)) {
+        if (zoomOut || keys[SDL_SCANCODE_EQUALS] || ImGui::IsKeyDown(ImGuiKey_GamepadR1)) {
             gPortPhotoDist *= (1.0f + 1.2f * dt);
             if (gPortPhotoDist > 3.5f) gPortPhotoDist = 3.5f;
         }
         if (resetPressed) {
+            sPhotoReset=1;for(float &axis:sPhotoMove)axis=0;
             gPortPhotoYaw = 0.0f;
             gPortPhotoPitch = 0.0f;
             gPortPhotoDist = 1.0f;
@@ -2717,8 +2747,8 @@ static void Port_UpdateAndDrawPhotoMode(ImDrawList *dl) {
         // Draw sleek photo mode controls bar if HUD is not hidden
         if (!Port_HudHidden() && gUiPresentW > 0 && gUiPresentH > 0) {
             float sy = (float)gUiPresentH / 448.0f;
-            float font_size = 14.0f * sy;
-            const char *barText = "[MODO FOTO 360] Orbitar: Flechas/WASD | Zoom: Q/E (L1/R1) | Restablecer: [R] | Ocultar HUD: [H] | Salir: [P]";
+            float font_size = 10.0f * sy;
+            const char *barText = Port_PhotoPaused()?"CAMARA LIBRE | PAUSA | WASD: mover | Q/E: altura | Flechas: mirar | Espacio/Start: continuar | R: reiniciar | P: salir":"CAMARA LIBRE | EN VIVO | WASD: mover | Q/E: altura | Flechas: mirar | Espacio/Start: pausar | R: reiniciar | P: salir";
             ImFont *font = ImGui::GetFont();
             ImVec2 tsz = font->CalcTextSizeA(font_size, FLT_MAX, 0.0f, barText);
             float bx = (float)gUiPresentX + ((float)gUiPresentW - tsz.x) * 0.5f;
@@ -3387,3 +3417,9 @@ void Ui_DrawGL(void) {
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
     }
 }
+
+// Team preview is shown only while an actual selection is pending.
+
+/* Register the approved manga UI textures. */
+
+/* Duel neutral selection variant. */

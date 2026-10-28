@@ -5,6 +5,11 @@
 #include "port_pc_battle.h"
 typedef int s32;
 typedef unsigned u32;
+/* No external maps in this lobby fixture. */
+int Port_MapId(int i) {i=(i%35+35)%35;return i;}
+int Port_MapIndex(int id) {return id>=0&&id<35?id:0;}
+int Port_MapStep(int id,int step) {return Port_MapId(Port_MapIndex(id)+step);}
+int Port_MapValid(int id) {return id>=0&&id<36;}
 /* BUTTONS */
 static struct { int stage; } stage;
 static struct { void *unused; } placeholder;

@@ -7,6 +7,7 @@ extern unsigned Port_RosterTestInput(unsigned);
 extern volatile int gPortPcHubReady;
 extern int Port_PcBattlePending(void);
 static s32 sMangaCursor=14,sMangaPlayers,sMangaPlayerCursor,sMangaAge;
+static s32 sMangaOnline;
 static const char *const sMangaNames[16]={
     "Modo Historia","Ultimate Battle","Torneo Mundial","Duelo",
     "Dragon Net","Online","Evolution Z","Entrenamiento",
@@ -79,15 +80,15 @@ static void Mm_Draw(void) {
         Mm_Text(Mm_X(884),Mm_Y(850),sMangaHelp[i],.62f,175,0);
     }
     if(sMangaPlayers) {
-        static const char *const players[4]={"1 jugador contra CPU","2 jugadores - pantalla dividida","3 jugadores - cuatro cuadrantes","4 jugadores - cuatro cuadrantes"};
-        Ps_Rect(130,139,383,325,Ps_Rgba(245,228,191,128),Ps_Rgba(211,191,153,128));
-        Ps_Rect(132,141,381,323,Ps_Rgba(8,7,7,128),Ps_Rgba(20,10,10,128));
-        Mm_Text(147,147,"NUMERO DE JUGADORES",1.05f,221,0);
-        for(i=0;i<4;i++) {
-            f32 y=182+i*29;if(i==sMangaPlayerCursor)Ps_Rect(144,y,370,y+26,Ps_Rgba(197,8,15,128),Ps_Rgba(113,2,6,128));
+        static const char *const players[5]={"1 jugador contra CPU","2 jugadores - pantalla dividida","3 jugadores - cuatro cuadrantes","4 jugadores - cuatro cuadrantes","ONLINE - SALAS ORACLE"};
+        Ps_Rect(130,116,383,386,Ps_Rgba(245,228,191,128),Ps_Rgba(211,191,153,128));
+        Ps_Rect(132,118,381,384,Ps_Rgba(8,7,7,128),Ps_Rgba(20,10,10,128));
+        Mm_Text(147,124,"NUMERO DE JUGADORES",1.05f,221,0);
+        for(i=0;i<5;i++) {
+            f32 y=155+i*29;if(i==sMangaPlayerCursor)Ps_Rect(144,y,370,y+26,Ps_Rgba(197,8,15,128),Ps_Rgba(113,2,6,128));
             Mm_Text(153,y+2,players[i],.68f,210,0);
         }
-        Mm_Text(148,307,"X: confirmar   O: volver",.52f,210,0);
+        Mm_Text(148,365,"X: confirmar   O: volver",.52f,210,0);
     }
     Font_FlushAll();
 }
@@ -114,7 +115,7 @@ static s32 Mm_Choose(s32 item,s32 players) {
 static s32 MainManga_Run(void) {
     s32 result=1,leaving=0,mx,my,click,old,next,hit,savedPointer=gPortNativeRosterActive;
     u32 p,r;PcBattle discard;
-    gPortDuelRole=0;sMangaPlayers=0;sMangaAge=0;sPortModes=0;
+    gPortDuelRole=0;sMangaPlayers=0;sMangaAge=0;sMangaOnline=0;sPortModes=0;
     Port_ModesShow(NULL);Port_PcTeamsTake(&discard);gPortPcHubReady=1;gPortNativeRosterActive=1;
     ColorFade_StartIn(0,0,0,20);
     while(1) {
@@ -125,13 +126,14 @@ static s32 MainManga_Run(void) {
         if(!leaving) {
             if(sMangaPlayers) {
                 old=sMangaPlayerCursor;
-                if(r&(PADG_UP|PADG_UP2))sMangaPlayerCursor=Ps_Wrap(sMangaPlayerCursor-1,0,3);
-                else if(r&(PADG_DOWN|PADG_DOWN2))sMangaPlayerCursor=Ps_Wrap(sMangaPlayerCursor+1,0,3);
-                if(click&&mx>=144&&mx<=370&&my>=182&&my<298){sMangaPlayerCursor=(my-182)/29;p|=PADG_CROSS;}
+                if(r&(PADG_UP|PADG_UP2))sMangaPlayerCursor=Ps_Wrap(sMangaPlayerCursor-1,0,4);
+                else if(r&(PADG_DOWN|PADG_DOWN2))sMangaPlayerCursor=Ps_Wrap(sMangaPlayerCursor+1,0,4);
+                if(click&&mx>=144&&mx<=370&&my>=155&&my<300){sMangaPlayerCursor=(my-155)/29;p|=PADG_CROSS;}
                 if(old!=sMangaPlayerCursor)Snd_PlaySe(1,0);
                 if(p&(PADG_CIRCLE|PADG_TRIANGLE)){sMangaPlayers=0;Snd_PlaySe(1,2);}
                 else if(p&PADG_CROSS) {
-                    next=Mm_Choose(sMangaCursor,sMangaPlayerCursor+1);
+                    sMangaOnline=sMangaPlayerCursor==4?(sMangaCursor==12?PC_TAG:PC_FFA):0;
+                    next=Mm_Choose(sMangaCursor,sMangaOnline?2:sMangaPlayerCursor+1);
                     if(next>0){gProgress->mode=next;leaving=1;MAINMENU_COUNT();Snd_PlaySe(1,1);ColorFade_StartOut(0,0,0,15);}
                 }
             }else {
@@ -152,5 +154,12 @@ static s32 MainManga_Run(void) {
         if(leaving&&ColorFade_IsOutDone())break;
     }
     sceGsSyncPath(0,0);gPortPcHubReady=0;gPortNativeRosterActive=savedPointer;Dma_ResetBuffers();
+    if(sMangaOnline) {
+        extern s32 PortVersusRoom_Run(s32);
+        gPortPcHubReady=1;
+        if(PortVersusRoom_Run(sMangaOnline)){gPortScreen=PORT_SCREEN_PC_BATTLE;gProgress->mode=MPROG_MODE_PORT_SCREEN;}
+        else {gProgress->mode=4;result=1;}
+        gPortPcHubReady=0;
+    }
     return result;
 }

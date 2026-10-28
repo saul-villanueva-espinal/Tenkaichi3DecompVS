@@ -290,7 +290,9 @@ int Port_PcBattleBuild(void) {
         if(b.rules.cpuLevel1 && cpu) sLevel[s]=b.rules.cpuLevel1-1;
         sNext[s] = count;
         sRemaining[s] = b.count[s];
-        BattleSetup_SetSide(s, cpu ? BTL_CONTROL_CPU : BTL_CONTROL_PAD, s, count, 1, 1, 0, NULL);
+        {s32 pad=s;extern s32 RoomRelay_ControlPad(s32);
+          if(Port_CoopEnabled()&&(b.mode==PC_TAG||b.mode==PC_FFA)) {s32 mapped=RoomRelay_ControlPad(s*8);if(mapped>=0)pad=mapped;}
+          BattleSetup_SetSide(s, cpu ? BTL_CONTROL_CPU : BTL_CONTROL_PAD, pad, count, 1, 1, 0, NULL); }
         for (i = 0; i < count; i++) {
             PcFighter *f = &b.fighter[s][i];
             s32 level=sLevel[s];

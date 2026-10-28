@@ -551,8 +551,8 @@ void BtlCam_UpdateView(s32 side) {
 #endif
 #ifdef PORT
     {extern s32 Port_CoopEnabled(void),Port_CoopMe(void),Port_Spectated(s32),Port_FighterObjId(s32);
-     if(sRaidDrawing && Port_CoopEnabled() && Port_ModesFight()==PORT_MODE_RAID) {
-         s32 me=Port_CoopMe(),fighter=me>0?me+1:0;
+     if(sRaidDrawing && Port_CoopEnabled() && Port_ModesFight()!=PORT_MODE_NONE) {
+         extern s32 Port_CoopViewFighter(void);s32 fighter=Port_CoopViewFighter();
          objId=Port_FighterObjId(Port_Spectated(fighter));sPortViewObj[side]=objId;
      }}
 #endif
@@ -576,7 +576,7 @@ void Port_RaidViewBegin(void) {
     s32 i;
     extern s32 Port_CoopEnabled(void),Port_ModesFight(void);
     extern void BtlObj_UpdateVisibility(s32),BtlObj_FinishVisibility(s32);
-    if(!Port_CoopEnabled() || Port_ModesFight()!=PORT_MODE_RAID) return;
+    if(!Port_CoopEnabled() || Port_ModesFight()==PORT_MODE_NONE) return;
     sRaidSharedView=gBtlCam->views[0];sRaidSharedCur=gBtlCam->cur;sRaidSharedWorld=gBtlCamView;
     sRaidSharedObjects[0]=sPortViewObj[0];sRaidSharedObjects[1]=sPortViewObj[1];
     sRaidSharedVisibility=*BtlObjVis_Get();
@@ -955,35 +955,44 @@ f32 CamShake_GetTime(CamShake *shake) {
 }
 
 #ifdef PORT
+static BtlCamView sPhotoAnchor[2],sPhotoNatural[2];
+static Vec4 sPhotoShift[2];
+static s32 sPhotoCaptured;
+void Port_PhotoCameraPrepare(void) {
+    s32 i;if(sPhotoCaptured)for(i=0;i<2;i++)gBtlCam->views[i]=sPhotoNatural[i];
+}
 void Port_PhotoCameraUpdate(s32 active) {
-    static BtlCamView saved[2];
-    static s32 captured;
+    extern void Port_PhotoMotion(float *,s32 *);
+    f32 motion[3];s32 reset;
     extern void Port_PhotoCamera(float *yaw, float *pitch, float *distance);
     f32 yaw, pitch, distance;
     s32 i;
     if (!active) {
-        if (captured) {
-            for (i = 0; i < 2; i++) gBtlCam->views[i] = saved[i];
+        if (sPhotoCaptured) {
+            for (i = 0; i < 2; i++) gBtlCam->views[i] = sPhotoNatural[i];
         }
-        captured = 0;
+        sPhotoCaptured = 0;
         return;
     }
-    if (!captured) {
-        for (i = 0; i < 2; i++) saved[i] = gBtlCam->views[i];
-        captured = 1;
+    if (!sPhotoCaptured) {
+        for (i = 0; i < 2; i++) sPhotoAnchor[i] = gBtlCam->views[i];
+        sPhotoCaptured = 1;memset(sPhotoShift,0,sizeof(sPhotoShift));
     }
     Port_PhotoCamera(&yaw, &pitch, &distance);
+    Port_PhotoMotion(motion,&reset);
+    if(reset)memset(sPhotoShift,0,sizeof(sPhotoShift));
+    for(i=0;i<2;i++)sPhotoNatural[i]=gBtlCam->views[i];
     for (i = 0; i < 2; i++) {
         BtlCamView *v = &gBtlCam->views[i];
         Mtx44 axes;
         Vec4 pivot;
         f32 cp, radius = 15.0f;
-        *v = saved[i];
+        *v = sPhotoAnchor[i];
         BtlCam_SetViewLayout(v, VIEW_LAYOUT_FULL);
-        Mtx_InverseRT(&axes, &saved[i].view.world2view2);
-        pivot.x = saved[i].pos.x + axes.m[2][0] * radius;
-        pivot.y = saved[i].pos.y + axes.m[2][1] * radius;
-        pivot.z = saved[i].pos.z + axes.m[2][2] * radius;
+        Mtx_InverseRT(&axes, &sPhotoAnchor[i].view.world2view2);
+        pivot.x = sPhotoAnchor[i].pos.x + axes.m[2][0] * radius;
+        pivot.y = sPhotoAnchor[i].pos.y + axes.m[2][1] * radius;
+        pivot.z = sPhotoAnchor[i].pos.z + axes.m[2][2] * radius;
         v->rot.x += pitch;
         if (v->rot.x > 1.5f) v->rot.x = 1.5f;
         if (v->rot.x < -1.5f) v->rot.x = -1.5f;
@@ -991,6 +1000,10 @@ void Port_PhotoCameraUpdate(s32 active) {
         /* Obtain the rotated forward axis from the game's own matrix convention. */
         View_SetTransform(&v->view.world2view, &v->view.world2view2, &v->pos, &v->rot);
         Mtx_InverseRT(&axes, &v->view.world2view2);
+        sPhotoShift[i].x+=axes.m[0][0]*motion[0]+axes.m[1][0]*motion[1]+axes.m[2][0]*motion[2];
+        sPhotoShift[i].y+=axes.m[0][1]*motion[0]+axes.m[1][1]*motion[1]+axes.m[2][1]*motion[2];
+        sPhotoShift[i].z+=axes.m[0][2]*motion[0]+axes.m[1][2]*motion[1]+axes.m[2][2]*motion[2];
+        pivot.x+=sPhotoShift[i].x;pivot.y+=sPhotoShift[i].y;pivot.z+=sPhotoShift[i].z;
         cp = radius * distance;
         v->pos.x = pivot.x - axes.m[2][0] * cp;
         v->pos.y = pivot.y - axes.m[2][1] * cp;

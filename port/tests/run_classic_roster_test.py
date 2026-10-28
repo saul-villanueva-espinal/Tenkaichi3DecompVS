@@ -23,6 +23,8 @@ typedef int s32;
 #define NR_SAGA_FAV 6
 #define PORT_CHARA_ADDED(id) ((id)>=PORT_CHARA_FIRST)
 static PcBattle sNr;
+static int sNrTower,sTowerFilter;
+int Port_CharaFormTarget(int id,int direction){return -1;}
 static int sNrKind,sNrSlot[2],sNrFilled[2][10],sNrCursor[2],sNrSaga,sNrCostume[2];
 static int sNrList[PORT_TOTAL_CHARAS],sNrCount,sNrFavorite[PORT_CHARA_ID_LIMIT];
 static char sNrMessage[160];

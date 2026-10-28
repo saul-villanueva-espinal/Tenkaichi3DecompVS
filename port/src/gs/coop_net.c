@@ -33,6 +33,7 @@ static unsigned sLoadRound;
 static uint32_t sNonce, sTick, sStartTick, sSampled;
 static PcBattle sBattle;
 static PcFighter sMyHero;
+static int sRequestedMode;
 static uint32_t sEpoch = 1;
 static int sTournament,sActive[2]={0,1},sRecorded,sFailed,sJumpActive,sCancel;
 static jmp_buf sFailureJump;
@@ -50,6 +51,7 @@ static int sLobbyPhase, sLobbyKnown, sLobbyTotal = 4;
 static const unsigned char kIdle[CPAD] = {255,255,128,128,128,128};
 extern int Port_PadRead(int, unsigned char *);
 extern void Port_VerifyStart(void), PortCharas_Init(void);
+extern unsigned long long Port_MapFingerprint(int);
 extern int Port_DataFingerprint(unsigned long long *);
 extern unsigned long long Port_CharacterFingerprint(void), Port_NetDigest(void);
 extern int BtlCharApi_GetHp(int);
@@ -137,6 +139,12 @@ int Port_CoopEnabled(void) {
     return getenv("BT3_COOP_HOST") != NULL || getenv("BT3_COOP_JOIN") != NULL;
 }
 int Port_CoopMe(void) { return sMe; }
+int Port_CoopViewFighter(void) {
+    int m=RoomRelay_ControlMember(sMe),side,index;
+    if(m<0)return sBattle.mode==PC_RAID?(sMe?sMe+1:0):sMe;
+    side=m/8;index=m%8;
+    return !index?side:2+(side?sBattle.count[0]-1:0)+index-1;
+}
 unsigned Port_CoopSeed(void) {
     const char *test=getenv("BT3_COOP_TEST_SEED");
     return (!sTournament && test)?(unsigned)strtoul(test,NULL,0):sNonce ^ (sTournament?(unsigned)(sTourney.current+1)*0x9e3779b9u:0);
@@ -153,6 +161,17 @@ int Port_CoopLobbyCopy(PcBattle *out) {
 static void lobby_frame(void) {
     static uint64_t last;
     if(millis()-last>=16) { Port_CoopWaitFrame(); last=millis(); }
+}
+/* Native simultaneous modes assign remote humans to the same pads as local play:
+   J1 = team A slot 1, J2 = team B slot 1, J3/J4 = their second slots. */
+static int session_mode_valid(const PcBattle *b) {
+    if(sTournament)return b->mode==PC_DUEL&&b->players==2;
+    return b->mode==PC_RAID || ((b->mode==PC_TAG||b->mode==PC_FFA)&&b->players>=2&&b->players<=4);
+}
+static PcFighter *session_hero(PcBattle *b,int peer) {
+    int member=RoomRelay_ControlMember(peer);
+    if((b->mode==PC_TAG||b->mode==PC_FFA)&&member>=0)return &b->fighter[member/8][member%8];
+    return b->mode==PC_TAG||b->mode==PC_FFA?&b->fighter[peer%2][peer/2]:&b->fighter[0][peer];
 }
 static void parse_config(const char *text) {
     Port_PcBattleDefault(&sBattle); sBattle.mode=PC_RAID;sBattle.players=4;sBattle.count[0]=4;
@@ -214,7 +233,7 @@ int Port_CoopConfig(PcBattle *out) {
     sHost=getenv("BT3_COOP_HOST")!=NULL;
     sMe=sHost?0:-1;
     __atomic_store_n(&sLobbyKnown,sHost?1:0,__ATOMIC_RELEASE);
-    parse_config(getenv("BT3_COOP_CONFIG"));
+    parse_config(getenv("BT3_COOP_CONFIG"));sRequestedMode=sBattle.mode;
     sTournament=getenv("BT3_TOURNAMENT")!=NULL;
     sPlayers=sTournament?atoi(getenv("BT3_TOURNAMENT")):sBattle.players;
     sMyHero=sBattle.fighter[0][0];
@@ -222,15 +241,15 @@ int Port_CoopConfig(PcBattle *out) {
     if(sTournament) {
         if(!Port_TourneyInit(&sTourney,sPlayers)) fail("Torneo requiere 4, 8 o 16 participantes");
         sTourney.fighters[0]=sMyHero;
-    } else if(sPlayers<2 || sPlayers>PORT_COOP_MAX) fail("Raid online requiere de dos a seis jugadores");
+    } else if(sPlayers<2 || sPlayers>PORT_COOP_MAX) fail("Online requiere de dos a seis jugadores");
     if(sHost) {
         const char *hEnv=getenv("BT3_COOP_HOST");
         if(hEnv && (!strncmp(hEnv,"ROOM:",5) || !strncmp(hEnv,"BT3-",4))) {
             /* The lobby exports membership before restarting; never create a new room here. */
-            if(!Port_PcBattleValidate(&sBattle,why,sizeof(why)) || sBattle.mode!=(sTournament?PC_DUEL:PC_RAID) || (sTournament && sBattle.players!=2)) fail("Plantilla de sala no valida");
+            if(!Port_PcBattleValidate(&sBattle,why,sizeof(why)) || !session_mode_valid(&sBattle) || (sTournament && sBattle.players!=2)) fail("Plantilla de sala no valida");
             if(!RoomRelay_Active()) {
                 start_socket(0);
-                if(!RoomRelay_Resume(sSock,sFingerprint,2,sPlayers,lobby_frame))
+                if(!RoomRelay_Resume(sSock,sFingerprint,RoomRelay_Protocol(),sPlayers,lobby_frame))
                     fail(RoomRelay_Error()[0]?RoomRelay_Error():"Fallo al abrir sala en el relay");
             } else {
                 sSock=RoomRelay_Socket();
@@ -242,7 +261,7 @@ int Port_CoopConfig(PcBattle *out) {
             }
         } else {
             int port=atoi(hEnv?hEnv:"29740"); if(port<1||port>65535) fail("Puerto no valido");
-            if(!Port_PcBattleValidate(&sBattle,why,sizeof(why)) || sBattle.mode!=(sTournament?PC_DUEL:PC_RAID) || (sTournament && sBattle.players!=2)) fail("Plantilla de sala no valida");
+            if(!Port_PcBattleValidate(&sBattle,why,sizeof(why)) || !session_mode_valid(&sBattle) || (sTournament && sBattle.players!=2)) fail("Plantilla de sala no valida");
             start_socket(port);sNonce=(uint32_t)millis()|1;sKnown[0]=sAck[0]=1;
         }
     } else {
@@ -250,7 +269,7 @@ int Port_CoopConfig(PcBattle *out) {
         if(jEnv && (!strncmp(jEnv,"BT3-",4) || (strlen(jEnv)==6 && !strchr(jEnv,':')))) {
             if(!RoomRelay_Active()) {
                 start_socket(0);
-                if(!RoomRelay_Resume(sSock,sFingerprint,2,sPlayers,lobby_frame))
+                if(!RoomRelay_Resume(sSock,sFingerprint,RoomRelay_Protocol(),sPlayers,lobby_frame))
                     fail(RoomRelay_Error()[0]?RoomRelay_Error():"Fallo al unirse a sala en el relay");
             } else {
                 sSock=RoomRelay_Socket();
@@ -266,6 +285,9 @@ int Port_CoopConfig(PcBattle *out) {
             memcpy(&sPeer[0],result->ai_addr,sizeof(sPeer[0]));freeaddrinfo(result);
         }
     }
+    /* The directory resumes the original lobby profile. Only peer gameplay
+       packets include added-map collision data, after that resume completes. */
+    sFingerprint^=Port_MapFingerprint(-1);
     fprintf(stderr,"bt3: coop: %s, esperando %d jugadores, datos %016llx\n",sHost?"anfitrion":"cliente",sPlayers,(unsigned long long)sFingerprint);
     __atomic_store_n(&sLobbyTotal,sPlayers,__ATOMIC_RELEASE);
     __atomic_store_n(&sLobbyPhase,2,__ATOMIC_RELEASE);
@@ -292,8 +314,8 @@ int Port_CoopConfig(PcBattle *out) {
                 for(i=1;i<sPlayers;i++) if(!sKnown[i]) {
                     PcBattle proposed=sBattle;
                     int slot=sTournament?0:i;
-                    proposed.fighter[0][slot].chara=(int)get32(p+CHEAD);
-                    proposed.fighter[0][slot].costume=(int)get32(p+CHEAD+4);
+                    session_hero(&proposed,slot)->chara=(int)get32(p+CHEAD);
+                    session_hero(&proposed,slot)->costume=(int)get32(p+CHEAD+4);
                     if(!Port_PcBattleValidate(&proposed,why,sizeof(why))) break;
                     if(sTournament) sTourney.fighters[i]=proposed.fighter[0][0];
                     else sBattle=proposed;
@@ -320,7 +342,7 @@ int Port_CoopConfig(PcBattle *out) {
                 __atomic_store_n(&sLobbyKnown,(int)get32(p+40),__ATOMIC_RELEASE);
                 if(sMe<1||sMe>=sPlayers||sPlayers>(sTournament?PORT_TOURNEY_MAX:PORT_COOP_MAX)) fail("Asignacion de jugador no valida");
                 for(k=0;k<sizeof(PcBattle)/4;k++) v[k]=(int)get32(p+CHEAD+k*4);
-                if(sBattle.mode!=(sTournament?PC_DUEL:PC_RAID)||sBattle.players!=(sTournament?2:sPlayers)||!Port_PcBattleValidate(&sBattle,why,sizeof(why))) fail("Plantilla del anfitrion no valida");
+                if((!sTournament&&sBattle.mode!=sRequestedMode)||!session_mode_valid(&sBattle)||sBattle.players!=(sTournament?2:sPlayers)||!Port_PcBattleValidate(&sBattle,why,sizeof(why))) fail("Plantilla del anfitrion no valida");
                 if(sTournament) {
                     PortTourney received,initial;v=(int *)&received;
                     for(k=0;k<sizeof(PortTourney)/4;k++) v[k]=(int)get32(p+CHEAD+sizeof(PcBattle)+k*4);
@@ -520,7 +542,7 @@ void Port_CoopInput(int player,unsigned char *data) {
 int Port_CoopLaunch(int host,const char *address,int port,const PcBattle *b) {
     char endpoint[300],config[900],why[160];unsigned i;size_t used=0;
     const int *v=(const int *)b;
-    if(Port_CoopEnabled()||!b||b->mode!=PC_RAID||b->players<2||!Port_PcBattleValidate(b,why,sizeof(why))) return 0;
+    if(Port_CoopEnabled()||!b||(b->mode!=PC_RAID&&b->mode!=PC_TAG&&b->mode!=PC_FFA)||b->players<2||!Port_PcBattleValidate(b,why,sizeof(why))) return 0;
     if(!host && (!address||!address[0]||strlen(address)>200)) return 0;
     if(host) {
         if(address && (!strncmp(address,"BT3-",4) || !strncmp(address,"ROOM:",5) || (strlen(address)==6 && !strchr(address,':')))) {

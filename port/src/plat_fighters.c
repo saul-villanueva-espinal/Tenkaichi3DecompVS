@@ -390,6 +390,7 @@ int Port_ExtraRaidAdd(int chara,int costume,int level) {
 }
 void Port_ExtraDone(void) {
     int local = Port_LocalPlayers(), pad, k, pass;
+    extern int RoomRelay_ControlPad(int);
 
     /* Local players 3 and 4 (a split-screen fight of the sides' own members): controller 3 plays team 1's second
        member, controller 4 team 2's; a team without one leaves its player the first fighter nobody plays. */
@@ -411,6 +412,9 @@ void Port_ExtraDone(void) {
                 break;
             }
         }
+    }
+    if(Port_CoopEnabled()&&(sFightRoster==PORT_MODE_TEAM||sFightRoster==PORT_MODE_FFA)) {
+        for(k=0;k<sFightCount;k++) {int mapped=RoomRelay_ControlPad(sFight[k].member);if(mapped>=-1)sFight[k].pad=mapped;}
     }
     if (sFightCount > 0) {
         sLast = EXTRA_IN;

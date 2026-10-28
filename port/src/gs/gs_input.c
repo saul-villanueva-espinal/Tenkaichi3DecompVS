@@ -1163,6 +1163,9 @@ int Port_PadRead(int socket, unsigned char *data) {
         }
     }
     clash_square(socket, &btn, &lx, &ly);
+    /* The camera consumes its controls; do not also move or attack with a fighter. */
+    {extern int Port_PhotoActive(void);
+     if(Port_PhotoActive()){btn=0;rx=ry=lx=ly=128;}}
     press_age(socket, btn);
     memset(data, 0, 18);
     data[0] = (unsigned char)(~btn & 0xFF);       /* active low */

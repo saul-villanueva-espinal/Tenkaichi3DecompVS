@@ -1,4 +1,7 @@
 #include "common.h"
+extern int Port_MapCount(void),Port_MapId(int),Port_MapIndex(int),Port_MapStep(int,int),Port_MapValid(int);
+extern void Port_MapNameCopy(char *,int,int);
+extern void Port_MangaStageText(char *,s32,s32);
 #include "menu/menu_e.h"
 #include "menu/menu_f.h"
 #include "menu/port_screen.h"
@@ -109,6 +112,9 @@ typedef struct RaidRoom {
     RaidPlayerSlot players[PORT_COOP_MAX];
 } RaidRoom;
 static RaidRoom sRoom;
+static s32 sVsMode,sVsTeam[4],sVsStarting;
+static u32 sVsRevision;
+static u64 sVsStartAt,sVsLastHost;
 #define R (&sRoom)
 static s32 Rd_Clamp(s32 v,s32 lo,s32 hi) {return v<lo?lo:v>hi?hi:v;}
 static s32 Rd_Wrap(s32 v,s32 n) {return (v%n+n)%n;}
@@ -215,7 +221,7 @@ static void Rd_Init(void) {
         R->players[i].state=(i==0)?3:0;
     }
     strncpy(R->players[0].name, R->playerName, 19);
-    R->battle.stage=Rd_Clamp(Port_Setting("raid_stage",0),0,34);
+    R->battle.stage=Port_MapId(Port_MapIndex(Port_Setting("raid_stage",0)));
     {static const s32 bosses[PORT_RAID_BOSSES]={133,138,95,204,139};
      for(i=0;i<PORT_RAID_BOSSES;i++) {R->boss=i;if(i) Rd_Boss()->chara=Port_PcRosterId(Rd_Index(bosses[i]));Rd_ProfileLoad();}R->boss=0;}
 }
@@ -258,9 +264,8 @@ static s32 sRaidRoomOn;
 s32 Port_RaidRoomActive(void) {return sRaidRoomOn;}
 static char *Rd_Name(s32 chara) {Port_RaidRosterName(sRaidName,sizeof(sRaidName),chara);return sRaidName;}
 static char *Rd_StageName(s32 stage) {
-    static char name[32];
-    if(!stage) return "Montanas";
-    sprintf(name,"Escenario %02d",stage+1);return name;
+    static char name[64];
+    Port_MangaStageText(name,sizeof(name),stage);return name;
 }
 static void Rd_Text(f32 x,f32 y,char *text,f32 scale,f32 width,s32 gold) {
     Ps_SetTextKind(scale>=.75f?3:0);
@@ -544,14 +549,14 @@ static void Rd_CardBosses(void) {
 static void Rd_CardTeam(void) {
     s32 i,connectedCount=0;char buf[64];f32 x,y;
     for(i=0;i<PORT_COOP_MAX;i++) if(R->players[i].connected) connectedCount++;
-    sprintf(buf,"EQUIPO (%d CONECTADOS - MAX 6)",R->connection==0?1:connectedCount);
+    if(!R->connection)sprintf(buf,"EQUIPO: < %d ALIADOS > | L3 + / R3 -",R->count);else sprintf(buf,"EQUIPO (%d CONECTADOS - MAX 6)",connectedCount);
     Rd_Frame(10,252,275,88,R->cursor==2);
     Rd_Text(18,255,buf,.56f,250,0);
     for(i=0;i<PORT_COOP_MAX;i++) {
         x=14+i*44.0f;y=270.0f;
-        s32 isMyCard = (R->connection==2 && i==R->mySlot) || (R->connection!=2 && i==0);
+        s32 isMyCard = R->connection==0?i==R->ally:(R->connection==2 && i==R->mySlot) || (R->connection!=2 && i==0);
         Rd_Frame(x,y,41,64,(R->cursor==2 && isMyCard) || (i==R->mySlot));
-        if(R->players[i].connected || (R->connection==0 && i<R->count)) {
+        if(R->connection==0?i<R->count:R->players[i].connected) {
             s32 ch = (R->connection==0)?R->battle.fighter[0][i].chara:R->players[i].chara;
             const char *nm = (R->connection==0)?(i==0?R->playerName:"CPU"):R->players[i].name[0]?R->players[i].name:"JUGADOR";
             Port_TeamChip(ch,x+2,y+6,37,34,128);
@@ -636,21 +641,21 @@ static void Rd_DrawSelector(void) {
     Rd_Text(15,359,buf,.43f,145,0);Rd_Text(17,372,"L2/R2: pagina",.35f,140,0);
     Rd_Text(182,334,name,.82f,154,0);Rd_Text(181,356,form,.52f,156,1);
     sprintf(buf,"L1 <  TRAJE %d / 8  > R1",f->costume+1);Rd_Button(176,374,165,22,buf,0);
-    Rd_Text(362,59,"TU PERSONAJE",.80f,131,1);
+    Rd_Text(362,59,!R->connection&&R->page==RD_ALLY&&R->ally>0?"ALIADO CPU":"TU PERSONAJE",.80f,131,1);
     Rd_Text(362,93,"NOMBRE",.43f,132,0);Rd_Text(362,110,name,.59f,130,0);
     Rd_Text(362,142,"FORMA",.43f,130,0);Rd_Text(362,159,form,.58f,130,1);
     sprintf(buf,"Traje instalado: %d / 8",f->costume+1);Rd_Text(362,188,buf,.47f,130,0);
     Rd_Text(362,219,"SALA",.75f,130,1);Rd_Text(362,246,R->playerName,.55f,130,0);
-    Rd_Text(362,266,R->page==RD_ALLY?"Eligiendo aliado":"Eligiendo jefe",.48f,130,1);
+    sprintf(buf,R->page==RD_ALLY?(R->ally?"Editando CPU %d":"Editando jugador %d"):"Editando jefe %d",R->page==RD_ALLY?R->ally+1:R->boss+1);Rd_Text(362,266,buf,.48f,130,1);
     Rd_Text(362,291,"Personajes repetidos:",.45f,130,0);Rd_Text(362,309,"Permitidos",.50f,130,1);
     Rd_Button(355,338,144,28,"CONFIRMAR PERSONAJE",1);
-    Rd_Text(358,369,"Despues: Listo en la sala",.36f,141,0);
+    Rd_Text(358,369,R->connection?"Despues: Listo en la sala":"SELECT: siguiente aliado / CPU",.36f,141,0);
     Ps_Rect(0,400,512,448,Ps_Rgba(2,7,18,128),Ps_Rgba(3,15,36,128));
     for(i=0;i<PORT_COOP_MAX;i++) if(R->players[i].connected)connected++;
-    sprintf(buf,"EQUIPO - %d / 6",R->connection==0?1:connected);Rd_Text(10,401,buf,.47f,115,0);
+    sprintf(buf,"EQUIPO - %d / 6",R->connection==0?R->count:connected);Rd_Text(10,401,buf,.47f,115,0);
     for(i=0;i<PORT_COOP_MAX;i++) {
-        f32 x=10+i*43;Rd_Frame(x,416,41,29,i==R->mySlot);
-        if(R->players[i].connected || (R->connection==0 && i<R->count)) {
+        f32 x=10+i*43;Rd_Frame(x,416,41,29,i==(R->connection==0?R->ally:R->mySlot));
+        if(R->connection==0?i<R->count:R->players[i].connected) {
             Port_TeamChip(R->connection==0?R->battle.fighter[0][i].chara:R->players[i].chara,x+2,418,18,23,128);
             sprintf(buf,"J%d",i+1);Rd_Text(x+23,419,buf,.36f,17,0);
             Rd_Text(x+22,432,R->players[i].state==4?"Listo":"Elige",.28f,18,1);
@@ -658,7 +663,7 @@ static void Rd_DrawSelector(void) {
     }
     Rd_Text(278,405,"X: confirmar | O: volver",.46f,224,0);
     Rd_Text(278,421,"Cuadrado: filtro | SELECT: plaza",.38f,224,0);
-    Rd_Text(278,435,"Stick derecho: girar modelo 3D",.38f,224,0);
+    Rd_Text(278,435,R->connection?"Stick derecho: girar modelo 3D":"L3: anadir aliado | R3: quitar plaza",.38f,224,0);
 }
 static void Rd_SelectorPlatform(void) {
     s32 i;for(i=0;i<32;i++) {
@@ -837,7 +842,7 @@ static void Rd_ConnectTick(void) {
             return;
         }
         R->modFingerprint=base ^ Port_CharacterFingerprint() ^ ((u64)PORT_TOTAL_CHARAS<<32);
-        if(!RoomRelay_ConnectStart(R->connectHost,R->roomCode,R->modFingerprint,2,PORT_COOP_MAX,R->playerName)) {
+        if(!RoomRelay_ConnectStart(R->connectHost,R->roomCode,R->modFingerprint,sVsMode?10+sVsMode:2,sVsMode?4:PORT_COOP_MAX,R->playerName)) {
             R->connecting=0;Ps_Copy(R->message,"No se pudo iniciar la conexion.",sizeof(R->message));return;
         }
         R->connecting=2;Ps_Copy(R->message,"Conectando con el servidor... Circulo: cancelar",sizeof(R->message));
@@ -853,6 +858,7 @@ static void Rd_ConnectTick(void) {
     R->players[R->mySlot].costume=(s8)R->battle.fighter[0][R->mySlot].costume;
     Ps_Copy(R->players[R->mySlot].name,R->playerName,sizeof(R->players[R->mySlot].name));
     R->players[R->mySlot].lastSeen=RoomRelay_NowMs();R->page=RD_LOBBY;R->cursor=R->connectHost?0:2;
+    if(sVsMode){sVsTeam[R->mySlot]=R->mySlot%2;R->cursor=0;R->ally=R->mySlot;sVsLastHost=RoomRelay_NowMs();sVsRevision=1;}
     if(R->connectHost) {PortTbo_Copy(R->roomCode);sprintf(R->message,"Sala creada. Codigo %s copiado.",R->roomCode);}
     else sprintf(R->message,"Conectado a %s como J%d.",R->roomCode,R->mySlot+1);
 }
@@ -863,6 +869,7 @@ static void Rd_LobbyClose(void) {
         RoomRelay_CloseSocket(R->lobbySock);
         R->lobbySock = -1;
     }
+    RoomRelay_ForgetSession();
     R->connection = 1;
     R->roomCode[0] = 0;
     R->mySlot = 0;
@@ -1011,6 +1018,37 @@ static void __attribute__((unused)) Rd_LobbyPoll(void) {
     }
 }
 
+static void Rd_OfflineCount(s32 delta) {
+    if(R->connection)return;
+    R->count=Rd_Clamp(R->count+delta,1,PORT_COOP_MAX);
+    R->ally=Rd_Clamp(R->ally,0,R->count-1);R->battle.count[0]=R->count;
+}
+static void Rd_OfflineRemove(void) {
+    s32 i;
+    if(R->connection||R->count<=1)return;
+    for(i=R->ally;i<R->count-1;i++) {
+        R->battle.fighter[0][i]=R->battle.fighter[0][i+1];R->players[i]=R->players[i+1];
+    }
+    Rd_OfflineCount(-1);Rd_GridBuild();
+}
+static void Rd_Pointer(s32 x,s32 y,u32 *p) {
+    s32 slot,page,index;
+    if(R->connecting||R->editing)return;
+    if(R->page==RD_ALLY||R->page==RD_BOSS_PICK) {
+        if(!R->connection&&R->page==RD_ALLY&&y>=416&&y<=445&&x>=10&&x<268) {
+            slot=(x-10)/43;if(slot<R->count){R->ally=slot;Rd_GridBuild();}return;
+        }
+        if(x>=14&&x<158&&y>=114&&y<354) {
+            page=R->gridCursor/24;index=page*24+((y-114)/40)*4+(x-14)/36;
+            if(index<R->gridCount){R->gridCursor=index;Rd_GridChoose();}return;
+        }
+        if(x>=355&&y>=338&&y<=366)*p|=PADG_CROSS;
+    }else if(R->page==RD_LOBBY&&!R->connection&&x>=14&&x<279&&y>=155&&y<=213) {
+        slot=(x-14)/53;if(slot<R->battle.count[1]){R->boss=slot;R->page=RD_BOSS_PICK;Rd_GridBuild();}
+    }else if(R->page==RD_LOBBY&&!R->connection&&x>=14&&x<278&&y>=270&&y<=334) {
+        slot=(x-14)/44;if(slot<R->count){R->ally=slot;R->page=RD_ALLY;Rd_GridBuild();}
+    }
+}
 static void Rd_Input(u32 p,u32 repeat) {
     s32 dir=(repeat&(PADG_RIGHT|PADG_RIGHT2))?1:(repeat&(PADG_LEFT|PADG_LEFT2))?-1:0;
     s32 up=repeat&(PADG_UP|PADG_UP2),down=repeat&(PADG_DOWN|PADG_DOWN2),i,save;
@@ -1054,8 +1092,8 @@ static void Rd_Input(u32 p,u32 repeat) {
                 return;
             }
             if(R->cursor==3) {
-                R->connection=0;R->page=RD_LOBBY;R->cursor=3;R->mySlot=0;R->myState=4;
-                Ps_Copy(R->message,"Modo practica offline. Pulsa Iniciar combate.",sizeof(R->message));
+                R->connection=0;R->count=1;R->battle.count[0]=1;R->ally=0;R->page=RD_LOBBY;R->cursor=2;R->mySlot=0;R->myState=4;
+                Ps_Copy(R->message,"Offline: izquierda/derecha cambia cantidad. X elige tus aliados.",sizeof(R->message));
                 return;
             }
         }
@@ -1079,6 +1117,10 @@ static void Rd_Input(u32 p,u32 repeat) {
         }
         return;
     }
+    if(!R->connection&&(R->page==RD_LOBBY||R->page==RD_ALLY)) {
+        if(p&PADG_L3){Rd_OfflineCount(1);return;}
+        if(p&PADG_R3){if(R->page==RD_LOBBY)R->ally=R->count-1;Rd_OfflineRemove();return;}
+    }
     if(R->page==RD_ALLY || R->page==RD_BOSS_PICK) {
         s32 step=dir+(down?4:up?-4:0);
         if(p&PADG_TRIANGLE) {Rd_EditBegin(3);return;}
@@ -1099,7 +1141,10 @@ static void Rd_Input(u32 p,u32 repeat) {
             R->players[R->ally].chara=(s16)Rd_Shown()->chara;R->players[R->ally].costume=(s8)Rd_Shown()->costume;
             if(step || (p&(PADG_L1|PADG_R1|PADG_SQUARE))) {R->players[R->ally].state=3;R->myState=3;}
         } else if(step || (p&(PADG_L1|PADG_R1|PADG_SQUARE)))Rd_HostResetReady();
-        if(p&PADG_CROSS) {R->page=RD_LOBBY;R->cursor=2;}
+        if(p&PADG_CROSS) {
+            if(!R->connection&&R->page==RD_ALLY&&R->ally+1<R->count){R->ally++;Rd_GridBuild();}
+            else {R->page=RD_LOBBY;R->cursor=2;}
+        }
         return;
     }
     if((p&PADG_SQUARE) && R->page==RD_LOBBY) {
@@ -1196,7 +1241,7 @@ static void Rd_Input(u32 p,u32 repeat) {
             Rd_HostResetReady();
         }
         break;
-    case 2:R->ally=Rd_Wrap(R->ally+dir,R->count);break;
+    case 2:if(!R->connection)Rd_OfflineCount(dir);else R->ally=Rd_Wrap(R->ally+dir,R->count);break;
     case 3:R->connection=Rd_Wrap(R->connection+dir,3);break;
     case 4:R->count=Rd_Clamp(R->count+dir,2,PORT_COOP_MAX);break;
     case 5:R->battle.count[1]=Rd_Clamp(R->battle.count[1]+dir,1,PORT_RAID_BOSSES);R->boss=Rd_Clamp(R->boss,0,R->battle.count[1]-1);break;
@@ -1209,7 +1254,7 @@ static void Rd_Input(u32 p,u32 repeat) {
         break;
     case 7:
         if(R->connection!=2) {
-            R->battle.stage=Rd_Wrap(R->battle.stage+dir,35);gTeamSel->stage->stage=R->battle.stage;TeamSel_RequestStage();Rd_HostResetReady();
+            R->battle.stage=Port_MapStep(R->battle.stage,dir);gTeamSel->stage->stage=R->battle.stage;TeamSel_RequestStage();Rd_HostResetReady();
         }
         break;
     }
@@ -1275,7 +1320,7 @@ static void Rd_Input(u32 p,u32 repeat) {
         break;
     case 7:
         if(R->connection!=2) {
-            R->battle.stage=Rd_Wrap(R->battle.stage+1,35);gTeamSel->stage->stage=R->battle.stage;TeamSel_RequestStage();Rd_HostResetReady();
+            R->battle.stage=Port_MapStep(R->battle.stage,1);gTeamSel->stage->stage=R->battle.stage;TeamSel_RequestStage();Rd_HostResetReady();
         }
         break;
     case 8:Rd_Check();break;
@@ -1283,32 +1328,43 @@ static void Rd_Input(u32 p,u32 repeat) {
 
 }
 
-s32 PortRaid_Run(void) {
+#include "port_versus_room.inc"
+
+static s32 Rd_Run(s32 versusMode) {
     TsTeam saved[2];s32 savedPlayers,savedType,savedDp,savedStage,savedBgm,s,i,result=0;
     saved[0]=gTsProgress->team[0];saved[1]=gTsProgress->team[1];savedPlayers=gTsProgress->players;savedType=gTsProgress->battleType;
     savedDp=gTsProgress->dpLevel;savedStage=gTsProgress->stageCell;savedBgm=gTsProgress->bgm;
     memset(gTsProgress->team,0,sizeof(gTsProgress->team));gTsProgress->players=0;gTsProgress->battleType=1;gTsProgress->dpLevel=gTsProgress->stageCell=gTsProgress->bgm=0;
     for(s=0;s<2;s++) for(i=0;i<5;i++) gTsProgress->team[s].member[i].chara=i?-1:s?4:0;
     if(!gMenuArc5) gMenuArc5=File_LoadSync(gProgress->baseFile,NULL,0);
-    Rd_Init();R->page=RD_CONNECT;R->cursor=1;TeamSel_Init(2);Port_RaidModelsBegin();sRaidRoomOn=1;gTeamSel->stage->stage=R->battle.stage;TeamSel_RequestStage();Bgm_Play(0x10B18);ColorFade_StartIn(0,0,0,20);
+    s32 savedPointer=gPortNativeRosterActive;gPortNativeRosterActive=1;
+    sVsMode=versusMode;sVsStarting=0;sVsRevision=1;memset(sVsTeam,0,sizeof(sVsTeam));
+    Rd_Init();if(sVsMode){R->battle.mode=sVsMode;memset(&R->battle.rules,0,sizeof(R->battle.rules));}R->page=RD_CONNECT;R->cursor=1;TeamSel_Init(2);Port_RaidModelsBegin();sRaidRoomOn=1;gTeamSel->stage->stage=R->battle.stage;TeamSel_RequestStage();Bgm_Play(0x10B18);ColorFade_StartIn(0,0,0,20);
     while(1) {
         u32 p,r;Gfx_BeginFrame();Pad_Update();Snd_Update();ColorFade_Update();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();
         p=gPad[0].gamePressed;r=gPad[0].gameRepeat|p;R->frames++;
         if(Port_RosterTestMode()==11) {R->connection=0;p|=Port_RosterTestInput(R->frames);r|=p;}
         if(R->lobbySock>=0 && (R->page==RD_LOBBY||R->page==RD_ALLY||R->page==RD_CUSTOM||R->page==RD_BOSS_PICK||R->page==RD_ORDER)) {
-            Rd_LobbyPoll();
+            if(sVsMode)Vs_Poll();else Rd_LobbyPoll();
         }
+        {s32 mx,my;extern int Port_RosterPointerRead(int *,int *);if(Port_RosterPointerRead(&mx,&my)){if(sVsMode)Vs_Pointer(mx,my,&p);else Rd_Pointer(mx,my,&p);}r|=p;}
         Rd_ClipboardTick();Rd_ConnectTick();
-        if(!R->leaving&&ColorFade_IsInDone()) Rd_Input(p,r);
-        Rd_Draw();Font_FlushAll();ColorFade_Draw();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();if(R->leaving&&ColorFade_IsOutDone()) break;
+        if(sVsMode&&Port_RosterTestMode()==15){p|=Port_RosterTestInput(R->frames);r|=p;}
+        if(!R->leaving&&ColorFade_IsInDone()){if(sVsMode)Vs_Input(p,r);else Rd_Input(p,r);}
+        if(sVsMode)Vs_Draw();else Rd_Draw();Font_FlushAll();ColorFade_Draw();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();if(R->leaving&&ColorFade_IsOutDone()) break;
     }
     while(gTeamSel->faceState!=TEAMSEL_LOAD_IDLE||gTeamSel->stageState!=TEAMSEL_LOAD_IDLE) {
-        Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();Rd_Draw();Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
+        Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();if(sVsMode)Vs_Draw();else Rd_Draw();Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
     }
     PortTbo_TextMode(0);Port_RaidModelsEnd();sRaidRoomOn=0;TeamSel_Term();Dma_ResetBuffers();
     gTsProgress->team[0]=saved[0];gTsProgress->team[1]=saved[1];gTsProgress->players=savedPlayers;gTsProgress->battleType=savedType;
     gTsProgress->dpLevel=savedDp;gTsProgress->stageCell=savedStage;gTsProgress->bgm=savedBgm;
-    if(R->launch) {
+    if(R->launch&&sVsMode) {
+        PcBattle compact; s32 slots[4],members[4],n=Vs_Build(&compact,slots,members);
+        if(n>=2){RoomRelay_Controls(members,n);RoomRelay_Party(slots,n,R->players[R->mySlot].chara,R->players[R->mySlot].costume);
+            result=Port_CoopLaunch(R->connection==1,R->roomCode,R->ip[4],&compact);}
+        if(!result)Rd_LobbyClose();
+    } else if(R->launch) {
         if(!R->connection) {result=Port_PcRosterQueue(&R->battle);if(result) Port_PcNativeRules(1,0,R->battle.rules.bgm1-1);}
         else {
             const char *addr = R->roomCode[0] ? R->roomCode : "127.0.0.1";
@@ -1326,9 +1382,13 @@ s32 PortRaid_Run(void) {
     } else {
         Rd_LobbyClose();
     }
+    gPortNativeRosterActive=savedPointer;
     return result;
 }
 
+
+s32 PortRaid_Run(void){return Rd_Run(0);}
+s32 PortVersusRoom_Run(s32 mode){return (mode==PC_TAG||mode==PC_FFA)?Rd_Run(mode):0;}
 
 static s32 sRaidWaitLoaded;
 static TsTeam sWaitTeams[2];
@@ -1336,6 +1396,14 @@ static s32 sWaitPlayers,sWaitType,sWaitDp,sWaitStage,sWaitBgm;
 void PortRaid_WaitFrame(void) {
     PcBattle battle;s32 phase,known,total,previous;
     phase=Port_CoopLobbyStatus(&known,&total);sRaidRoomOn=1;
+    if(phase==2 && Port_CoopLobbyCopy(&battle) && (battle.mode==PC_TAG||battle.mode==PC_FFA)) {
+        Gfx_BeginFrame();Ps_PageFull();Ps_SetShift(0);
+        Ps_Rect(0,0,512,448,Ps_Rgba(4,12,27,128),Ps_Rgba(7,21,47,128));
+        Rd_Text(25,60,battle.mode==PC_TAG?"TAG TEAM ONLINE":"TODOS CONTRA TODOS ONLINE",1.4f,460,1);
+        sprintf(R->message,"Jugadores conectados: %d / %d",known,total);Rd_Text(25,180,R->message,.9f,460,0);
+        Rd_Text(25,240,"Esperando a los participantes. Circulo: cancelar",.65f,460,0);
+        Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();return;
+    }
     if(phase==2 && Port_CoopLobbyCopy(&battle)) {
         if(!sRaidWaitLoaded) {
             sWaitTeams[0]=gTsProgress->team[0];sWaitTeams[1]=gTsProgress->team[1];
@@ -1400,7 +1468,7 @@ static s32 sRaidOnlineEnding;
 void PortRaid_OnlineFinish(s32 done) {
     extern s32 Port_ModesFight(void);
     if(!done) {
-        sRaidOnlineEnding=Port_CoopEnabled() && Port_ModesFight()==3;
+        sRaidOnlineEnding=Port_CoopEnabled() && (Port_ModesFight()==1||Port_ModesFight()==2||Port_ModesFight()==3);
         if(sRaidOnlineEnding) Port_CoopPauseSimulation(1);
     } else if(sRaidOnlineEnding) {
         if(Port_CoopFailed()) PortRaid_OnlineError();else {Port_CoopLeave();gProgress->mode=4;}
@@ -1408,3 +1476,12 @@ void PortRaid_OnlineFinish(s32 done) {
     }
 }
 #endif
+/* Versus lobby start uses acknowledged prepare and commit phases. */
+
+/* Approved manga room and selector layout. */
+
+/* Final manga bindings and fixed presentation. */
+
+/* Stage labels use caller-owned buffers across presentation ABI. */
+
+/* Inline text tables use fixed byte rows. */

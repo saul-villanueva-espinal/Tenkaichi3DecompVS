@@ -109,6 +109,7 @@ static void pc_teams_preview(void) {
     if (!gPortPcTeamReady) return;
     PcBattle b;
     bool pending = Port_PcTeamsPreview(&b) != 0;
+    if(!pending)return;
     ImGuiIO &io = ImGui::GetIO();
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * .5f, io.DisplaySize.y * .97f), ImGuiCond_Always, ImVec2(.5f,1));
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * .88f, 0));

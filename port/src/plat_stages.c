@@ -348,3 +348,38 @@ int Port_TestScreen(void) {
     const char *e = getenv("BT3_TEST_SCREEN");
     return e != NULL ? (int)strtol(e, NULL, 0) : -1;
 }
+
+/* Shared selection order: 35 real disc maps, followed by installed additions.
+   Disc id 35 is Random, not an extra stage and never a selectable thumbnail. */
+int Port_MapCount(void) { PortStages_Init(); return 35+gPortExtraStageCount; }
+int Port_MapId(int index) { int n=Port_MapCount(); index=(index%n+n)%n; return index<35?index:gPortExtraStages[index-35]; }
+int Port_MapIndex(int id) { int i; for(i=0;i<Port_MapCount();i++)if(Port_MapId(i)==id)return i;return 0; }
+int Port_MapStep(int id,int step) { return Port_MapId(Port_MapIndex(id)+step); }
+int Port_MapValid(int id) { int i; if(id>=0&&id<36)return 1;for(i=0;i<Port_MapCount();i++)if(Port_MapId(i)==id)return 1;return 0; }
+void Port_MapNameCopy(char *out,int size,int id) {
+    int i; if(size<=0)return;out[0]=0;
+    for(i=0;i<gPortExtraStageCount;i++)if(gPortExtraStages[i]==id){snprintf(out,size,"%s",gPortStageNames[i]);return;}
+}
+/* Collision and slot order must agree for Oracle games on additional maps.
+   Cache per model; selection art does not affect the simulation. */
+unsigned long long Port_MapFingerprint(int id) {
+    static unsigned long long hashes[PORT_STAGE_MAX];int i,k;unsigned char data[16384];size_t n;FILE *f;char path[512];
+    if(id<0){unsigned long long all=0;for(i=0;i<gPortExtraStageCount;i++)all=(all^Port_MapFingerprint(gPortExtraStages[i]))*1099511628211ULL;return all;}
+    for(i=0;i<gPortExtraStageCount;i++)if(gPortExtraStages[i]==id){
+        if(hashes[i])return hashes[i];
+        snprintf(path,sizeof(path),"%s/%s",sDir,sFiles[i]);f=fopen(path,"rb");
+        if(!f)return 0xBAD00000ULL+(unsigned)id;
+        hashes[i]=14695981039346656037ULL^(unsigned)id;
+        while((n=fread(data,1,sizeof(data),f))>0)for(k=0;k<(int)n;k++){hashes[i]^=data[k];hashes[i]*=1099511628211ULL;}
+        fclose(f);return hashes[i];
+    }return 0;
+}
+
+/* Copy records across the game/host ABI; pointers stay on their owning side. */
+int Port_ManagerMapCount(void) { PortStages_Init(); return gPortExtraStageCount; }
+void Port_ManagerMapInfo(int i, char *name, char *file) {
+    PortStages_Init(); name[0]=file[0]=0;
+    if(i<0 || i>=gPortExtraStageCount)return;
+    snprintf(name,64,"%s",gPortStageNames[i]);
+    snprintf(file,512,"%s/%s",sDir,sFiles[i]);
+}

@@ -7,6 +7,7 @@ extern "C" {
 int Port_CoopEnabled(void);
 int Port_CoopConfig(PcBattle *b);
 int Port_CoopMe(void);
+int Port_CoopViewFighter(void);
 int Port_CoopInputDelay(void);
 int Port_CoopPlayerDropped(int player);
 int Port_CoopConnected(void);

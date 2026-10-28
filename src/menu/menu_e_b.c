@@ -2188,10 +2188,11 @@ f32 TeamSel_Input(s32 *result) {
                                         validList[validCount++] = attempts;
                                     }
                                 }
-                                if (validCount > 0) {
-                                    CUR_MEMBER.color = validList[Rand_Range(validCount)];
-                                } else {
-                                    CUR_MEMBER.color = Rand_Range(totalCostumes);
+                                /* The random fighter still uses the requested
+                                   costume; never load a missing variant. */
+                                if (CUR_MEMBER.color < 0 || CUR_MEMBER.color >= totalCostumes ||
+                                    !Port_ExtraCostumeOk(chara, CUR_MEMBER.color, why, sizeof(why))) {
+                                    CUR_MEMBER.color = validCount > 0 ? validList[0] : 0;
                                 }
                             }
 #endif

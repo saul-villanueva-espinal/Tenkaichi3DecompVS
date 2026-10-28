@@ -9,6 +9,10 @@
 #include "port_pc_battle.h"
 #include "port_fighters.h"
 #include "plat_songs.h"
+extern int Port_MapCount(void),Port_MapId(int),Port_MapIndex(int),Port_MapStep(int,int),Port_MapValid(int);
+extern void Port_MapNameCopy(char *,int,int);
+extern void Port_MangaStageText(char *,s32,s32);
+static char *Ch_MapName(s32 id){static char name[64];Port_MangaStageText(name,sizeof(name),id);return name;}
 
 extern void Gfx_BeginFrame(void);
 extern void Gfx_EndFrame(s32 arg);
@@ -304,7 +308,7 @@ s32 PortChallenge_Run(void) {
                 memset(&battle, 0, sizeof(battle));
                 battle.mode = PC_RELAY;
                 battle.players = 1;
-                battle.stage = Rand_Range(35);
+                battle.stage = Port_MapId(Rand_Range(Port_MapCount()));
                 battle.rules.healthPct=25;
                 battle.rules.cpuLevel1=21;
                 battle.count[0] = 10; /* Full 10 warriors for survival */
@@ -337,7 +341,7 @@ s32 PortChallenge_Run(void) {
                 case 1: sCustomEnemyNum = Ps_Wrap(sCustomEnemyNum - 1, 1, 10); break;
                 case 2: sCustomArchetype = Ps_Wrap(sCustomArchetype - 1, 0, 4); break;
                 case 3: sCustomAi = Ps_Wrap(sCustomAi - 1, 0, 3); break;
-                case 4: sCustomStage = Ps_Wrap(sCustomStage - 1, 0, 34); break;
+                case 4: sCustomStage = Port_MapStep(sCustomStage,-1); break;
                 case 5: sCustomBgm = Ps_Wrap(sCustomBgm - 1, 0, 19); Bgm_Play(PORT_BGM_FILE(sCustomBgm)); break;
                 case 6: sCustomMod = Ps_Wrap(sCustomMod - 1, 0, 3); break;
                 }
@@ -348,7 +352,7 @@ s32 PortChallenge_Run(void) {
                 case 1: sCustomEnemyNum = Ps_Wrap(sCustomEnemyNum + 1, 1, 10); break;
                 case 2: sCustomArchetype = Ps_Wrap(sCustomArchetype + 1, 0, 4); break;
                 case 3: sCustomAi = Ps_Wrap(sCustomAi + 1, 0, 3); break;
-                case 4: sCustomStage = Ps_Wrap(sCustomStage + 1, 0, 34); break;
+                case 4: sCustomStage = Port_MapStep(sCustomStage,1); break;
                 case 5: sCustomBgm = Ps_Wrap(sCustomBgm + 1, 0, 19); Bgm_Play(PORT_BGM_FILE(sCustomBgm)); break;
                 case 6: sCustomMod = Ps_Wrap(sCustomMod + 1, 0, 3); break;
                 }

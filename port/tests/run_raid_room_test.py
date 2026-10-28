@@ -9,7 +9,7 @@ import tempfile
 root = Path(__file__).resolve().parents[2]
 source = (root / 'src/menu/port_raid.c').read_text(encoding='utf-8')
 state = source[source.index('enum { RD_LOBBY'):source.index('/* Original metallic')]
-input_code = source[source.index('static s32 Rd_Check'):source.index('s32 PortRaid_Run')]
+input_code = source[source.index('static s32 Rd_Check'):source.index('#include "port_versus_room.inc"')]
 buttons = '\n'.join(re.findall(r'^#define PADG_.*$', (root / 'include/sys/pad.h').read_text(encoding='utf-8'), re.M))
 with tempfile.TemporaryDirectory() as tmp:
     cfile, exe = Path(tmp) / 'raid.c', Path(tmp) / 'raid_test'

@@ -6,6 +6,7 @@
 #include <pthread.h>
 #include "../include/port_pc_battle.h"
 #include "../include/plat_charas.h"
+extern int Port_MapValid(int);
 extern const char *Port_FighterName(int chara);
 extern int Port_ExtraCostumeOk(int chara, int costume, char *why, int size);
 extern int Port_NetActive(void), Port_NetSession(void), Port_ModesFight(void);
@@ -54,12 +55,24 @@ int Port_PcRosterId(int i) {
     return i < 0 || i >= Port_PcRosterCount() ? -1 : i < PORT_DISC_CHARAS ? i : PORT_CHARA_FIRST + i - PORT_DISC_CHARAS;
 }
 const char *Port_PcRosterName(int c) { return Port_FighterName(c); }
+/* Oracle parties explicitly map each remote pad to a packed roster member.
+   Local split-screen retains its original two-per-side requirements. */
+static int room_controls_valid(const PcBattle *b) {
+    const char *p=getenv("BT3_ROOM_CONTROLS");unsigned used=0;int n=0;
+    if(!p)return -1;
+    while(*p) {
+        char *end;long m=strtol(p,&end,10);
+        if(end==p||m<0||m>11||m%8>=b->count[m/8]||(used&(1u<<m)))return 0;
+        used|=1u<<m;n++;if(*end&&*end!=',')return 0;p=*end?end+1:end;
+    }
+    return n==b->players&&n==b->count[0]+b->count[1];
+}
 int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
     int s, i;
     const char *error = NULL;
     if (!b || b->mode < 0 || b->mode >= PC_MODE_COUNT) error = "Modo no valido";
     else if (b->players < 1 || b->players > PORT_COOP_MAX) error = "Elige entre 1 y 6 jugadores";
-    else if (b->stage < 0 || b->stage >= 36) error = "Escenario no valido";
+    else if (!Port_MapValid(b->stage)) error = "Escenario no valido";
     else if ((b->mode == PC_DUEL || b->mode == PC_RELAY) && b->players > 2) error = "Duelo por relevos admite uno o dos mandos";
     else if ((b->mode == PC_TAG || b->mode == PC_FFA) && b->players > 4) error = "Tag Team local admite hasta cuatro mandos";
     else if (b->mode == PC_TRAINING && b->players != 1) error = "Entrenamiento utiliza un mando";
@@ -95,7 +108,11 @@ int Port_PcBattleValidate(const PcBattle *b, char *why, int size) {
             if (!Port_ExtraCostumeOk(f->chara, f->costume, why, size)) return 0;
         }
     }
-    if (!error && (b->mode == PC_TAG || b->mode == PC_FFA) && (b->count[0] < (b->players >= 3 ? 2 : 1) || b->count[1] < (b->players >= 4 ? 2 : 1))) error = "Selecciona un integrante para cada mando";
+    if (!error && (b->mode == PC_TAG || b->mode == PC_FFA)) {
+        int mapped=room_controls_valid(b);
+        if(mapped==0 || (mapped<0&&(b->count[0] < (b->players >= 3 ? 2 : 1) || b->count[1] < (b->players >= 4 ? 2 : 1))))
+            error = "Selecciona un integrante para cada mando";
+    }
     if (!error && b->mode == PC_RAID && b->count[0] < b->players) error = "Selecciona un aliado por jugador";
     if (why && size > 0) snprintf(why, (size_t)size, "%s", error ? error : "");
     return error == NULL;

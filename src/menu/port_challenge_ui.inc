@@ -145,7 +145,7 @@ static void Ch_Custom(void) {
     static const char *const formats[3]={"Relevos 10 vs 10","Tag Team 5 vs 5","Duelo 1 vs 1"};
     char num[32],buf[40];const char *v[7];s32 i;
     sprintf(num,"%d luchadores",Ch_EnemyCount());v[0]=formats[sCustomFormat];v[1]=num;
-    v[2]=sArchetypeNames[sCustomArchetype];v[3]=sAiNames[sCustomAi];v[4]=sStageNames[sCustomStage];v[5]=sBgmNames[sCustomBgm];v[6]=sModNames[sCustomMod];
+    v[2]=sArchetypeNames[sCustomArchetype];v[3]=sAiNames[sCustomAi];v[4]=Ch_MapName(sCustomStage);v[5]=sBgmNames[sCustomBgm];v[6]=sModNames[sCustomMod];
     for(i=0;i<7;i++) {
         f32 y=89+i*34.8f; s32 sel=i==sCustomCur;
         Ch_Art(TBO_CHALLENGE_CUSTOM,9,y,181,34,9,sel?89:124,181,34);
@@ -154,7 +154,7 @@ static void Ch_Custom(void) {
         Ch_Text(20,y+8,label[i],.90f,65,sel?-1:0);
         Ch_Text(85,y+8,"<",.84f,6,sel?-1:0);Ch_Text(104,y+9,v[i],.79f,63,sel?-1:0);Ch_Text(171,y+8,">",.84f,6,sel?-1:0);
     }
-    Ch_Stage(sCustomStage,330,105,169,114);Ch_Fill(330,220,169,17);Ch_Text(384,220,sStageNames[sCustomStage],.84f,113,0);
+    Ch_Stage(sCustomStage,330,105,169,114);Ch_Fill(330,220,169,17);Ch_Text(384,220,Ch_MapName(sCustomStage),.84f,113,0);
     Ch_Fill(350,255,31,32);Ch_Text(351,254,sCustomFormat==0?"RELEVOS":sCustomFormat==1?"TAG TEAM":"DUELO",.64f,30,1);
     sprintf(buf,"%d vs %d",Ch_PlayerCount(),Ch_PlayerCount());Ch_Text(352,270,buf,.58f,27,0);
     Ch_Fill(422,252,17,23);sprintf(buf,"%d",Ch_EnemyCount());Ch_Text(423,249,buf,1.40f,16,1);

@@ -34,6 +34,11 @@ static s32 sMmMovesOf = -1;  /* whose they are; -1 = nobody's */
 s32 gMmTestFoe = 31;      /* whom the test fight is against: Vegeta until another is chosen (L2) */
 static s32 sMmResume = -1; /* the mod the manager opens on again after that fight */
 static MmRes sMmOne;
+static void Md_Info(f32 rise), Md_Draw(void), Md_Update(s32 live), Md_Pointer(s32 live);
+static void Md_PictureClear(void), Md_OpenDestination(s32 imported);
+static s32 Md_LibraryInput(s32 live);
+static void Lib_Toggle(void), Lib_Costume(s32 dir);
+
 
 
 extern u64 *Dma_BeginDirect(void);
@@ -540,6 +545,7 @@ MmTex *Mm_Face(s32 i) {
 s32 Mm_HasCostume(s32 i, s32 n) {
     PortModInfo *m = &sMm->info[i];
 
+    if (n >= 4) return n < m->costumes;
     if (m->kinds & (1 << n)) {
         return 1;
     }
@@ -949,7 +955,9 @@ static void Mm_ModelUpdate(void) {
             }
             return;
         }
-        Mm_PlaceModel(ci, obj, sMmPlace, &sMm->yaw, 1, &dist, &fy, &hf);
+        if(obj != NULL) *(s32 *)(obj + 0xC70) = 1;
+        sMm->yaw = 3.59f;
+        Mm_PlaceModel(ci, obj, sMmPlace, &sMm->yaw, 0, &dist, &fy, &hf);
         Mm_ExtrasUpdate(dist, fy, hf);
     } else {
         Mm_ExtrasUpdate(1.0f, 0.5f, 0.3f);
@@ -1102,9 +1110,9 @@ static char *Lib_Sub(PortModInfo *m) {
         return "No fighter set: pick one in Edit details";
     }
     if (m->isNew) {
-        sprintf(line, "New fighter, like %.60s", m->target);
+        sprintf(line, "Personaje nuevo - %.60s", m->target);
     } else {
-        sprintf(line, "Replaces %.70s", m->target);
+        sprintf(line, "Reemplaza a %.70s", m->target);
     }
     return line;
 }
@@ -1339,7 +1347,7 @@ static void Lib_Draw(void) {
         Mx_Text((LIB_X0 + LIB_X1) * 0.5f, 425.0f, "onto this window.", 24.0f, LIB_X1 - LIB_X0 - 40.0f, MX_WHITE, 1);
     }
     if (sMm->viewCount > 0) {
-        Lib_Info(rise);
+        Md_Info(rise);
     }
 }
 
@@ -1463,7 +1471,9 @@ static void Mm_DrawConfirm(void) {
 #define MI_RELOAD 8
 #define MI_FOLDER 9
 #define MI_LIBDIR 10
-#define MI_COUNT 11
+#define MI_GRID 11
+#define MI_FORMS 12
+#define MI_COUNT 13
 #define MENU_X0 96.0f
 #define MENU_X1 416.0f
 #define MENU_Y 82.0f
@@ -1500,8 +1510,10 @@ static char *Mm_MenuLine(s32 item) {
     static char line[96];
 
     switch (item) {
+    case MI_GRID: return "ORGANIZAR ROSTER";
+    case MI_FORMS: return "TRANSFORMACIONES Y FUSIONES";
     case MI_ADD:
-        return "ADD MODS...";
+        return "INSTALAR MOD...";
     case MI_FIND:
         if (sMm->findLen > 0) {
             sprintf(line, "SEARCH: %s", sMm->find);
@@ -1541,7 +1553,7 @@ static char *Mm_MenuLine(s32 item) {
 static void Mm_DrawMenu(void) {
     f32 t = Mm_Ease((f32)sMm->menuT / 7.0f);
     f32 y = (1.0f - t) * 50.0f;
-    f32 pitch = 45.0f;
+    f32 pitch = 37.0f;
     s32 k;
 
     if (!sMm->menu) {
@@ -1711,9 +1723,13 @@ static void Mm_MenuUpdate(void) {
     }
     Snd_PlaySe(1, 1);
     switch (k) {
+    case MI_GRID:
+        sMm->menu=0;Mm_SetMode(MM_ROSTER);break;
+    case MI_FORMS:
+        sMm->menu=0;Mm_SetMode(MM_TRANSFORM);break;
     case MI_ADD:
         sMm->menu = 0;
-        Mm2_OpenBrowser();
+        Mm_SetMode(11);
         break;
     case MI_FIND:
         sMm->menu = 0;
@@ -1779,6 +1795,11 @@ static void Mm_DrawFrame(void) {
     }
     Mx_HeaderDraw();
     Mm_TexReset(); /* (the window's movie uploaded its own pictures) */
+    if (sMm->mode == MM_LIBRARY || sMm->mode >= 10) {
+        tab = 10;
+        if (sMm->mode == 10) tab = 11;
+        else if (sMm->mode == 11 || sMm->mode == 12) tab = 12;
+    }
     Mx_Chrome("Mod Manager", tab, drop);
     if (!sMm->importing) {
         if (sMm->mode == MM_LIBRARY) {
@@ -1787,6 +1808,8 @@ static void Mm_DrawFrame(void) {
             }
             Mm_DrawAct();
             Mm_DrawConfirm();
+        } else if (sMm->mode >= 10) {
+            Md_Draw();
         } else {
             Mm2_Draw();
         }
@@ -1813,12 +1836,16 @@ static void Mm_Library(s32 live) {
 
     sMm->wantKey = -1;
     if (have && Mm_HasCostume(sMm->cur, sMm->costume)) {
-        sMm->wantKey = sMm->cur * 4 + sMm->costume;
+        sMm->wantKey = 10000 + sMm->cur * 8 + sMm->costume;
         sMm->wantChara = sMm->info[sMm->cur].chara >= 0 ? sMm->info[sMm->cur].chara : 0; /* (not set: shown in the first fighter's place) */
         sMm->wantCostume = sMm->costume;
         sMm->wantPreview = sMm->cur;
     }
-    Mm_SetModel(785.0f, 572.0f, 405.0f);
+    Mm_SetModel(785.0f, 602.0f, 423.0f);
+    if (Md_LibraryInput(live)) {
+        Mm_Prompt(0, "Confirmar");Mm_Prompt(2, "Volver");Mm_Prompt(3, "Navegar");
+        return;
+    }
     if (sMm->confirm) {
         Mm_Prompt(0, "REMOVE");
         Mm_Prompt(2, "KEEP");
@@ -1837,9 +1864,11 @@ static void Mm_Library(s32 live) {
         Mm_Prompt(12, "CLEAR");
     } else {
         if (have) {
-            Mm_Prompt(0, "OPTIONS");
+            Mm_Prompt(0, "Opciones");
         }
-        Mm_Prompt(1, "LIBRARY MENU");
+        Mm_Prompt(1, "Biblioteca");
+        Mm_Prompt(16, "Acciones");
+        Mm_Prompt(14, "Pestana");
         if (have && sMm->viewCount > MM_ROWS) {
             Mm_Prompt(3, "PAGE");
         }
@@ -1932,9 +1961,8 @@ static void Mm_Library(s32 live) {
             sMm->top = sMm->vcur - MM_ROWS + 1;
         }
     }
-    if (pad->gamePressed & PADG_L2) { /* (a shortcut: its next costume) */
-        Lib_Costume(1);
-    }
+    if (pad->gamePressed & PADG_L2) Lib_Costume(-1);
+    if (pad->gamePressed & PADG_R2) Lib_Costume(1);
     if (pad->gamePressed & PADG_SELECT) { /* every mod on - or, when all are, every mod off */
         Mm_AllToggle();
         return;
@@ -1952,9 +1980,6 @@ static void Mm_Library(s32 live) {
         sMm->confirm = 1;
         sMm->confirmT = 0;
         Snd_PlaySe(1, 1);
-    } else if (pad->gamePressed & PADG_R2) {
-        Snd_PlaySe(1, 1);
-        Mm2_OpenDetail();
     }
 }
 
@@ -2009,9 +2034,9 @@ static void Lib_Costume(s32 dir) {
     s32 n = sMm->costume;
     s32 k;
 
-    for (k = 0; k < 4; k++) {
-        n = (n + 4 + dir) % 4;
-        if (Mm_HasCostume(sMm->cur, n)) {
+    for (k = 0; k < 8; k++) {
+        n = (n + 8 + dir) % 8;
+        if (n < sMm->info[sMm->cur].costumes && Mm_HasCostume(sMm->cur, n)) {
             break;
         }
     }
@@ -2020,6 +2045,8 @@ static void Lib_Costume(s32 dir) {
         Snd_PlaySe(1, 0);
     }
 }
+
+#include "port_modmgr_design.inc"
 
 /* The mod's own menu: up / down choose, cross does it (left / right: the costume), triangle or circle close it. */
 static void Mm_ActUpdate(void) {
@@ -2141,6 +2168,7 @@ static void Mm_Init(void) {
     sMm->aboutOf = -1;
     sMm->watchT = 90;
     sMm->curY = MM_LIST_Y;
+    sMdFocus=sMdRow=sMdDialog=sMdImport=sMdImported=sMdMap=sMdMapTop=0;
     Mx_ChipsOpen();
     Mm_ExtrasInit();
     Port_ModRescan();
@@ -2153,6 +2181,7 @@ static void Mm_Init(void) {
 }
 
 static void Mm_Term(void) {
+    Md_PictureClear();
     Port_TextMode(0);
     Port_ModPreview(-1);
     Mm2_Term();
@@ -2203,6 +2232,14 @@ static void Mm_ImportPoll(void) {
     at = Mm_ShowImport(n);
     if (sMm->importFrom == 1 && n == 0 && at < 0) {
         Mm_Note("COULD NOT COPY THAT FOLDER");
+    }
+    if (at >= 0 && sMm->importFrom == 3) {
+        if (n > 0 && sMm->info[sMm->cur].on) {
+            Port_ModToggle(sMm->cur);Mm_Refresh();
+        }
+        sMdImport=0;
+        Md_OpenDestination(n > 0);
+        return;
     }
     if (at >= 0) {
         if (sMm->importFrom != 0) {
@@ -2269,7 +2306,8 @@ static void Mm_Dropped(s32 live) {
     if (!live || sMm->importing) {
         return;
     }
-    Mm_StartImport(path, 1, 0);
+    sMdImport=1;
+    Mm_StartImport(path, 0, 3);
 }
 
 /* After mods were added (n of them): the list read again, the cursor on the first one added, a line saying what
@@ -2328,6 +2366,8 @@ s32 PortModMgr_Run(void) {
     s32 testCostume = 0;
 
     Mm_Init();
+    s32 savedPointer=gPortNativeRosterActive;
+    gPortNativeRosterActive=1;
     Port_EscQuit(0); /* Esc is "back" in here, not the end of the game */
     Mx_HeaderInit();
     ColorFade_StartIn(0, 0, 0, 0x14);
@@ -2350,8 +2390,11 @@ s32 PortModMgr_Run(void) {
         Mm_ImportPoll();
         Mm_Dropped(live);
         Mm_Watch();
+        Md_Pointer(live);
         if (!sMm->importing) { /* (while mods are added nothing of the library is touched: it is changing) */
-            if (sMm->mode == MM_LIBRARY) {
+            if (sMm->mode >= 10) {
+                Md_Update(live);
+            } else if (sMm->mode == MM_LIBRARY) {
                 Mm_Library(live);
             } else {
                 Mm2_Update(live);
@@ -2396,6 +2439,7 @@ s32 PortModMgr_Run(void) {
     }
     sceGsSyncPath(0, 0);
     Mx_HeaderTerm();
+    gPortNativeRosterActive=savedPointer;
     Port_EscQuit(1);
     test = sMm->test;
     if (test) {

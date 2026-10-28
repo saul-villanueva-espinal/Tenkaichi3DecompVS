@@ -3,6 +3,9 @@
 #include "sys/pad.h"
 #include "sys/save.h"
 
+#ifdef PORT
+extern s32 Port_NetSession(void);extern void Font_FlushAll(void);
+#endif
 DuelMenu *gDuelMenu = NULL; /* 0x3B38E8 */
 
 /*
@@ -330,9 +333,15 @@ typedef struct DuelSave {
    argument set-up does not match. */
 #define DM_GUIDE(i) ((i) ? "mc_guide_nappa" : "mc_guide_bejita")
 
+#ifdef PORT
+#include "port_duel_manga.inc"
+#endif
 /* Draws the background, the guides (blinking, the talker's mouth moving), every plate's text strip, the
    current values of the five settings, the scrolling cloud and smoke layers, the movie and the two windows. */
 void DuelMenu_Draw(void) {
+#ifdef PORT
+    if(DM->level==DUEL_LEVEL_TOP&&!Port_NetSession()){Dm_MangaDraw();return;}
+#endif
     MFlashRef ref;
     MFlashUv uv;
     char name[64];
@@ -956,11 +965,17 @@ void DuelMenu_UpdateReset(void) {
 s32 DuelMenu_Run(s32 section) {
     s32 result = 1;
 
+#ifdef PORT
+    extern volatile s32 gPortNativeRosterActive; s32 savedPointer=gPortNativeRosterActive;
+#endif
     DuelMenu_Init(section);
     ColorFade_StartIn(0, 0, 0, 0x14);
     while (1) {
         Gfx_BeginFrame();
         Pad_Update();
+#ifdef PORT
+        if(!Port_NetSession())Dm_MangaPointer();
+#endif
         Snd_Update();
         ColorFade_Update();
         if (!(gProgress->flags & MPROG_FREEZE)) {
@@ -1003,7 +1018,14 @@ s32 DuelMenu_Run(s32 section) {
             DuelMenu_Input(&result);
         }
     }
+#ifdef PORT
+    gPortNativeRosterActive=savedPointer;
+#endif
     DuelMenu_Term();
     Dma_ResetBuffers();
     return result;
 }
+
+/* Stage labels use caller-owned buffers across presentation ABI. */
+
+/* Inline text tables use fixed byte rows. */

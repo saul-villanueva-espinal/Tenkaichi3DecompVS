@@ -539,7 +539,7 @@ char *Mx_Tail(char *s, f32 cap, f32 width) {
 /* ---------------------------------------------------------------------------------------------- the pad's signs
  * kind: 0 cross, 1 square, 2 triangle, 3 left / right, 4 circle; keys with letters: 5 R2, 6 L2, 7 START, 8 R1, 9 L1,
  * 10 L2 R2, 11 ENTER, 12 ESC, 13 SELECT, 14 L1 R1, 15 the D-pad. */
-static char *sMxKey[] = {"R2", "L2", "START", "R1", "L1", "L2 R2", "ENTER", "ESC", "SELECT", "L1 R1", ""};
+static char *sMxKey[] = {"R2", "L2", "START", "R1", "L1", "L2 R2", "ENTER", "ESC", "SELECT", "L1 R1", "", "R3"};
 
 static s32 Mx_ButtonPic(s32 kind) {
     switch (kind) {
@@ -569,7 +569,7 @@ f32 Mx_ButtonW(s32 kind, f32 h) {
     if (kind == 15) {
         return Mx_LenX(h);
     }
-    if (kind >= 5 && kind <= 14) {
+    if ((kind >= 5 && kind <= 14) || kind == 16) {
         if (kind == 10 || kind == 14) { /* two keys side by side */
             return Mx_KeyW(kind == 10 ? 6 : 9, h) + Mx_KeyW(kind == 10 ? 5 : 8, h) + Mx_LenX(h * 0.15f);
         }
@@ -605,7 +605,7 @@ void Mx_Button(s32 kind, f32 x0, f32 cy, f32 h) {
 
         Mx_KeyCap(sMxKey[(kind == 10 ? 6 : 9) - 5], x0, cy, w0, h);
         Mx_KeyCap(sMxKey[(kind == 10 ? 5 : 8) - 5], x0 + w0 + Mx_LenX(h * 0.15f), cy, Mx_KeyW(kind == 10 ? 5 : 8, h), h);
-    } else if (kind >= 5 && kind <= 13) {
+    } else if ((kind >= 5 && kind <= 13) || kind == 16) {
         Mx_KeyCap(sMxKey[kind - 5], x0, cy, Mx_KeyW(kind, h), h);
     } else {
         Mx_Fit(Mx_ButtonPic(kind), x0 + Mx_LenX(h * 0.5f), cy, h, 0x80);
@@ -679,7 +679,16 @@ void Mx_Background(s32 dusk) {
     Ps_SpriteScreen(dusk ? MM_BG_DUSK : MM_BG, 0.0f, 0.0f, 512.0f, 448.0f, 0.0f, 0.0f, 1.0f, 1.0f, PS_PLAIN, 0x80);
 }
 
-static char *sMxTab[3] = {"LIBRARY", "MOD GRID", "FORMS"};
+static char sMxTab[3][16] = {"LIBRARY", "MOD GRID", "FORMS"};
+static char sMxManagerTab[3][16] = {"PERSONAJES", "MAPAS", "INSTALAR"};
+static volatile f32 sMxTabLeft[3], sMxTabRight[3];
+static f32 sMxTabY;
+s32 Mx_TabAt(f32 x, f32 y) {
+    s32 k;
+    if(y<sMxTabY || y>sMxTabY+43)return -1;
+    for(k=0;k<3;k++)if(x>=sMxTabLeft[k] && x<=sMxTabRight[k])return k;
+    return -1;
+}
 
 /* The heading's window of every menu of the game (IconWin, battle/view_a_c.c): the cloud swirls in the corners and the
    line under the title, with their own entrance; made from the Duel menu's data as Tenkaichi Budokai Online's
@@ -818,10 +827,14 @@ void Mx_Chrome(char *title, s32 tab, f32 drop) {
     }
     { /* laid from the right edge leftwards: R1, the three tabs, L1 */
         f32 w[3];
+        s32 manager = tab >= 10;
+        char *label;
+        if (manager) tab -= 10;
         f32 all = Mx_ButtonW(8, 34.0f) + Mx_ButtonW(9, 34.0f) + 32.0f;
 
         for (k = 0; k < 3; k++) {
-            w[k] = Mx_TextW(sMxTab[k], 25.0f) + 40.0f;
+            label=sMxTab[k]; if(manager)label=sMxManagerTab[k];
+            w[k] = Mx_TextW(label, 25.0f) + 40.0f;
             w[k] = w[k] < 120.0f ? 120.0f : w[k];
             all += w[k];
         }
@@ -829,12 +842,14 @@ void Mx_Chrome(char *title, s32 tab, f32 drop) {
         Mx_Button(9, x, 54.0f + drop, 34.0f);
         x += Mx_ButtonW(9, 34.0f) + 8.0f;
         for (k = 0; k < 3; k++) {
+            label=sMxTab[k]; if(manager)label=sMxManagerTab[k];
+            sMxTabLeft[k]=x;sMxTabRight[k]=x+w[k];sMxTabY=33+drop;
             if (k == tab) {
                 Mx_Bar(MM_TAB_SEL, x, 33.0f + drop, x + w[k], 76.0f + drop, 0x80);
-                Mx_TextC(x + w[k] * 0.5f, 54.0f + drop, sMxTab[k], 25.0f, w[k] - 24.0f, Mx_Rgba(0xFF, 0xF2, 0xB8, 0x80), Mx_Rgba(0xFF, 0xD0, 0x60, 0x80), Mx_Rgba(0x5C, 0x30, 0x08, 0x80), 1, 0x80);
+                Mx_TextC(x + w[k] * 0.5f, 54.0f + drop, label, 25.0f, w[k] - 24.0f, Mx_Rgba(0xFF, 0xF2, 0xB8, 0x80), Mx_Rgba(0xFF, 0xD0, 0x60, 0x80), Mx_Rgba(0x5C, 0x30, 0x08, 0x80), 1, 0x80);
             } else {
                 Mx_BarTint(MM_TAB, x, 35.0f + drop, x + w[k], 74.0f + drop, Mx_Rgba(0x66, 0x5C, 0x80, 0x80), tab == -1 ? 0x60 : 0x80);
-                Mx_TextC(x + w[k] * 0.5f, 54.0f + drop, sMxTab[k], 25.0f, w[k] - 24.0f, Mx_Rgba(0xE8, 0xDC, 0xFF, 0x80), Mx_Rgba(0xC8, 0xB8, 0xF8, 0x80), Mx_Rgba(0x34, 0x18, 0x60, 0x80), 1,
+                Mx_TextC(x + w[k] * 0.5f, 54.0f + drop, label, 25.0f, w[k] - 24.0f, Mx_Rgba(0xE8, 0xDC, 0xFF, 0x80), Mx_Rgba(0xC8, 0xB8, 0xF8, 0x80), Mx_Rgba(0x34, 0x18, 0x60, 0x80), 1,
                          tab == -1 ? 0x60 : 0x80);
             }
             x += w[k] + 8.0f;

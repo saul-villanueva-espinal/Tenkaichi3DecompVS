@@ -1967,10 +1967,11 @@ void CharSel_Input(s32 *running) {
                                     validList[validCount++] = attempts;
                                 }
                             }
-                            if (validCount > 0) {
-                                CS_SIDE->colorPlate = validList[Rand_Range(validCount)];
-                            } else {
-                                CS_SIDE->colorPlate = Rand_Range(totalCostumes);
+                            /* Randomize the fighter, retain the costume chosen
+                               in the eight-slot selector when it is installed. */
+                            if (CS_SIDE->colorPlate < 0 || CS_SIDE->colorPlate >= totalCostumes ||
+                                !Port_ExtraCostumeOk(chara, CS_SIDE->colorPlate, why, sizeof(why))) {
+                                CS_SIDE->colorPlate = validCount > 0 ? validList[0] : 0;
                             }
                         }
 #endif
@@ -2136,7 +2137,8 @@ s32 CharSel_Run(s32 section) {
 #ifdef PORT
     extern int Port_Setting(const char *, int);
     extern int Port_RosterTestMode(void);
-    if((Port_Setting("native_roster", 0) || Port_RosterTestMode()) && !Port_NetActive() && !Port_NetSession() && (gProgress->mode==39 || gProgress->mode==45)) return Port_NativeRosterBattle(gProgress->mode==45?2:0);
+    s32 rosterTest=Port_RosterTestMode();
+    if((Port_Setting("native_roster", 0) || (rosterTest>=1 && rosterTest<=3)) && !Port_NetActive() && !Port_NetSession() && (gProgress->mode==39 || gProgress->mode==45)) return Port_NativeRosterBattle(gProgress->mode==45?2:0);
 #endif
     s32 result = 1;
     s32 screenMode;

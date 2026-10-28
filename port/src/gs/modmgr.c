@@ -2917,3 +2917,5 @@ s32 Port_ModImportAll(char *path) {
     return r;
 }
 
+
+#include "modmgr_install.inc"

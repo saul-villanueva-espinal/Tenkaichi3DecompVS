@@ -13,6 +13,9 @@
 #include "port_fighters.h"
 #include "port_chara.h"
 #include "plat_songs.h"
+extern int Port_MapCount(void),Port_MapId(int),Port_MapIndex(int),Port_MapStep(int,int),Port_MapValid(int);
+extern void Port_MapNameCopy(char *,int,int);
+extern void *PortStageIcons_Get(int);
 
 /* Native classic selection: two large portraits and independent seven-card
    carousels, with 290 browsable character/form positions and ten relay slots. */
@@ -66,7 +69,7 @@ static const char *sSagaTabs[NR_SAGA_COUNT] = {
 
 static PcBattle sNr;
 /* Scoped to the challenge tower; never changes the global selector setting. */
-static s32 sNrTower,sTowerFloor,sTowerFilter;
+static s32 sNrTower,sTowerFloor,sTowerFilter,sNrOnline;
 static s32 sNrKind,sNrSide,sNrSlot[2],sNrFilled[2][10],sNrCursor[2],sNrPhase,sNrSaga;
 static s32 sNrFavorite[PORT_CHARA_ID_LIMIT],sNrList[PORT_TOTAL_CHARAS],sNrCount,sNrAge,sNrDp;
 static s32 sNrConnection,sNrField,sNrIp[5]={127,0,0,1,29740};
@@ -167,10 +170,26 @@ static void Nr_Face(void) {
 static s32 Nr_Cost(s32 s) {
     s32 i,n=0;for(i=0;i<sNr.count[s];i++) if(sNrFilled[s][i]) n+=ChrTbl_GetCost(sNr.fighter[s][i].chara);return n;
 }
+/* Empty offline places are capacity, not mandatory CPU fighters. */
+static s32 Nr_SelectedCount(s32 side) {
+    s32 i,n=0;for(i=0;i<sNr.count[side];i++)if(sNrFilled[side][i])n++;return n;
+}
 static s32 Nr_Complete(void) {
-    s32 s,i;for(s=0;s<(sNrKind==3?1:2);s++) for(i=0;i<sNr.count[s];i++) if(!sNrFilled[s][i]) return 0;
-    if(sNrDp>0 && (Nr_Cost(0)>sNrDp || (sNrKind!=3 && Nr_Cost(1)>sNrDp)))return 0;
+    s32 side,minimum;
+    for(side=0;side<(sNrKind==3?1:2);side++) {
+        minimum=(sNr.mode==PC_TAG||sNr.mode==PC_FFA)?(side==0?(sNr.players>=3?2:1):(sNr.players>=4?2:1)):1;
+        if(sNr.mode==PC_RAID&&side==0)minimum=sNr.players;
+        if(Nr_SelectedCount(side)<minimum)return 0;
+    }
+    if(sNrDp>0&&(Nr_Cost(0)>sNrDp||(sNrKind!=3&&Nr_Cost(1)>sNrDp)))return 0;
     return 1;
+}
+static void Nr_CopySelected(PcBattle *out) {
+    s32 side,i,n;*out=sNr;
+    for(side=0;side<(sNrKind==3?1:2);side++) {
+        n=0;for(i=0;i<sNr.count[side];i++)if(sNrFilled[side][i])out->fighter[side][n++]=sNr.fighter[side][i];
+        out->count[side]=n;
+    }
 }
 static void Nr_Selected(s32 side) {
     s32 slot=sNrSlot[side],id=Nr_Id(side),next;char why[160];
@@ -183,10 +202,40 @@ static void Nr_Selected(s32 side) {
     Port_RosterLog(1,side,slot,id,sNr.fighter[side][slot].costume);Snd_PlaySe(1,1);
     next=slot+1;
     if(next<sNr.count[side]) sNrSlot[side]=next;
-    else if(side==0 && sNrKind!=3 && sNr.players==1) sNrSide=1;
+    else if(side==0 && sNrKind!=3 && (sNrOnline||sNr.players==1)) sNrSide=1;
 }
 static void Nr_StageRequest(void) {
     gTeamSel->stage->stage=sNr.stage;TeamSel_RequestStage();
+}
+/* Original chip textures are padded: use the authored portrait rectangle,
+   rather than stretching the full power-of-two allocation including blank UVs. */
+void Port_MangaStageText(char *out,s32 size,s32 stage){
+    static const char names[35][40]={"Paramo (Dia)","Zona Rocosa (Dia)","Planeta Namek","Namek Agonizante","Torneo Mundial","Palacio de Kamisama","Torneo de Cell","Mundo Kaioshin","Habitacion del Tiempo","Ruinas","Camino de la Montana","Islas","Kame House","Planeta (Noche)","Glaciar","Tierra Destruida","Espacio Exterior","Villa Pinguino","Infierno","Desierto","Castillo del Rey","Torre de la Fuerza","Monte Paoz","Paramo (Tarde)","Paramo (Noche)","Zona Rocosa (Tarde)","Zona Rocosa (Noche)","Torneo (Tarde)","Juegos de Cell","Ruinas (Tarde)","Ruinas (Noche)","Desierto (Tarde)","Desierto (Noche)","Camino (Tarde)","Planeta (Tarde)"};
+    if(stage>=36){Port_MapNameCopy(out,size,stage);return;}
+    Ps_Copy(out,stage>=0&&stage<35?names[stage]:"Escenario",size);
+}
+void Port_MangaStage(f32 x,f32 y,f32 w,f32 h){
+    LoadSprite list[9];s32 row,col,i;void *res;
+    if(!(gTeamSel->flags&TEAMSEL_STAGE_READY))return;res=gTeamSel->bg[0];if(!res)return;
+    memset(list,0,sizeof(list));list[8].flags=LOAD_SPR_END;
+    for(row=0;row<2;row++)for(col=0;col<4;col++){
+        i=row*4+col;list[i].flags=LOAD_SPR_DRAW;list[i].tex=i;
+        list[i].x0=Ps_X(x+w*col/4);list[i].x1=Ps_X(x+w*(col+1)/4);
+        list[i].y0=Ps_Y(y+h*row/2);list[i].y1=Ps_Y(y+h*(row+1)/2);
+        list[i].u1=128;list[i].v1=256;list[i].r=list[i].g=list[i].b=list[i].a=128;
+    }Sprite_DrawList(res,0,0,list);
+}
+void Port_TeamPortrait(int chara,float x,float y,float w,float h,int alpha) {
+    MTexRes *res;LoadSprite list[2];s32 tw,th;u64 tex0;
+    if(chara<0)return;
+    res=PORT_CHARA_ADDED(chara)?(MTexRes *)PortChips_Get(chara):(MTexRes *)MPACK_AT(gTeamSel->chipPack,chara+1);
+    if(!res&&PORT_CHARA_ADDED(chara))res=(MTexRes *)MPACK_AT(gTeamSel->chipPack,Port_CharaBase(chara)+1);
+    if(!res||!res->tex)return;
+    tex0=*(u64 *)(res->tex+0x30);tw=1<<((tex0>>26)&15);th=1<<((tex0>>30)&15);
+    memset(list,0,sizeof(list));list[0].flags=LOAD_SPR_DRAW;list[1].flags=LOAD_SPR_END;
+    list[0].x0=Ps_X(x);list[0].x1=Ps_X(x+w);list[0].y0=Ps_Y(y);list[0].y1=Ps_Y(y+h);
+    list[0].u0=0;list[0].v0=0;list[0].u1=tw>64?64:tw;list[0].v1=th;
+    list[0].r=list[0].g=list[0].b=128;list[0].a=alpha;Sprite_DrawList(res,0,0,list);
 }
 void Port_TeamChip(int chara,float x,float y,float w,float h,int alpha) {
     Nr_Chip(chara,x,y,w,h,alpha);
@@ -332,20 +381,23 @@ static void Nr_DrawGrid(void) {
 static void Nr_DrawStage(void) {
     s32 i;char text[100];
     Nr_Text(16,46,"ELIGE EL CAMPO DE BATALLA",.8f,470,1);
-    for(i=0;i<35;i++) {
-        f32 x=16+(i%7)*69.0f,y=83+(i/7)*54.0f;void *res=MPACK_AT(gTeamSel->stagePack,i+1);
-        Nr_Box(x,y,64,48,sNr.stage==i,0);Nr_Image(res,0,x+2,y+2,60,44,0,128);
-        if(sNr.stage==i) {sprintf(text,"%d",i+1);Nr_Text(x+3,y+32,text,.38f,52,1);}
+    for(i=(Port_MapIndex(sNr.stage)/48)*48;i<Port_MapCount()&&i<(Port_MapIndex(sNr.stage)/48+1)*48;i++) {
+        s32 id=Port_MapId(i),cell=i%48;f32 x=16+(cell%8)*60.0f,y=83+(cell/8)*44.0f;
+        MTexRes *res=(MTexRes *)MPACK_AT(gTeamSel->stagePack,id>=36?1:id+1);
+        if(id>=36&&PortStageIcons_Get(id))res=(MTexRes *)PortStageIcons_Get(id);
+        Nr_Box(x,y,56,40,sNr.stage==id,0);Nr_Image(res,0,x+2,y+2,52,36,0,128);
+        if(sNr.stage==id) {sprintf(text,"%d",i+1);Nr_Text(x+3,y+26,text,.38f,48,1);}
     }
-    Nr_Text(16,363,"Cruceta: escenario   X / START: continuar   C\303\255rculo: personajes",.4f,480,0);
+    Port_MangaStageText(text,sizeof(text),sNr.stage);Nr_Text(16,350,text,.55f,470,1);
+    Nr_Text(16,369,"Cruceta: escenario   X / START: continuar   C\303\255rculo: personajes",.4f,480,0);
     sprintf(text,"L1 / R1: musica  %d / %d",gTeamSel->stage->bgm+1,gTeamSel->bgmCount);Nr_Text(16,382,text,.42f,480,1);
-    Nr_Box(280,403,216,24,1,1);Nr_Text(290,406,sNr.mode==PC_RAID&&sNr.players>1?"X  SALA COOPERATIVA":"X  COMENZAR COMBATE",.46f,198,1);
+    Nr_Box(280,403,216,24,1,1);Nr_Text(290,406,(sNrOnline||(sNr.mode==PC_RAID&&sNr.players>1))?"X  OPCIONES ONLINE":"X  COMENZAR COMBATE",.46f,198,1);
 }
 
 static void Nr_DrawNetwork(void) {
     s32 i;char line[100];static char *choices[]={"COMBATE LOCAL","CREAR SALA ONLINE","UNIRSE A UNA SALA"};
-    Nr_Text(26,57,"RAID COOPERATIVO",1.0f,460,1);
-    sprintf(line,"%d aliados humanos contra un jefe CPU",sNr.players);Nr_Text(26,94,line,.55f,460,0);
+    Nr_Text(26,57,sNr.mode==PC_TAG?"TAG TEAM ONLINE":sNr.mode==PC_FFA?"TODOS CONTRA TODOS ONLINE":"RAID COOPERATIVO",1.0f,460,1);
+    sprintf(line,sNrOnline?"%d jugadores por Internet o red local":"%d aliados humanos contra un jefe CPU",sNr.players);Nr_Text(26,94,line,.55f,460,0);
     for(i=0;i<3;i++) {Nr_Box(30,135+i*43,450,34,sNrConnection==i,1);Nr_Text(45,141+i*43,choices[i],.68f,420,sNrConnection==i?1:0);}
     if(sNrConnection) {
         Nr_Text(30,278,"DIRECCI\303\223N DEL ANFITRI\303\223N Y PUERTO",.48f,440,0);
@@ -353,10 +405,11 @@ static void Nr_DrawNetwork(void) {
         Nr_Text(30,354,"L1/R1: campo   Arriba/abajo: valor   Cuadrado: +10",.43f,450,0);
         Nr_Text(30,374,"Mismos datos y paquetes. El puerto UDP debe ser accesible.",.4f,450,3);
     }
-    Nr_Text(30,386,"SELECT: conexion   Triangulo: crear / unirse",.34f,450,3);
+    Nr_Text(30,386,"SELECT: crear/unirse/local | Triangulo: crear/unirse",.34f,450,3);
     Nr_Box(280,403,216,24,1,1);Nr_Text(290,406,"START  CONFIRMAR",.5f,198,1);
 }
 
+/* Tower selector revision 3 - optional offline places: cross-saga form clicks restore the matching filter. */
 #include "port_tower_selector.inc"
 
 static void Nr_Draw(void) {
@@ -375,7 +428,7 @@ static void Nr_Draw(void) {
 s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     extern int Port_Setting(const char *, int);
     extern int Port_RosterTestMode(void);
-    if (!sNrTower && !Port_Setting("native_roster", 0) && !Port_RosterTestMode()) {
+    if (!sNrOnline && !sNrTower && kind!=3 && !Port_Setting("native_roster", 0) && !Port_RosterTestMode()) {
         s32 ok = 0;
         if (!gMenuArc5) gMenuArc5 = File_LoadSync(gProgress->baseFile, NULL, 0);
         if (out != NULL && out->count[0] == 1) {
@@ -424,13 +477,13 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     for(s=0;s<2;s++) for(i=0;i<5;i++) {gTsProgress->team[s].member[i].chara=i?-1:s?4:0;}
     Port_PcBattleDefault(&sNr);sNr.mode=kind==2?PC_TRAINING:kind==1||kind==3?PC_RELAY:PC_DUEL;
     if(kind==1) {if(mode==PORT_MODE_TEAM) sNr.mode=PC_TAG;else if(mode==PORT_MODE_FFA) sNr.mode=PC_FFA;else if(mode==PORT_MODE_RAID) sNr.mode=PC_RAID;}
-    sNr.players=(kind==2||kind==3)?1:mode?Port_LocalPlayers():savedPlayers==1?2:1;
+    sNr.players=sNrOnline?sNrOnline:(kind==2||kind==3)?1:mode?Port_LocalPlayers():savedPlayers==1?2:1;
     if(kind==3 && out!=NULL && out->count[1]>0) {
         sNr.mode=out->mode;sNr.players=out->players;
     }
     max=sNr.mode==PC_RELAY?10:(sNr.mode==PC_TAG||sNr.mode==PC_FFA)?5:sNr.mode==PC_RAID?4:1;
     sNr.count[0]=sNr.count[1]=max;if(sNr.mode==PC_RAID) {sNr.count[0]=sNr.players;sNr.count[1]=1;}
-    remembered=sNrTower?0:Port_RosterRecall(sNr.mode,&last);
+    remembered=(sNrTower||sNrOnline)?0:Port_RosterRecall(sNr.mode,&last);
     if(remembered && last.count[0]<=max && last.count[1]<=max && last.players==sNr.players) sNr=last;else remembered=0;
     memset(&sNr.rules,0,sizeof(sNr.rules));
     memset(sNrFilled,0,sizeof(sNrFilled));if(remembered) memset(sNrFilled,1,sizeof(sNrFilled));
@@ -443,7 +496,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             sNrFilled[1][k] = 1;
         }
         if(out->count[0]>0) sNr.count[0] = out->count[0] > 10 ? 10 : out->count[0];
-        if(out->stage>=0 && out->stage<35) sNr.stage = out->stage;
+        if(Port_MapValid(out->stage)) sNr.stage = out->stage;
     } else if(kind==3) {
         sNr.count[1]=1;
         sNrFilled[1][0]=1;
@@ -461,7 +514,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
         u32 p0,r0,p1=0,r1=0; s32 x,y,click;
         Gfx_BeginFrame();Pad_Update();Snd_Update();ColorFade_Update();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();
         p0=gPad[0].gamePressed|Port_RosterTestInput((unsigned)++sNrAge);r0=gPad[0].gameRepeat|p0;
-        if(sNr.players==2 && kind!=3) {
+        if(!sNrOnline && sNr.players==2 && kind!=3) {
             p1=gPad[1].gamePressed;r1=gPad[1].gameRepeat|p1;
         }
         if(gProgress->flags&MPROG_FREEZE) p0=r0=p1=r1=0;
@@ -497,7 +550,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
                 if(y>=Ps_Y(402)&&y<Ps_Y(423)&&x>=Ps_X(284))p0|=PADG_START;
 
             } else if(sNrPhase==1) {
-                for(i=0;i<35;i++){f32 xx=16+(i%7)*69.0f,yy=83+(i/7)*54.0f;if(x>=Ps_X(xx)&&x<Ps_X(xx+64)&&y>=Ps_Y(yy)&&y<Ps_Y(yy+48)){sNr.stage=i;Nr_StageRequest();p0|=PADG_CROSS;}}
+                for(i=(Port_MapIndex(sNr.stage)/48)*48;i<Port_MapCount()&&i<(Port_MapIndex(sNr.stage)/48+1)*48;i++){s32 cell=i%48;f32 xx=16+(cell%8)*60.0f,yy=83+(cell/8)*44.0f;if(x>=Ps_X(xx)&&x<Ps_X(xx+56)&&y>=Ps_Y(yy)&&y<Ps_Y(yy+40)){sNr.stage=Port_MapId(i);Nr_StageRequest();p0|=PADG_CROSS;}}
                 if(y>=Ps_Y(403)&&y<Ps_Y(427)&&x>=Ps_X(280))p0|=PADG_CROSS;
             } else {
                 for(i=0;i<3;i++)if(x>=Ps_X(30)&&x<Ps_X(480)&&y>=Ps_Y(135+i*43)&&y<Ps_Y(169+i*43))sNrConnection=i;
@@ -507,7 +560,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
 
         if(sNrPhase==0) {
             /* Input processing for Player 0 (Pad 0) */
-            s32 p0Side=(sNr.players==2 && kind!=3)?0:sNrSide;
+            s32 p0Side=(!sNrOnline && sNr.players==2 && kind!=3)?0:sNrSide;
             s32 old0=sNrCursor[p0Side],cur0=old0;
             if(r0&(PADG_LEFT|PADG_LEFT2)) cur0--;
             else if(r0&(PADG_RIGHT|PADG_RIGHT2)) cur0++;
@@ -528,9 +581,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             if(p0&PADG_L2)sNrSlot[p0Side]=Ps_Wrap(sNrSlot[p0Side]-1,0,sNr.count[p0Side]-1);
             if(p0&PADG_R2)sNrSlot[p0Side]=Ps_Wrap(sNrSlot[p0Side]+1,0,sNr.count[p0Side]-1);
             if((p0&PADG_SELECT)&&max>1&&sNr.mode!=PC_RAID) {
-                static s32 counts[]={1,3,5,10};s32 n=0;
-                while(n<4&&counts[n]<=sNr.count[p0Side])n++;
-                sNr.count[p0Side]=n<4&&counts[n]<=max?counts[n]:1;
+                sNr.count[p0Side]=Ps_Wrap(sNr.count[p0Side]+1,1,max);
                 if(sNrSlot[p0Side]>=sNr.count[p0Side])sNrSlot[p0Side]=0;
             }
 
@@ -565,16 +616,16 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
                 s32 slot=sNrSlot[p0Side];
                 if(sNrFilled[p0Side][slot]) sNrFilled[p0Side][slot]=0;
                 else if(slot>0){sNrSlot[p0Side]--;sNrFilled[p0Side][slot-1]=0;}
-                else if(p0Side&&sNr.players==1){sNrSide=0;Nr_List();}
+                else if(p0Side&&(sNrOnline||sNr.players==1)){sNrSide=0;Nr_List();}
                 else if(!p0Side){result=0;done=1;}
                 Snd_PlaySe(1,2);
             }
-            if(sNr.players==1 && (p0&PADG_TRIANGLE) && kind!=3) {
+            if((sNrOnline||sNr.players==1) && (p0&PADG_TRIANGLE) && kind!=3) {
                 sNrSide^=1;Snd_PlaySe(1,0);
             }
 
             /* Input processing for Player 1 (Pad 1) when in 2-Player mode */
-            if(sNr.players==2 && kind!=3) {
+            if(!sNrOnline && sNr.players==2 && kind!=3) {
                 s32 old1=sNrCursor[1],cur1=old1;
                 if(r1&(PADG_LEFT|PADG_LEFT2)) cur1--;
                 else if(r1&(PADG_RIGHT|PADG_RIGHT2)) cur1++;
@@ -590,6 +641,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
                 if(sNrCount>NR_PAGE && (p1&(PADG_L1|PADG_R1))) {
                     Nr_PageShift(1,(p1&PADG_L1)?-1:1);Snd_PlaySe(1,0);
                 }
+                if((p1&PADG_SELECT)&&max>1){sNr.count[1]=Ps_Wrap(sNr.count[1]+1,1,max);if(sNrSlot[1]>=sNr.count[1])sNrSlot[1]=0;}
                 if(p1&PADG_L2)sNrSlot[1]=Ps_Wrap(sNrSlot[1]-1,0,sNr.count[1]-1);
                 if(p1&PADG_R2)sNrSlot[1]=Ps_Wrap(sNrSlot[1]+1,0,sNr.count[1]-1);
                 if(p1&PADG_SQUARE) {
@@ -626,16 +678,16 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             /* START: Confirm and continue */
             if((p0|p1)&PADG_START) {
                 if(Nr_Complete()){if(kind==3){result=1;done=1;}sNrPhase=1;Nr_StageRequest();sNrMessage[0]=0;Snd_PlaySe(1,1);}
-                else{Ps_Copy(sNrMessage,"Completa las posiciones de ambos equipos antes de continuar.",160);Snd_PlaySe(1,7);}
+                else{Ps_Copy(sNrMessage,"Elige al menos un luchador por equipo y uno por mando activo.",160);Snd_PlaySe(1,7);}
             }
             Nr_Face();
         } else if(sNrPhase==1) {
             s32 old=sNr.stage;
             if((p0|p1)&(PADG_L1|PADG_R1)) {s32 song;gTeamSel->stage->bgm=Ps_Wrap(gTeamSel->stage->bgm+(((p0|p1)&PADG_L1)?-1:1),0,gTeamSel->bgmCount-1);song=gTeamSel->bgmIds[gTeamSel->stage->bgm];if(song==TS_BGM_RANDOM)song=Rand_Range(9)+8;Bgm_Play(PORT_BGM_FILE(song));Snd_PlaySe(1,0);}
-            if((r0|r1)&(PADG_LEFT|PADG_LEFT2))sNr.stage--;else if((r0|r1)&(PADG_RIGHT|PADG_RIGHT2))sNr.stage++;else if((r0|r1)&(PADG_UP|PADG_UP2))sNr.stage-=7;else if((r0|r1)&(PADG_DOWN|PADG_DOWN2))sNr.stage+=7;
-            sNr.stage=Ps_Wrap(sNr.stage,0,34);if(old!=sNr.stage){Nr_StageRequest();Snd_PlaySe(1,0);}
+            if((r0|r1)&(PADG_LEFT|PADG_LEFT2))sNr.stage=Port_MapStep(sNr.stage,-1);else if((r0|r1)&(PADG_RIGHT|PADG_RIGHT2))sNr.stage=Port_MapStep(sNr.stage,1);else if((r0|r1)&(PADG_UP|PADG_UP2))sNr.stage=Port_MapStep(sNr.stage,-8);else if((r0|r1)&(PADG_DOWN|PADG_DOWN2))sNr.stage=Port_MapStep(sNr.stage,8);
+            if(old!=sNr.stage){Nr_StageRequest();Snd_PlaySe(1,0);}
             if((p0|p1)&PADG_CIRCLE){sNrPhase=0;Snd_PlaySe(1,2);}
-            if((p0|p1)&(PADG_CROSS|PADG_START)){if(sNr.mode==PC_RAID&&sNr.players>1)sNrPhase=2;else {result=1;done=1;}}
+            if((p0|p1)&(PADG_CROSS|PADG_START)){if((sNrOnline||(sNr.mode==PC_RAID&&sNr.players>1))){sNrPhase=2;if(sNrOnline)sNrConnection=1;}else {result=1;done=1;}}
         } else {
             if(sNrConnection==0) {if((r0|r1)&PADG_UP)sNrConnection=2;else if((r0|r1)&PADG_DOWN)sNrConnection=1;}
             else {if((p0|p1)&PADG_TRIANGLE)sNrConnection=sNrConnection==1?2:1;
@@ -645,7 +697,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
             }
             if((p0|p1)&PADG_CIRCLE){sNrPhase=1;sNrConnection=0;}
             if((p0|p1)&PADG_SELECT)sNrConnection=(sNrConnection+1)%3;
-            if((p0|p1)&(PADG_START|PADG_CROSS)){if(!sNrConnection){result=1;done=1;}else {char addr[80];sprintf(addr,"%d.%d.%d.%d",sNrIp[0],sNrIp[1],sNrIp[2],sNrIp[3]);if(!Port_CoopLaunch(sNrConnection==1,addr,sNrIp[4],&sNr))Ps_Copy(sNrMessage,"No se pudo abrir la sala. Revisa los personajes y el puerto.",160);}}
+            if((p0|p1)&(PADG_START|PADG_CROSS)){if(!sNrConnection){result=1;done=1;}else {char addr[80];sprintf(addr,"%d.%d.%d.%d",sNrIp[0],sNrIp[1],sNrIp[2],sNrIp[3]);PcBattle launch;Nr_CopySelected(&launch);if(!Port_CoopLaunch(sNrConnection==1,addr,sNrIp[4],&launch))Ps_Copy(sNrMessage,"No se pudo abrir la sala. Revisa los personajes y el puerto.",160);}}
         }
         Nr_Draw();Font_FlushAll();ColorFade_Draw();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
         if(done)break;
@@ -654,7 +706,7 @@ s32 Port_NativeRosterPick(PcBattle *out,s32 kind,s32 dp) {
     while(gTeamSel->faceState!=TEAMSEL_LOAD_IDLE || gTeamSel->stageState!=TEAMSEL_LOAD_IDLE) {
         Gfx_BeginFrame();TeamSel_UpdateFaceLoad();TeamSel_UpdateStageLoad();Nr_Draw();Font_FlushAll();Gfx_EndFrame(1);Dma_Flush();File_Stub264D90();
     }
-    if(result) {*out=sNr;sNrBgm=sNrTower?sNr.rules.bgm1-1:gTeamSel->bgmIds[gTeamSel->stage->bgm];if(sNrBgm==TS_BGM_RANDOM)sNrBgm=Rand_Range(9)+8;if(!sNrTower)Port_RosterRemember(&sNr);Port_RosterLog(2,kind,sNr.count[0],sNr.count[1],sNr.stage);}
+    if(result) {Nr_CopySelected(out);sNrBgm=sNrTower?sNr.rules.bgm1-1:gTeamSel->bgmIds[gTeamSel->stage->bgm];if(sNrBgm==TS_BGM_RANDOM)sNrBgm=Rand_Range(9)+8;if(!sNrTower)Port_RosterRemember(out);Port_RosterLog(2,kind,out->count[0],out->count[1],out->stage);}
     if(sNrTower)Port_RaidModelsEnd();
     gPortNativeRosterActive=0;TeamSel_Term();Dma_ResetBuffers();
     gTsProgress->team[0]=saved[0];gTsProgress->team[1]=saved[1];gTsProgress->players=savedPlayers;gTsProgress->battleType=savedType;gTsProgress->dpLevel=savedDp;gTsProgress->stageCell=savedStage;gTsProgress->bgm=savedBgm;
@@ -674,3 +726,19 @@ s32 Port_NativeRosterBattle(s32 kind) {
     gProgress->mode=mode;return 1;
 }
 #endif
+
+#ifdef PORT
+s32 Port_OnlineRosterPick(s32 players) {
+    PcBattle chosen;s32 ok;sNrOnline=players;
+    ok=Port_NativeRosterPick(&chosen,1,0);sNrOnline=0;
+    return ok?Port_PcRosterQueue(&chosen):0;
+}
+#endif
+
+/* Approved manga selector authored at 1672x941. */
+
+/* Final manga bindings and fixed presentation. */
+
+/* Stage labels use caller-owned buffers across presentation ABI. */
+
+/* Inline text tables use fixed byte rows. */

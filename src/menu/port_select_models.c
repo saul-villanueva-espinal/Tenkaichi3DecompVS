@@ -113,6 +113,7 @@ void Port_SelectModelsDraw(void) {
     }
     gBtlStage->flags &= ~1;
     BtlObj_UpdateAll();
+    for(i=0;i<2;i++)if(sSelectModel[i].object>=0)BtlObj_Get(sSelectModel[i].object)->noAnim=1;
     for (i = 0; i < 2; i++) {
         m = &sSelectModel[i];
         for (j = 0; j < 2; j++)
@@ -151,6 +152,8 @@ void Port_SelectModelsDraw(void) {
         OrbitCam_SetTarget(0.0f,target,0.0f);
         OrbitCam_SetDist(dist);
         OrbitCam_SetDistRange(0.1f, 1000.0f);
+        /* Classic two-sided selection keeps its original turntable. The
+           manga Tower/Oracle previews below retain their fixed framing. */
         m->angle += 0.008f;
         if (m->angle > 3.14159265f) m->angle -= 6.2831853f;
         OrbitCam_SetAngles(0.0f, m->angle, 0.0f);
@@ -187,6 +190,7 @@ void Port_SelectModelsEnd(void) {
 typedef struct RaidPreview {SelectModel model;BtlResSlot resource;} RaidPreview;
 static RaidPreview sRaidPreview[PORT_RAID_BOSSES];
 static s32 sRaidPreviewOn,sRaidSelector;
+static volatile f32 sMenuPreviewMetrics[PORT_RAID_BOSSES][6]; /* presentation QA: angle, framing */
 extern void *Heap_Alloc(s32,u32,s32,s32);
 extern void Heap_Free(void *);
 void Port_RaidModelsBegin(void) {
@@ -228,18 +232,22 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
     static const f32 feet[5]={350,350,285,350,260};
     static const f32 pixels[5]={240,155,170,150,100};
     static const s32 order[5]={4,2,1,3,0};
-    static f32 orbit;
+
     s32 i,j,k,n,x0=sRaidSelector?171:292,x1=sRaidSelector?346:511;SelectModel *m;BtlObj *obj;BtlObjPart *root,*head;
     f32 height,width,depth,floor,body,target,dist,cx,fy,ph,maxWidth;Vec4 size;
     if(!sRaidPreviewOn) return;
-    if(sRaidSelector==2){x0=196;x1=328;}
+    if(sRaidSelector==2){x0=187;x1=330;}
+    if(sRaidSelector==3){x0=189;x1=344;}
     if(count<1) count=1;if(count>PORT_RAID_BOSSES) count=PORT_RAID_BOSSES;
     for(i=0;i<PORT_RAID_BOSSES;i++) {
         RaidPreview_Load(i);m=&sRaidPreview[i].model;
         if(m->object>=0) {obj=BtlObj_Get(m->object);obj->active=m->wanted>=0 && m->loaded==m->wanted && m->loadedCostume==m->costume;obj->state.views[0].flags=obj->state.views[1].flags=0;}
     }
     gBtlStage->flags&=~1;BtlObj_UpdateAll();
-    orbit+=.005f;if(orbit>6.2831853f) orbit-=6.2831853f;
+    /* Sample the model's presentation pose once. Imported idle animations may
+       turn the entire body even with a fixed orbit camera. */
+    for(i=0;i<PORT_RAID_BOSSES;i++)if(sRaidPreview[i].model.object>=0)BtlObj_Get(sRaidPreview[i].model.object)->noAnim=1;
+
     n=focus>=0?1:count;
     {extern void BtlObjLight_FindRes0(void);BtlObjLight_FindRes0();}
     for(k=0;k<n;k++) {
@@ -253,12 +261,13 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
         if(height<.01f || height>1000.0f) height=3.0f;
         cx=focus>=0 || count==1?399:centers[i];fy=focus>=0?354:feet[i];ph=focus>=0 || count==1?285:pixels[i];
         if(sRaidSelector) {cx=259;fy=323;ph=249;}
-        if(sRaidSelector==2){cx=264;fy=347;ph=280;}
+        if(sRaidSelector==2){cx=260;fy=286;ph=262;}
+        if(sRaidSelector==3){cx=263;fy=286;ph=262;}
         dist=height*433.0f/ph;
         maxWidth=(x1-2.0f-cx)*2.0f;if((cx-x0-2.0f)*2.0f<maxWidth) maxWidth=(cx-x0-2.0f)*2.0f;
-        if(maxWidth>(focus>=0?155.0f:i==0?112.0f:64.0f)) maxWidth=focus>=0?155.0f:i==0?112.0f:64.0f;
+        if(!sRaidSelector&&maxWidth>(focus>=0?155.0f:i==0?112.0f:64.0f)) maxWidth=focus>=0?155.0f:i==0?112.0f:64.0f;
         /* Tail/wing collision extents are unsuitable for humanoid framing. */
-        if(sRaidSelector) width=height*(sRaidSelector==2?.48f:.70f);
+        if(sRaidSelector) width=height*.48f;
         else if(width>height*.45f) width=height*.45f;
         if(depth>height*.35f) depth=height*.35f;
         if(width>0 && width*433.0f/maxWidth>dist) dist=width*433.0f/maxWidth;
@@ -270,8 +279,10 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
                            1792.0f+cx,1824.0f+fy-ph*.5f,1.0f,10877000.0f,.3f,65536.0f,1.0f);
         gOrbitCam->view.scissorX0=x0;gOrbitCam->view.scissorX1=x1;gOrbitCam->view.scissorY0=40;gOrbitCam->view.scissorY1=359;
         OrbitCam_SetTarget(0,target,0);OrbitCam_SetDist(dist);OrbitCam_SetDistRange(.1f,1000.0f);
-        if(focus>=0) {m->angle+=.003f;if(m->angle>3.14159265f) m->angle-=6.2831853f;}
-        else m->angle=3.14159265f+sinf(orbit)*.18f;
+        m->angle=3.14159265f;
+        sMenuPreviewMetrics[i][0]=m->angle;sMenuPreviewMetrics[i][1]=cx;
+        sMenuPreviewMetrics[i][2]=fy;sMenuPreviewMetrics[i][3]=ph;
+        sMenuPreviewMetrics[i][4]=height;sMenuPreviewMetrics[i][5]=dist;
         OrbitCam_SetAngles(0,m->angle,0);OrbitCam_Update(0);m->view=gOrbitCam->view;
         /* Each preview has its own camera and world scale. Depth left by the
            other cameras is meaningless here and can hide entire later models.
@@ -291,8 +302,9 @@ void Port_RaidModelsDraw(s32 count,s32 focus) {
 }
 /* Only the new Boss selector uses the centered preview camera. */
 void Port_RaidModelsDrawSelector(void) {sRaidSelector=1;Port_RaidModelsDraw(1,0);sRaidSelector=0;}
+void Port_MangaModelsDraw(void) {sRaidSelector=3;Port_RaidModelsDraw(1,0);sRaidSelector=0;}
 void Port_TowerModelsDraw(void) {sRaidSelector=2;Port_RaidModelsDraw(1,0);sRaidSelector=0;}
-void Port_RaidModelsTurn(f32 delta) {if(sRaidPreviewOn) sRaidPreview[0].model.angle+=delta;}
+void Port_RaidModelsTurn(f32 delta) {(void)delta; /* Fixed presentation: no manual or automatic rotation. */}
 void Port_RaidModelsEnd(void) {
     s32 i;if(!sRaidPreviewOn) return;
     Port_GsDrain(); /* finish pending texture/geometry reads before releasing them */
