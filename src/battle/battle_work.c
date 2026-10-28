@@ -41,7 +41,6 @@ BattleWork *Battle_GetWork(void) {
 void Battle_ClearWork(void) {
 #ifdef PORT
     { extern void Port_BattleRulesSet(const void *); Port_BattleRulesSet(NULL); }
-    { extern void Port_MartialModeSet(s32); Port_MartialModeSet(0); }
 #endif
     memset(Battle_GetWork(), 0, sizeof(BattleWork));
     BattleSetup_Clear();

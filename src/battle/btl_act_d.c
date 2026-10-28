@@ -916,8 +916,16 @@ s32 BtlAct_JumpStartHandler(BtlActDChr *chr, s32 phase) {
             }
         }
         if (BtlInput_TestAction(chr, 7, 1)) {
+#ifdef PORT
+            extern s32 Port_MartialMode(void);
+            if (!Port_MartialMode()) {
+                BtlAct_Request(chr, 0xF);
+                BtlChar_SetHeldFlag(chr, 0xE);
+            }
+#else
             BtlAct_Request(chr, 0xF);
             BtlChar_SetHeldFlag(chr, 0xE);
+#endif
         }
         BtlDecide_Main(chr, 0x1C00);
         BtlAct_Request(chr, BtlAct_GetQueued(chr));
@@ -1022,8 +1030,16 @@ s32 BtlAct_JumpAirHandler(BtlActDChr *chr, s32 phase) {
         BtlDecide_Main(chr, (BtlAnim_GetId(chr) != 0x22) ? 0x1C00 : 0x1C02);
         BtlAct_Request(chr, BtlAct_GetQueued(chr));
         if (BtlInput_TestAction(chr, 7, 1)) {
+#ifdef PORT
+            extern s32 Port_MartialMode(void);
+            if (!Port_MartialMode()) {
+                BtlAct_Request(chr, 0xF);
+                BtlChar_SetHeldFlag(chr, 0xE);
+            }
+#else
             BtlAct_Request(chr, 0xF);
             BtlChar_SetHeldFlag(chr, 0xE);
+#endif
         }
         if (BtlAnim_GetId(chr) != 0x22) {
             if (BtlInput_TestAction(chr, 0x2C, 1)) {
@@ -1040,6 +1056,13 @@ extern f32 BtlMoveParam_GetAccel(BtlActDChr *chr, s32 kind); /* vertical acceler
 
 /* Action 0x14: ascend (motion 0x2B, entered through 0x2E after a jump). */
 s32 BtlAct_AscendHandler(BtlActDChr *chr, s32 phase) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        BtlAct_Request(chr, 0x16);
+        return 1;
+    }
+#endif
     s32 motion;
     f32 speed;
     f32 vspeed;
@@ -1094,6 +1117,13 @@ s32 BtlAct_AscendHandler(BtlActDChr *chr, s32 phase) {
 
 /* Action 0x15: descend (motion 0x2C, entered through 0x1F after a jump), landing with motion 0x2D. */
 s32 BtlAct_DescendHandler(BtlActDChr *chr, s32 phase) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        BtlAct_Request(chr, 0x11);
+        return 1;
+    }
+#endif
     s32 motion;
     f32 speed;
     f32 vspeed;

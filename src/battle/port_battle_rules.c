@@ -40,7 +40,8 @@ s32 Port_BattleRulesEnraged(void) {s32 i;for(i=0;i<sBossCount;i++) if(RulesEnrag
 void Port_BattleRulesGauge(BtlMemberChr *chr,BtlMemberGauge *g,s32 init) {
     if(sMartialMode) {
         g->healthMax=40000;
-        if(init) {g->health=40000;g->ki=0;g->blast=0;g->maxPower=0;}
+        if(init) g->health=40000;
+        g->ki=0;g->blast=0;g->maxPower=0;
         return;
     }
     s32 n=RulesBoss(chr->objId);
@@ -79,16 +80,18 @@ s32 Port_BattleRulesArmor(s32 objId) {
 }
 void Port_BattleRulesTick(void) {
     s32 i;
-    if(!BtlSeq_IsFighting() || (Battle_GetWork()->flags&(BATTLE_FLAG_PAUSE|BATTLE_FLAG_LOAD_CHARA))) return;
     if(sMartialMode) {
+        extern void BtlChar_ClearFlag(void *chr, u32 n);
         for(i=0;i<BtlChar_GetCount();i++) {
             BtlMemberChr *chr=BtlChar_Get(i);BtlMemberGauge *g;
             if(!chr || chr->active<0 || chr->active>=BTL_MEMBER_SLOTS) continue;
             g=BtlMember_GetActiveGauge(chr);if(!g || g->health<=0) continue;
             g->ki=0;g->blast=0;g->maxPower=0;
+            BtlChar_ClearFlag((void *)chr, 0xE); /* Clear airborne flight flag */
         }
         return;
     }
+    if(!BtlSeq_IsFighting() || (Battle_GetWork()->flags&(BATTLE_FLAG_PAUSE|BATTLE_FLAG_LOAD_CHARA))) return;
     sTicks=(sTicks+1)%30;
     for(i=0;i<BtlChar_GetCount();i++) {
         BtlMemberChr *chr=BtlChar_Get(i);BtlMemberGauge *g;PcBattleRules *r;s32 side,n;

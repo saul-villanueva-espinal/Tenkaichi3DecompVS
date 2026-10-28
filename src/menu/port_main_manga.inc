@@ -108,7 +108,7 @@ static s32 Mm_Choose(s32 item,s32 players) {
     s32 next=Mm_Target(item);
     if(next<0){Port_NetMenuOpen();return 0;}
     if(item==4)Port_MartialModeSet(1);
-    else if(item==3)Port_MartialModeSet(0);
+    else Port_MartialModeSet(0);
     if(item==5)gPortScreen=PORT_SCREEN_TBO;
     else if(item==11)gPortDuelRole=2;
     else if(item==12 || item==13) {

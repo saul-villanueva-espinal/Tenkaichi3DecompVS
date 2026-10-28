@@ -189,6 +189,9 @@ s32 Battle_Restart(void) {
     Fade_Start(0, 1, 1.0f);
     PORT_HEAPCHK("after Fade_Start");
 #ifdef PORT
+    { extern s32 Port_MartialMode(void); extern void Port_UiNotice(const char *text); if(Port_MartialMode()) Port_UiNotice("MODO DUELO MARCIAL: Combate cuerpo a cuerpo (Sin vuelo ni poderes)"); }
+#endif
+#ifdef PORT
     if(raidRestart) {extern void Port_CoopBattleReady(void);Port_CoopBattleReady();}
 #endif
     return 0;

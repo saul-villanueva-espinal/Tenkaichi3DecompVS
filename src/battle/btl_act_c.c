@@ -658,6 +658,13 @@ s32 BtlAct_SearchHandler(Chr *chr, s32 phase) {
  * the charge input (action input 19) goes to action 0xB. A fighter that cannot fly sinks while airborne.
  */
 s32 BtlAct_ChargeHandler(Chr *chr, s32 phase) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        BtlAct_Request(chr, 0);
+        return 1;
+    }
+#endif
     Vec4 dir;
     f32 yaw;
     f32 accel;
@@ -1393,6 +1400,13 @@ s32 BtlAct_KiBlastHandler(Chr *chr, s32 phase) {
 
 /* Action 0xAF: charged ki blast: 0x7B wind-up -> 0x7C hold (until action input 91) -> 0x7D release (ki cost, voice 0x25). */
 s32 BtlAct_ChargedKiBlastHandler(Chr *chr, s32 phase) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        BtlAct_Request(chr, 0);
+        return 1;
+    }
+#endif
     Vec4 pos;
     f32 frame;
     f32 zero;
@@ -1463,6 +1477,13 @@ s32 BtlAct_ChargedKiBlastHandler(Chr *chr, s32 phase) {
  * the dash steers at the opponent. Then action 0xF.
  */
 s32 BtlAct_DashKiBlastHandler(Chr *chr, s32 phase) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        BtlAct_Request(chr, 0);
+        return 1;
+    }
+#endif
     s32 anim;
     Vec4 *dir;
     f32 speed;
@@ -1564,6 +1585,13 @@ s32 BtlAct_DashKiBlastHandler(Chr *chr, s32 phase) {
 
 /* Action 0xB1: charged ki blast while dashing (0x84 / 0x87 / 0x8A wind-up, +1 hold, +2 release). */
 s32 BtlAct_DashChargedKiBlastHandler(Chr *chr, s32 phase) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        BtlAct_Request(chr, 0);
+        return 1;
+    }
+#endif
     s32 anim;
     Vec4 *dir;
     f32 speed;
