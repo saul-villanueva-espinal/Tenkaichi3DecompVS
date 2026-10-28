@@ -544,7 +544,16 @@ s32 BtlHit_CheckDodge(HitChr *atk, HitChr *def) {
             done = 1;
             free = 1;
             if (flags & 0x100000) {
+#ifdef PORT
+                extern s32 Port_MartialMode(void);
+                if (Port_MartialMode()) {
+                    paid = 1;
+                } else {
+                    paid = BtlMember_HasKi(def, 20000) != 0;
+                }
+#else
                 paid = BtlMember_HasKi(def, 20000) != 0;
+#endif
             }
         }
         if (!done) {

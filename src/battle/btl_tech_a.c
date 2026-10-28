@@ -1322,12 +1322,6 @@ s32 BtlParam_ScaleKiCharge(BtlTechChr *chr, s32 val) {
 
 /* Parameter +0x10: flag word. */
 u32 BtlParam_GetFlags(BtlTechChr *chr) {
-#ifdef PORT
-    extern s32 Port_MartialMode(void);
-    if (Port_MartialMode()) {
-        return BtlChar_GetObj(chr)->param->flags | 0x1000;
-    }
-#endif
     return BtlChar_GetObj(chr)->param->flags;
 }
 

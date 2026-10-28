@@ -81,13 +81,11 @@ s32 Port_BattleRulesArmor(s32 objId) {
 void Port_BattleRulesTick(void) {
     s32 i;
     if(sMartialMode) {
-        extern void BtlChar_ClearFlag(void *chr, u32 n);
         for(i=0;i<BtlChar_GetCount();i++) {
             BtlMemberChr *chr=BtlChar_Get(i);BtlMemberGauge *g;
             if(!chr || chr->active<0 || chr->active>=BTL_MEMBER_SLOTS) continue;
             g=BtlMember_GetActiveGauge(chr);if(!g || g->health<=0) continue;
             g->ki=0;g->blast=0;g->maxPower=0;
-            BtlChar_ClearFlag((void *)chr, 0xE); /* Clear airborne flight flag */
         }
         return;
     }

@@ -3259,7 +3259,12 @@ s32 BtlAct_BlowAwayHandler(BtlActBChr *chr, s32 phase) {
                 BtlAct_Request(chr, BtlAct_GetQueued(chr));
             }
             if (!BtlChar_TestFlag(chr, 0x1E) && chr->actionFrame > 8) {
+#ifdef PORT
+                extern s32 Port_MartialMode(void);
+                if (Port_MartialMode() || BtlMember_HasKi(chr, BtlParam_GetRecoverKiCost(chr))) {
+#else
                 if (BtlMember_HasKi(chr, BtlParam_GetRecoverKiCost(chr))) {
+#endif
                     BtlColl_AddActionBit(chr, 0x25);
                     BtlColl_AddActionBit(chr, 0x2A);
                     if (BtlInput_TestAction(chr, 0x28, 1)) {

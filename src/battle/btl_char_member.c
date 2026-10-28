@@ -577,11 +577,6 @@ s32 BtlMember_AddKi(BtlMemberChr *chr, s32 amount) {
 
 /* Whether the active member has at least this much ki. */
 s32 BtlMember_HasKi(BtlMemberChr *chr, s32 amount) {
-#ifdef PORT
-    if (Port_MartialMode()) {
-        return 0;
-    }
-#endif
     if (BtlMember_GetActiveGauge(chr)->ki < amount) {
         return 0;
     }
@@ -639,11 +634,6 @@ void BtlMember_AddBlast(BtlMemberChr *chr, s32 amount) {
 
 /* Whether the blast stock gauge holds at least this much. */
 s32 BtlMember_HasBlast(BtlMemberChr *chr, s32 amount) {
-#ifdef PORT
-    if (Port_MartialMode()) {
-        return 0;
-    }
-#endif
     if (BtlMember_GetActiveGauge(chr)->blast < amount) {
         return 0;
     }
