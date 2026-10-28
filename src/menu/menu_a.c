@@ -950,6 +950,7 @@ s32 MainMenu_Run(s32 section) {
     s32 result = 1;
 
 #ifdef PORT
+    { extern void Port_MartialModeSet(s32); Port_MartialModeSet(0); }
     if (Port_NetSession()) {
         Port_NetLeave(); /* an online session lives in the versus mode: back at the main menu it is over (no return) */
     }

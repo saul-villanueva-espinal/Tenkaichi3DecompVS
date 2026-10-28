@@ -192,6 +192,12 @@ s32 BtlAct_QueueComboFinish(BtlActJChr *chr) {
  * blast gauge; needAllowed also requires form.allowed.
  */
 s32 BtlAct_CanTransform(BtlActJChr *chr, u32 index, s32 needBlast, s32 needAllowed) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        return 0;
+    }
+#endif
     s32 chara;
     s32 cost;
     s32 kind;
@@ -547,6 +553,12 @@ s32 BtlAct_GetTechniqueAction(BtlActJChr *chr, s32 slot) {
  * in story mode under flag 0x11F.
  */
 s32 BtlAct_CanUseTechnique(BtlActJChr *chr, s32 slot) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        return 0;
+    }
+#endif
     s32 check;
 
     if ((u32)(slot - 2) >= 3) {
@@ -662,6 +674,12 @@ s32 BtlAct_GetSkillAction(BtlActJChr *chr, s32 slot) {
  * with flag 0x100 while 3 are left), 0x37 the second kind, 0x41 the counter at + 0xE5C.
  */
 s32 BtlAct_CanUseSkill(BtlActJChr *chr, u32 slot) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        return 0;
+    }
+#endif
     s32 flags;
     s32 stack;
 

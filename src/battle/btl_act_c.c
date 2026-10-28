@@ -1310,6 +1310,13 @@ s32 BtlAct_PlaySubAnim(Chr *chr, s32 anim) {
  * opponent from node 0x11 within 36 degrees under lock-on.
  */
 s32 BtlAct_KiBlastHandler(Chr *chr, s32 phase) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        BtlAct_Request(chr, 0);
+        return 1;
+    }
+#endif
     Vec4 pos;
     s32 idle;
     f32 zero;

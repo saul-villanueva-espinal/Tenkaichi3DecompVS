@@ -52,6 +52,8 @@ int Port_PcRelayRemaining(int side);
 int Port_PcRosterCount(void);
 int Port_PcRosterId(int index);
 const char *Port_PcRosterName(int chara);
+int Port_MartialMode(void);
+void Port_MartialModeSet(int on);
 #ifdef __cplusplus
 }
 #endif

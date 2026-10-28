@@ -561,6 +561,10 @@ s32 BtlMember_AddKi(BtlMemberChr *chr, s32 amount) {
         return 0;
     }
 #ifdef PORT
+    if (Port_MartialMode()) {
+        g->ki = 0;
+        return 0;
+    }
     { extern s32 Port_BattleRulesKi(BtlMemberChr *,s32); amount=Port_BattleRulesKi(chr,amount); }
 #endif
     g->ki += amount;
@@ -573,6 +577,11 @@ s32 BtlMember_AddKi(BtlMemberChr *chr, s32 amount) {
 
 /* Whether the active member has at least this much ki. */
 s32 BtlMember_HasKi(BtlMemberChr *chr, s32 amount) {
+#ifdef PORT
+    if (Port_MartialMode()) {
+        return 0;
+    }
+#endif
     if (BtlMember_GetActiveGauge(chr)->ki < amount) {
         return 0;
     }
@@ -616,7 +625,12 @@ s32 BtlMember_DrainKi(BtlMemberChr *chr, s32 amount) {
 /* Adds to the blast stock gauge, up to its maximum. */
 void BtlMember_AddBlast(BtlMemberChr *chr, s32 amount) {
     BtlMemberGauge *g = BtlMember_GetActiveGauge(chr);
-
+#ifdef PORT
+    if (Port_MartialMode()) {
+        g->blast = 0;
+        return;
+    }
+#endif
     g->blast += amount;
     if (g->blast > g->blastMax) {
         g->blast = g->blastMax;
@@ -625,6 +639,11 @@ void BtlMember_AddBlast(BtlMemberChr *chr, s32 amount) {
 
 /* Whether the blast stock gauge holds at least this much. */
 s32 BtlMember_HasBlast(BtlMemberChr *chr, s32 amount) {
+#ifdef PORT
+    if (Port_MartialMode()) {
+        return 0;
+    }
+#endif
     if (BtlMember_GetActiveGauge(chr)->blast < amount) {
         return 0;
     }

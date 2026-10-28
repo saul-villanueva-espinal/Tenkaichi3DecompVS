@@ -10,14 +10,14 @@ static s32 sMangaCursor=14,sMangaPlayers,sMangaPlayerCursor,sMangaAge;
 static s32 sMangaOnline;
 static const char *const sMangaNames[16]={
     "Modo Historia","Ultimate Battle","Torneo Mundial","Duelo",
-    "Dragon Net","Online","Evolution Z","Entrenamiento",
+    "Duelo Marcial","Online","Evolution Z","Entrenamiento",
     "Data Center","Referencia de Personaje","Opciones","Mod Manager",
     "Tag Team","Todos vs Todos","Jefe Final","Torre de Desafios"
 };
 static const char *const sMangaHelp[16]={
     "Revive las grandes sagas de Dragon Ball.","Supera los retos de Ultimate Battle.",
     "Compite por el titulo del torneo mundial.","Elige tus guerreros y prepara un duelo.",
-    "Abre la conexion de red de Dragon Net.","Entra al centro de modos online.",
+    "Combate cuerpo a cuerpo en tierra. Sin vuelo ni poderes; puro combate marcial.","Entra al centro de modos online.",
     "Potencia y personaliza a tus guerreros.","Practica tus tecnicas y movimientos.",
     "Consulta tus datos y registros de juego.","Consulta la informacion de los personajes.",
     "Ajusta las opciones del juego.","Administra tus paquetes de personajes.",
@@ -59,6 +59,13 @@ static void Mm_Draw(void) {
     Ps_PageFull();Ps_SetShift(0);
     /* At the approved initial selection, show the user's exact image. */
     Ps_Sprite(TBO_MAIN_MANGA,0,0,512,448,0,0,1,1,PS_PLAIN,128);
+    /* Always overlay card 4 ribbon to display Duelo Marcial cleanly over background artwork */
+    {
+        f32 x4=Mm_X(sMangaBounds[4][0]),y4=Mm_Y(sMangaBounds[4][1]);
+        f32 w4=Mm_X(sMangaBounds[4][2]-sMangaBounds[4][0]),h4=Mm_Y(sMangaBounds[4][3]-sMangaBounds[4][1]);
+        Ps_Rect(x4+1,y4+h4-17,x4+w4-1,y4+h4-1,Ps_Rgba(14,14,16,230),Ps_Rgba(8,8,10,230));
+        Mm_Text(x4+4,y4+h4-18,sMangaNames[4],.88f,w4-8,0);
+    }
     if(i!=14) {
         f32 x=Mm_X(b[0]),y=Mm_Y(b[1]),w=Mm_X(b[2]-b[0]),h=Mm_Y(b[3]-b[1]);
         u32 red=Ps_Rgba(255,18,20,128),white=Ps_Rgba(255,195,180,128);
@@ -94,12 +101,14 @@ static void Mm_Draw(void) {
 }
 /* Return a real progress destination, -1 for the native network overlay. */
 static s32 Mm_Target(s32 item) {
-    static const s32 modes[16]={6,13,33,38,-1,80,48,44,53,60,62,38,40,40,80,80};
+    static const s32 modes[16]={6,13,33,38,38,80,48,44,53,60,62,38,40,40,80,80};
     return item>=0&&item<16?modes[item]:0;
 }
 static s32 Mm_Choose(s32 item,s32 players) {
     s32 next=Mm_Target(item);
     if(next<0){Port_NetMenuOpen();return 0;}
+    if(item==4)Port_MartialModeSet(1);
+    else if(item==3)Port_MartialModeSet(0);
     if(item==5)gPortScreen=PORT_SCREEN_TBO;
     else if(item==11)gPortDuelRole=2;
     else if(item==12 || item==13) {
@@ -115,6 +124,7 @@ static s32 Mm_Choose(s32 item,s32 players) {
 static s32 MainManga_Run(void) {
     s32 result=1,leaving=0,mx,my,click,old,next,hit,savedPointer=gPortNativeRosterActive;
     u32 p,r;PcBattle discard;
+    Port_MartialModeSet(0);
     gPortDuelRole=0;sMangaPlayers=0;sMangaAge=0;sMangaOnline=0;sPortModes=0;
     Port_ModesShow(NULL);Port_PcTeamsTake(&discard);gPortPcHubReady=1;gPortNativeRosterActive=1;
     ColorFade_StartIn(0,0,0,20);

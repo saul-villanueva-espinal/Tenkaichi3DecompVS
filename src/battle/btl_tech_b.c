@@ -197,6 +197,12 @@ s32 BtlParam_GetMaxPowerSound(BtlTechBChr *chr) {
 
 /* 1 unless the character has parameter flag 0x1000 and lacks ability 0x36. */
 s32 BtlParam_CanFly(BtlTechBChr *chr) {
+#ifdef PORT
+    extern s32 Port_MartialMode(void);
+    if (Port_MartialMode()) {
+        return 0;
+    }
+#endif
     if (!(BtlParam_GetFlags(chr) & 0x1000)) {
         return 1;
     }

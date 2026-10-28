@@ -7,7 +7,9 @@ extern s32 BtlSeq_IsFighting(void),BtlChar_GetCount(void),BtlOpp_GetObjId(BtlMem
 extern BtlMemberChr *BtlChar_Get(s32),*BtlChar_FindByObjId(s32);
 extern s32 Port_NetActive(void),Port_NetSession(void),Port_ModesFight(void);
 static PcBattleRules sRules,sBossRules[PORT_RAID_BOSSES];
-static s32 sRaid,sTicks,sAllies,sBossCount;
+static s32 sRaid,sTicks,sAllies,sBossCount,sMartialMode;
+int Port_MartialMode(void) {return sMartialMode;}
+void Port_MartialModeSet(int on) {sMartialMode=on?1:0;}
 void Port_BattleRulesReset(void) {sTicks=0;}
 void Port_BattleRulesSet(const PcBattle *battle) {
     static const PcBattleRules normal={0};s32 i;
@@ -36,6 +38,11 @@ static s32 RulesEnraged(s32 index) {
 }
 s32 Port_BattleRulesEnraged(void) {s32 i;for(i=0;i<sBossCount;i++) if(RulesEnraged(i)) return 1;return 0;}
 void Port_BattleRulesGauge(BtlMemberChr *chr,BtlMemberGauge *g,s32 init) {
+    if(sMartialMode) {
+        g->healthMax=40000;
+        if(init) {g->health=40000;g->ki=0;g->blast=0;g->maxPower=0;}
+        return;
+    }
     s32 n=RulesBoss(chr->objId);
     if(n>=0) {
         g->healthMax=sBossRules[n].bossHp?sBossRules[n].bossHp:60000;
@@ -45,6 +52,7 @@ void Port_BattleRulesGauge(BtlMemberChr *chr,BtlMemberGauge *g,s32 init) {
     }
 }
 s32 Port_BattleRulesDamage(BtlMemberChr *victim,s32 amount) {
+    if(sMartialMode) return amount;
     s32 pct=sRules.damagePct?sRules.damagePct:100,n;
     if(amount<=0) return amount;
     if(sRaid && RulesBoss(victim->objId)<0) {
@@ -59,17 +67,28 @@ s32 Port_BattleRulesDamage(BtlMemberChr *victim,s32 amount) {
     return amount>1000000?amount:(amount/100)*pct+(amount%100)*pct/100;
 }
 s32 Port_BattleRulesKi(BtlMemberChr *chr,s32 amount) {
+    if(sMartialMode) return 0;
     s32 pct=sRules.kiPct?sRules.kiPct:100,n=RulesBoss(chr->objId);
     if(n>=0 && RulesEnraged(n)) pct=pct*150/100;
     return amount>1000000?amount:(amount/100)*pct+(amount%100)*pct/100;
 }
 s32 Port_BattleRulesArmor(s32 objId) {
+    if(sMartialMode) return 0;
     BtlMemberChr *chr=BtlChar_FindByObjId(objId);s32 n=RulesBoss(objId);
     return chr && ((n>=0?sBossRules[n].armorSides:sRules.armorSides)&(1<<RulesSide(objId,chr->side)))?1:0;
 }
 void Port_BattleRulesTick(void) {
     s32 i;
     if(!BtlSeq_IsFighting() || (Battle_GetWork()->flags&(BATTLE_FLAG_PAUSE|BATTLE_FLAG_LOAD_CHARA))) return;
+    if(sMartialMode) {
+        for(i=0;i<BtlChar_GetCount();i++) {
+            BtlMemberChr *chr=BtlChar_Get(i);BtlMemberGauge *g;
+            if(!chr || chr->active<0 || chr->active>=BTL_MEMBER_SLOTS) continue;
+            g=BtlMember_GetActiveGauge(chr);if(!g || g->health<=0) continue;
+            g->ki=0;g->blast=0;g->maxPower=0;
+        }
+        return;
+    }
     sTicks=(sTicks+1)%30;
     for(i=0;i<BtlChar_GetCount();i++) {
         BtlMemberChr *chr=BtlChar_Get(i);BtlMemberGauge *g;PcBattleRules *r;s32 side,n;
