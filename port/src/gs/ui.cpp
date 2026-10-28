@@ -1050,7 +1050,6 @@ static void build_net(void) {
                 lastState = state;
             }
             if (tab == 2) {
-                ImGui::BeginDisabled(!service);
                 quick_status(state, lastState, name);
             } else if (state == 3 || state == 1) { // joining a code: asking the service, then reaching the lobby's owner
                 ImGui::TextUnformatted(Port_LobbyCheckingData() ? "Checking your game data... Connecting begins when it is done."
