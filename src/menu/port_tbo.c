@@ -304,7 +304,6 @@ extern void Port_SettingsWrite(void);
 
 /* the hub's modes, in the order of the list */
 #define HUB_QUICK 0
-#define HUB_QUICK 0
 #define HUB_LOBBY 1
 #define HUB_JOIN 2
 #define HUB_RAID 3
@@ -312,8 +311,6 @@ extern void Port_SettingsWrite(void);
 #define HUB_RANKED 5
 #define HUB_FRIENDS 6
 #define HUB_REPLAYS 7
-#define HUB_PROFILE 8
-#define HUB_COUNT 9
 #define HUB_PROFILE 8
 #define HUB_COUNT 9
 
@@ -948,6 +945,9 @@ static void Tb_HubUpdate(s32 live) {
             Tb_SetMode(TB_QUICK);
             break;
         case HUB_LOBBY:
+            Snd_PlaySe(1, 1);
+            sTb->crCur = CR_OPEN;
+            Tb_SetMode(TB_CREATE);
             break;
         case HUB_RAID: {
             extern s32 PortRaid_Run(void);
@@ -969,10 +969,6 @@ static void Tb_HubUpdate(s32 live) {
             }
             break;
         }
-            Snd_PlaySe(1, 1);
-            sTb->crCur = CR_OPEN;
-            Tb_SetMode(TB_CREATE);
-            break;
         case HUB_JOIN:
             Snd_PlaySe(1, 1);
             sTb->code[0] = 0;

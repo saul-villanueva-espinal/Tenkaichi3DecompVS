@@ -236,7 +236,8 @@ tournament_finished:
                         gPortDuelRole = 2;
                         gProgress->mode = 38;
                     }
-
+                }
+            }
             {   /* BT3_TBO=1 (testing): the first menu is Tenkaichi Budokai Online's (src/menu/port_tbo.c), not the
                    title: its screens, a lobby's included (BT3_LOBBY), without a button pressed */
                 static int tboEntered;
