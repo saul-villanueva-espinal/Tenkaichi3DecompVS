@@ -440,7 +440,6 @@ static char *sTbHubSay[HUB_COUNT] = {
     "Tus ultimos combates guardados para revivirlos y analizarlos. Muy pronto!",
     "El nombre y perfil que veran tus rivales en linea.",
 };
-};
 static void Tb_LobbyOpen(void);
 static void Tb_LobbyCreate(s32 byCode);
 /* Quick Match's Region: what the player chooses, and what the matchmaking service is told (port/matchmaking/worker.js:
